@@ -4,6 +4,7 @@ import '../data/restaurant_data.dart';
 import '../models/meeting_point.dart';
 import '../models/participant.dart';
 import '../models/restaurant.dart';
+import '../providers/search_provider.dart';
 
 class MidpointService {
   static List<MeetingPoint> calculate(List<Participant> participants) {
@@ -21,10 +22,11 @@ class MidpointService {
       final values = times.values.toList();
       final total = values.fold(0, (a, b) => a + b);
       final avg = total / values.length;
-      final max = values.reduce((a, b) => a > b ? a : b);
-      final min = values.reduce((a, b) => a < b ? a : b);
+      final maxVal = values.reduce((a, b) => a > b ? a : b);
+      final minVal = values.reduce((a, b) => a < b ? a : b);
 
-      final variance = values.map((v) => pow(v - avg, 2)).reduce((a, b) => a + b) / values.length;
+      final variance =
+          values.map((v) => pow(v - avg, 2)).reduce((a, b) => a + b) / values.length;
       final stdDev = sqrt(variance);
 
       results.add(MeetingPoint(
@@ -32,8 +34,8 @@ class MidpointService {
         stationName: kStations[c],
         stationEmoji: kStationEmojis[c],
         totalMinutes: total,
-        maxMinutes: max,
-        minMinutes: min,
+        maxMinutes: maxVal,
+        minMinutes: minVal,
         averageMinutes: avg,
         fairnessScore: 0,
         overallScore: 0,
@@ -52,9 +54,8 @@ class MidpointService {
       final effScore = maxTotal == minTotal
           ? 1.0
           : (maxTotal - r.totalMinutes) / (maxTotal - minTotal);
-      final fairScore = maxStd == minStd
-          ? 1.0
-          : (maxStd - r.stdDev) / (maxStd - minStd);
+      final fairScore =
+          maxStd == minStd ? 1.0 : (maxStd - r.stdDev) / (maxStd - minStd);
       final overall = 0.4 * effScore + 0.6 * fairScore;
 
       return MeetingPoint(
@@ -79,23 +80,29 @@ class MidpointService {
   static List<Restaurant> getRestaurants({
     required int stationIndex,
     String? category,
-    int? maxPrice,
+    int? maxBudget,
     bool femaleFriendly = false,
     bool hasPrivateRoom = false,
+    TimeSlot timeSlot = TimeSlot.all,
   }) {
     var list = kRestaurants.where((r) => r.stationIndex == stationIndex).toList();
 
     if (category != null && category.isNotEmpty) {
       list = list.where((r) => r.category == category).toList();
     }
-    if (maxPrice != null) {
-      list = list.where((r) => r.priceAvg <= maxPrice).toList();
+    if (maxBudget != null && maxBudget > 0) {
+      list = list.where((r) => r.priceAvg <= maxBudget).toList();
     }
     if (femaleFriendly) {
       list = list.where((r) => r.isFemalePopular).toList();
     }
     if (hasPrivateRoom) {
       list = list.where((r) => r.hasPrivateRoom).toList();
+    }
+    if (timeSlot == TimeSlot.lunch) {
+      list = list.where((r) => r.isLunchAvailable).toList();
+    } else if (timeSlot == TimeSlot.dinner) {
+      list = list.where((r) => r.isDinnerAvailable).toList();
     }
 
     list.sort((a, b) => b.rating.compareTo(a.rating));

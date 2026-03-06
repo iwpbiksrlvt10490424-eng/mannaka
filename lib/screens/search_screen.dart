@@ -19,37 +19,85 @@ class SearchScreen extends ConsumerWidget {
       backgroundColor: AppColors.background,
       body: CustomScrollView(
         slivers: [
-          SliverAppBar(
-            pinned: true,
-            expandedHeight: 120,
-            backgroundColor: Colors.white,
-            surfaceTintColor: Colors.white,
-            flexibleSpace: FlexibleSpaceBar(
-              titlePadding: const EdgeInsets.only(left: 20, bottom: 16),
-              title: const Text(
-                '集合場所を探す',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.black,
-                ),
+          // Header gradient
+          SliverToBoxAdapter(
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: AppColors.primaryGradient,
+                borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
+              ),
+              padding: EdgeInsets.fromLTRB(
+                  20, MediaQuery.of(context).padding.top + 16, 20, 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '集合場所を探す',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 24,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              '全員の駅を設定してください',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (state.participants.length < 6)
+                        GestureDetector(
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            notifier.addParticipant();
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.25),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.person_add_rounded,
+                                    color: Colors.white, size: 16),
+                                SizedBox(width: 4),
+                                Text('追加',
+                                    style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 13)),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  // Occasion tags
+                  _OccasionRow(
+                    selected: state.occasion,
+                    onSelect: notifier.setOccasion,
+                  ),
+                ],
               ),
             ),
-            actions: [
-              if (state.participants.length < 6)
-                TextButton.icon(
-                  onPressed: () {
-                    HapticFeedback.lightImpact();
-                    notifier.addParticipant();
-                  },
-                  icon: const Icon(Icons.person_add_rounded, size: 18),
-                  label: const Text('追加'),
-                  style: TextButton.styleFrom(foregroundColor: AppColors.primary),
-                ),
-            ],
           ),
+          // Participants
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
             sliver: SliverList(
               delegate: SliverChildBuilderDelegate(
                 (ctx, i) {
@@ -59,8 +107,10 @@ class SearchScreen extends ConsumerWidget {
                     participant: p,
                     index: i,
                     canRemove: state.participants.length > 1,
-                    onNameChanged: (name) => notifier.updateParticipantName(p.id, name),
-                    onStationSelected: (idx, name) => notifier.setStation(p.id, idx, name),
+                    onNameChanged: (name) =>
+                        notifier.updateParticipantName(p.id, name),
+                    onStationSelected: (idx, name) =>
+                        notifier.setStation(p.id, idx, name),
                     onStationCleared: () => notifier.clearStation(p.id),
                     onRemove: () => notifier.removeParticipant(p.id),
                   );
@@ -69,10 +119,22 @@ class SearchScreen extends ConsumerWidget {
               ),
             ),
           ),
+          // Time slot
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: _TimeSlotRow(
+                selected: state.timeSlot,
+                onSelect: notifier.setTimeSlot,
+              ),
+            ),
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 120)),
         ],
       ),
       bottomNavigationBar: Container(
-        padding: EdgeInsets.fromLTRB(16, 12, 16, MediaQuery.of(context).padding.bottom + 12),
+        padding: EdgeInsets.fromLTRB(
+            16, 12, 16, MediaQuery.of(context).padding.bottom + 12),
         decoration: BoxDecoration(
           color: Colors.white,
           boxShadow: [
@@ -95,7 +157,9 @@ class SearchScreen extends ConsumerWidget {
                 ),
               ),
             GradientButton(
-              label: '最適な集合場所を見つける',
+              label: state.occasion != Occasion.none
+                  ? '${state.occasion.emoji} ${state.occasion.label}の場所を見つける'
+                  : '最適な集合場所を見つける',
               icon: Icons.search_rounded,
               isLoading: state.isCalculating,
               onPressed: state.canCalculate && !state.isCalculating
@@ -104,7 +168,8 @@ class SearchScreen extends ConsumerWidget {
                       await notifier.calculate();
                       if (context.mounted) {
                         Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => const ResultsScreen()),
+                          MaterialPageRoute(
+                              builder: (_) => const ResultsScreen()),
                         );
                       }
                     }
@@ -112,6 +177,128 @@ class SearchScreen extends ConsumerWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _OccasionRow extends StatelessWidget {
+  const _OccasionRow({required this.selected, required this.onSelect});
+  final Occasion selected;
+  final void Function(Occasion) onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final occasions = Occasion.values.where((o) => o != Occasion.none).toList();
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: occasions.map((o) {
+          final isSelected = selected == o;
+          return GestureDetector(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              onSelect(isSelected ? Occasion.none : o);
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              margin: const EdgeInsets.only(right: 8),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? Colors.white
+                    : Colors.white.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(20),
+                border: isSelected
+                    ? null
+                    : Border.all(
+                        color: Colors.white.withValues(alpha: 0.5)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(o.emoji, style: const TextStyle(fontSize: 14)),
+                  const SizedBox(width: 4),
+                  Text(
+                    o.label,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: isSelected ? AppColors.primary : Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+class _TimeSlotRow extends StatelessWidget {
+  const _TimeSlotRow({required this.selected, required this.onSelect});
+  final TimeSlot selected;
+  final void Function(TimeSlot) onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('時間帯',
+              style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey)),
+          const SizedBox(height: 10),
+          Row(
+            children: TimeSlot.values.map((t) {
+              final isSelected = selected == t;
+              return Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    onSelect(t);
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    margin: const EdgeInsets.only(right: 8),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    decoration: BoxDecoration(
+                      color: isSelected ? AppColors.primary : Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      '${t.emoji} ${t.label}',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: isSelected ? Colors.white : Colors.grey.shade700,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
       ),
     );
   }

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/search_provider.dart';
 import '../theme/app_theme.dart';
 import 'home_screen.dart';
 import 'search_screen.dart';
@@ -11,22 +13,31 @@ final _navIndexProvider = StateProvider<int>((ref) => 0);
 class MainScreen extends ConsumerWidget {
   const MainScreen({super.key});
 
-  static const _screens = [
-    HomeScreen(),
-    SearchScreen(),
-    HistoryScreen(),
-    SettingsScreen(),
-  ];
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final index = ref.watch(_navIndexProvider);
 
+    void navigate(int tabIndex, {Occasion? occasion}) {
+      HapticFeedback.lightImpact();
+      if (occasion != null) {
+        ref.read(searchProvider.notifier).startWithOccasion(occasion);
+      }
+      ref.read(_navIndexProvider.notifier).state = tabIndex;
+    }
+
+    final screens = [
+      HomeScreen(onNavigate: navigate),
+      const SearchScreen(),
+      const HistoryScreen(),
+      const SettingsScreen(),
+    ];
+
     return Scaffold(
-      body: IndexedStack(index: index, children: _screens),
+      body: IndexedStack(index: index, children: screens),
       bottomNavigationBar: NavigationBar(
         selectedIndex: index,
         onDestinationSelected: (i) {
+          HapticFeedback.selectionClick();
           ref.read(_navIndexProvider.notifier).state = i;
         },
         backgroundColor: Colors.white,

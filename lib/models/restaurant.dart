@@ -17,6 +17,7 @@ class Restaurant {
     this.isReservable = true,
     this.isFemalePopular = false,
     this.hasPrivateRoom = false,
+    this.occasionTags = const [],
   });
 
   final String id;
@@ -36,10 +37,30 @@ class Restaurant {
   final bool isReservable;
   final bool isFemalePopular;
   final bool hasPrivateRoom;
+  // 女子会/誕生日/ランチ会/合コン/歓迎会
+  final List<String> occasionTags;
 
   String get ratingStr => rating.toStringAsFixed(1);
-
   String get priceStr => '¥${_formatNumber(priceAvg)}〜';
+
+  // openHoursから自動判定
+  bool get isLunchAvailable {
+    final match = RegExp(r'^(\d+):').firstMatch(openHours);
+    if (match == null) return true;
+    final openHour = int.tryParse(match.group(1) ?? '') ?? 0;
+    return openHour <= 12;
+  }
+
+  bool get isDinnerAvailable {
+    return openHours.contains('翌') ||
+        openHours.contains('23:') ||
+        openHours.contains('22:') ||
+        openHours.contains('21:') ||
+        openHours.contains('20:') ||
+        openHours.contains('19:') ||
+        openHours.contains('18:') ||
+        openHours.contains('17:');
+  }
 
   String _formatNumber(int n) {
     return n.toString().replaceAllMapped(

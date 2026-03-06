@@ -4,6 +4,57 @@ import '../models/meeting_point.dart';
 import '../models/restaurant.dart';
 import '../services/midpoint_service.dart';
 
+enum Occasion {
+  none,
+  girlsNight,
+  birthday,
+  lunch,
+  mixer,
+  welcome,
+  date,
+}
+
+extension OccasionExt on Occasion {
+  String get label => switch (this) {
+        Occasion.none => 'なし',
+        Occasion.girlsNight => '女子会',
+        Occasion.birthday => '誕生日',
+        Occasion.lunch => 'ランチ会',
+        Occasion.mixer => '合コン',
+        Occasion.welcome => '歓迎会',
+        Occasion.date => 'デート',
+      };
+  String get emoji => switch (this) {
+        Occasion.none => '',
+        Occasion.girlsNight => '👑',
+        Occasion.birthday => '🎂',
+        Occasion.lunch => '🥗',
+        Occasion.mixer => '🥂',
+        Occasion.welcome => '🎉',
+        Occasion.date => '💕',
+      };
+  bool get filterFemale =>
+      this == Occasion.girlsNight || this == Occasion.mixer || this == Occasion.date;
+  bool get filterPrivate =>
+      this == Occasion.birthday || this == Occasion.girlsNight || this == Occasion.welcome;
+  bool get filterLunch => this == Occasion.lunch;
+}
+
+enum TimeSlot { all, lunch, dinner }
+
+extension TimeSlotExt on TimeSlot {
+  String get label => switch (this) {
+        TimeSlot.all => 'すべて',
+        TimeSlot.lunch => 'ランチ',
+        TimeSlot.dinner => 'ディナー',
+      };
+  String get emoji => switch (this) {
+        TimeSlot.all => '🕐',
+        TimeSlot.lunch => '☀️',
+        TimeSlot.dinner => '🌙',
+      };
+}
+
 class SearchState {
   const SearchState({
     this.participants = const [],
@@ -14,6 +65,9 @@ class SearchState {
     this.restaurantCategory,
     this.showFemaleFriendly = false,
     this.showPrivateRoom = false,
+    this.occasion = Occasion.none,
+    this.timeSlot = TimeSlot.all,
+    this.maxBudget = 0,
   });
 
   final List<Participant> participants;
@@ -24,16 +78,26 @@ class SearchState {
   final String? restaurantCategory;
   final bool showFemaleFriendly;
   final bool showPrivateRoom;
+  final Occasion occasion;
+  final TimeSlot timeSlot;
+  final int maxBudget; // 0 = 制限なし
 
   bool get canCalculate => participants.where((p) => p.hasStation).length >= 2;
+
+  bool get _effectiveFemale => showFemaleFriendly || occasion.filterFemale;
+  bool get _effectivePrivate => showPrivateRoom || occasion.filterPrivate;
+  TimeSlot get _effectiveTimeSlot =>
+      occasion.filterLunch ? TimeSlot.lunch : timeSlot;
 
   List<Restaurant> get restaurants {
     if (selectedMeetingPoint == null) return [];
     return MidpointService.getRestaurants(
       stationIndex: selectedMeetingPoint!.stationIndex,
       category: restaurantCategory,
-      femaleFriendly: showFemaleFriendly,
-      hasPrivateRoom: showPrivateRoom,
+      femaleFriendly: _effectiveFemale,
+      hasPrivateRoom: _effectivePrivate,
+      timeSlot: _effectiveTimeSlot,
+      maxBudget: maxBudget,
     );
   }
 
@@ -46,6 +110,9 @@ class SearchState {
     String? restaurantCategory,
     bool? showFemaleFriendly,
     bool? showPrivateRoom,
+    Occasion? occasion,
+    TimeSlot? timeSlot,
+    int? maxBudget,
     bool clearMeetingPoint = false,
     bool clearCategory = false,
   }) {
@@ -54,10 +121,14 @@ class SearchState {
       results: results ?? this.results,
       isCalculating: isCalculating ?? this.isCalculating,
       hasCalculated: hasCalculated ?? this.hasCalculated,
-      selectedMeetingPoint: clearMeetingPoint ? null : (selectedMeetingPoint ?? this.selectedMeetingPoint),
+      selectedMeetingPoint:
+          clearMeetingPoint ? null : (selectedMeetingPoint ?? this.selectedMeetingPoint),
       restaurantCategory: clearCategory ? null : (restaurantCategory ?? this.restaurantCategory),
       showFemaleFriendly: showFemaleFriendly ?? this.showFemaleFriendly,
       showPrivateRoom: showPrivateRoom ?? this.showPrivateRoom,
+      occasion: occasion ?? this.occasion,
+      timeSlot: timeSlot ?? this.timeSlot,
+      maxBudget: maxBudget ?? this.maxBudget,
     );
   }
 }
@@ -65,10 +136,8 @@ class SearchState {
 class SearchNotifier extends Notifier<SearchState> {
   @override
   SearchState build() => const SearchState(
-    participants: [
-      Participant(id: '1', name: '自分'),
-    ],
-  );
+        participants: [Participant(id: '1', name: '自分')],
+      );
 
   void addParticipant() {
     final count = state.participants.length + 1;
@@ -88,7 +157,8 @@ class SearchNotifier extends Notifier<SearchState> {
 
   void updateParticipantName(String id, String name) {
     state = state.copyWith(
-      participants: state.participants.map((p) => p.id == id ? p.copyWith(name: name) : p).toList(),
+      participants:
+          state.participants.map((p) => p.id == id ? p.copyWith(name: name) : p).toList(),
     );
   }
 
@@ -108,11 +178,22 @@ class SearchNotifier extends Notifier<SearchState> {
     );
   }
 
+  void setOccasion(Occasion o) {
+    state = state.copyWith(occasion: o);
+  }
+
+  void setTimeSlot(TimeSlot t) {
+    state = state.copyWith(timeSlot: t);
+  }
+
+  void setMaxBudget(int budget) {
+    state = state.copyWith(maxBudget: budget);
+  }
+
   Future<void> calculate() async {
     if (!state.canCalculate) return;
     state = state.copyWith(isCalculating: true);
-    // Simulate async (future API call)
-    await Future.delayed(const Duration(milliseconds: 600));
+    await Future.delayed(const Duration(milliseconds: 700));
     final results = MidpointService.calculate(state.participants);
     state = state.copyWith(
       isCalculating: false,
@@ -140,6 +221,10 @@ class SearchNotifier extends Notifier<SearchState> {
 
   void setPrivateRoom(bool value) {
     state = state.copyWith(showPrivateRoom: value);
+  }
+
+  void startWithOccasion(Occasion o) {
+    state = state.copyWith(occasion: o, hasCalculated: false);
   }
 
   void reset() {

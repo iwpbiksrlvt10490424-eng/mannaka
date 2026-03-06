@@ -42,21 +42,18 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('集合場所の候補',
-            style: TextStyle(fontWeight: FontWeight.w800)),
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
+        title: const Text('検索結果'),
         actions: [
           if (selected != null) ...[
             IconButton(
-              icon: const Icon(Icons.ios_share_rounded),
+              icon: const Icon(Icons.ios_share, size: 22),
               onPressed: () {
                 HapticFeedback.lightImpact();
                 _showShare(context, state);
               },
             ),
             IconButton(
-              icon: const Icon(Icons.bookmark_add_outlined),
+              icon: const Icon(Icons.bookmark_border, size: 22),
               onPressed: () {
                 HapticFeedback.lightImpact();
                 ref.read(historyProvider.notifier).add(
@@ -69,7 +66,8 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
                     backgroundColor: AppColors.primary,
                     behavior: SnackBarBehavior.floating,
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
+                        borderRadius: BorderRadius.circular(10)),
+                    margin: const EdgeInsets.all(16),
                   ),
                 );
               },
@@ -79,8 +77,11 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
         bottom: TabBar(
           controller: _tab,
           labelColor: AppColors.primary,
-          unselectedLabelColor: Colors.grey,
+          unselectedLabelColor: AppColors.textTertiary,
           indicatorColor: AppColors.primary,
+          indicatorWeight: 2,
+          labelStyle: const TextStyle(
+              fontSize: 14, fontWeight: FontWeight.w600),
           tabs: [
             const Tab(text: '集合場所'),
             Tab(
@@ -95,12 +96,14 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
                           horizontal: 6, vertical: 1),
                       decoration: BoxDecoration(
                         color: AppColors.primary,
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
                         '${state.restaurants.length}',
                         style: const TextStyle(
-                            color: Colors.white, fontSize: 11),
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700),
                       ),
                     ),
                   ],
@@ -113,325 +116,381 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
       body: TabBarView(
         controller: _tab,
         children: [
-          // ─── Tab 1: 集合場所 ────────────────────────
-          _MeetingPointTab(
-            results: state.results,
-            selected: selected,
+          // ─── 集合場所タブ ──────────────────────────────────
+          _MeetingTab(
+            state: state,
             onSelect: (point) {
               HapticFeedback.lightImpact();
               notifier.selectMeetingPoint(point);
               _tab.animateTo(1);
             },
-            occasion: state.occasion,
           ),
-
-          // ─── Tab 2: レストラン ───────────────────────
-          if (selected == null)
-            const Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('👈', style: TextStyle(fontSize: 40)),
-                  SizedBox(height: 12),
-                  Text('集合場所タブで場所を選んでください',
-                      style: TextStyle(color: Colors.grey)),
-                ],
-              ),
-            )
-          else
-            _RestaurantTab(
-              state: state,
-              notifier: notifier,
-            ),
+          // ─── レストランタブ ────────────────────────────────
+          selected == null
+              ? const _EmptyRestaurant()
+              : _RestaurantTab(state: state, notifier: notifier),
         ],
       ),
     );
   }
 
   void _showShare(BuildContext context, SearchState state) {
-    final text = ShareUtils.buildMeetingPointText(state);
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (_) => _ShareSheet(text: text),
+      builder: (_) => _ShareSheet(text: ShareUtils.buildMeetingPointText(state)),
     );
   }
 }
 
 // ─── 集合場所タブ ─────────────────────────────────────────────────────────────
 
-class _MeetingPointTab extends StatelessWidget {
-  const _MeetingPointTab({
-    required this.results,
-    required this.selected,
-    required this.onSelect,
-    required this.occasion,
-  });
-
-  final List<MeetingPoint> results;
-  final MeetingPoint? selected;
+class _MeetingTab extends StatelessWidget {
+  const _MeetingTab({required this.state, required this.onSelect});
+  final SearchState state;
   final void Function(MeetingPoint) onSelect;
-  final Occasion occasion;
 
   @override
   Widget build(BuildContext context) {
+    final results = state.results;
+    final selected = state.selectedMeetingPoint;
+
     if (results.isEmpty) {
-      return const Center(child: Text('結果が見つかりませんでした'));
+      return const Center(
+          child: Text('結果が見つかりませんでした',
+              style: TextStyle(color: AppColors.textSecondary)));
     }
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
       children: [
-        if (occasion != Occasion.none)
-          _OccasionBanner(occasion: occasion),
-        // ベスト候補（大きく表示）
-        _BestPickCard(
+        if (state.occasion != Occasion.none) _OccasionNote(state.occasion),
+        // 1位: 大カード
+        _TopCard(
           point: results.first,
-          isSelected: selected?.stationIndex == results.first.stationIndex,
           onTap: () => onSelect(results.first),
         ),
         if (results.length > 1) ...[
           const SizedBox(height: 20),
           const Text(
-            '他の候補',
-            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+            'その他の候補',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
+            ),
           ),
           const SizedBox(height: 10),
-          ...results.skip(1).toList().asMap().entries.map((e) {
-            final point = e.value;
-            return _AlternativeCard(
-              point: point,
-              rank: e.key + 2,
-              isSelected: selected?.stationIndex == point.stationIndex,
-              onTap: () => onSelect(point),
-            );
-          }),
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Column(
+              children: results.skip(1).toList().asMap().entries.map((e) {
+                final point = e.value;
+                final isLast = e.key == results.length - 2;
+                return _AltRow(
+                  point: point,
+                  rank: e.key + 2,
+                  isSelected: selected?.stationIndex == point.stationIndex,
+                  showDivider: !isLast,
+                  onTap: () => onSelect(point),
+                );
+              }).toList(),
+            ),
+          ),
         ],
       ],
     );
   }
 }
 
-// ─── ベスト候補カード（大） ───────────────────────────────────────────────────
+// ─── 1位カード（シンプル・クリーン） ─────────────────────────────────────────
 
-class _BestPickCard extends StatelessWidget {
-  const _BestPickCard({
-    required this.point,
-    required this.isSelected,
-    required this.onTap,
-  });
+class _TopCard extends StatelessWidget {
+  const _TopCard({required this.point, required this.onTap});
   final MeetingPoint point;
-  final bool isSelected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: AppColors.primaryGradient,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.primary.withValues(alpha: 0.4),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+        boxShadow: AppColors.cardShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // カラーアクセントバー
+          Container(
+            height: 4,
+            decoration: const BoxDecoration(
+              color: AppColors.primary,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(15)),
             ),
-          ],
-        ),
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+          ),
+          Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.25),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Text(
-                    '🏆 おすすめ',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700),
-                  ),
-                ),
-                const Spacer(),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    point.fairnessLabel,
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Text(point.stationEmoji,
-                    style: const TextStyle(fontSize: 48)),
-                const SizedBox(width: 14),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                // バッジ
+                Row(
                   children: [
-                    Text(
-                      '${point.stationName}駅',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 26,
-                        fontWeight: FontWeight.w800,
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryLight,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text(
+                        '🏆 おすすめ',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.primary,
+                        ),
                       ),
                     ),
-                    Text(
-                      '平均 ${point.averageMinutes.toStringAsFixed(0)}分 ·'
-                      ' 最大 ${point.maxMinutes}分',
-                      style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.85),
-                          fontSize: 13),
+                    const Spacer(),
+                    _FairChip(score: point.fairnessScore),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                // 駅名
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text(point.stationEmoji,
+                        style: const TextStyle(fontSize: 40)),
+                    const SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${point.stationName}駅',
+                          style: const TextStyle(
+                            fontSize: 26,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.textPrimary,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                        Text(
+                          '平均 ${point.averageMinutes.toStringAsFixed(0)}分  最大 ${point.maxMinutes}分',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
+                const SizedBox(height: 14),
+                // 参加者タイム
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: point.participantTimes.entries.map((e) {
+                    return Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: AppColors.background,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: Text(
+                        '${e.key}  ${e.value}分',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 16),
+                // CTA
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: onTap,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: const Text(
+                      'このエリアのレストランを見る',
+                      style: TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ),
               ],
             ),
-            const SizedBox(height: 16),
-            // 参加者の時間
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: point.participantTimes.entries.map((e) {
-                return Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    '${e.key} ${e.value}分',
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500),
-                  ),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 14),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                'このエリアのレストランを見る →',
-                style: TextStyle(
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 14,
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
-// ─── 代替候補カード（小） ─────────────────────────────────────────────────────
+// ─── 代替候補行（リストセル形式） ─────────────────────────────────────────────
 
-class _AlternativeCard extends StatelessWidget {
-  const _AlternativeCard({
+class _AltRow extends StatelessWidget {
+  const _AltRow({
     required this.point,
     required this.rank,
     required this.isSelected,
+    required this.showDivider,
     required this.onTap,
   });
   final MeetingPoint point;
   final int rank;
   final bool isSelected;
+  final bool showDivider;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.white,
+    return Column(
+      children: [
+        InkWell(
+          onTap: onTap,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: isSelected ? AppColors.primary : Colors.transparent,
-            width: 2,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+            child: Row(
+              children: [
+                Text(point.stationEmoji,
+                    style: const TextStyle(fontSize: 24)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${point.stationName}駅',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: isSelected
+                              ? AppColors.primary
+                              : AppColors.textPrimary,
+                        ),
+                      ),
+                      Text(
+                        '平均 ${point.averageMinutes.toStringAsFixed(0)}分 · ${point.fairnessLabel}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Row(
+                  children: point.participantTimes.entries.take(3).map((e) {
+                    return Container(
+                      margin: const EdgeInsets.only(left: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 7, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: AppColors.background,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: Text('${e.value}分',
+                          style: const TextStyle(
+                              fontSize: 11,
+                              color: AppColors.textSecondary)),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(width: 8),
+                const Icon(Icons.chevron_right,
+                    size: 16, color: AppColors.textTertiary),
+              ],
+            ),
           ),
-          boxShadow: [
-            BoxShadow(
-              color: isSelected
-                  ? AppColors.primary.withValues(alpha: 0.15)
-                  : Colors.black.withValues(alpha: 0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
         ),
-        child: Row(
-          children: [
-            Text(point.stationEmoji, style: const TextStyle(fontSize: 28)),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${point.stationName}駅',
-                    style: const TextStyle(
-                        fontSize: 15, fontWeight: FontWeight.w700),
-                  ),
-                  Text(
-                    '平均 ${point.averageMinutes.toStringAsFixed(0)}分 · ${point.fairnessLabel}',
-                    style: TextStyle(
-                        fontSize: 12, color: Colors.grey.shade500),
-                  ),
-                ],
-              ),
+        if (showDivider) const Divider(height: 1, indent: 16),
+      ],
+    );
+  }
+}
+
+// ─── 目的ノート ───────────────────────────────────────────────────────────────
+
+class _OccasionNote extends StatelessWidget {
+  const _OccasionNote(this.occasion);
+  final Occasion occasion;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.primaryLight,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.primaryBorder),
+      ),
+      child: Row(
+        children: [
+          Text(occasion.emoji, style: const TextStyle(fontSize: 16)),
+          const SizedBox(width: 8),
+          Text(
+            '${occasion.label}に最適な場所を表示中',
+            style: const TextStyle(
+              fontSize: 13,
+              color: AppColors.primary,
+              fontWeight: FontWeight.w500,
             ),
-            Wrap(
-              spacing: 4,
-              children: point.participantTimes.entries.take(3).map((e) {
-                return Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 7, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text('${e.value}分',
-                      style: const TextStyle(
-                          fontSize: 11, fontWeight: FontWeight.w500)),
-                );
-              }).toList(),
-            ),
-          ],
-        ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── 公平性チップ ─────────────────────────────────────────────────────────────
+
+class _FairChip extends StatelessWidget {
+  const _FairChip({required this.score});
+  final double score;
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color) = score >= 0.85
+        ? ('最公平', AppColors.success)
+        : score >= 0.65
+            ? ('フェア', const Color(0xFF2563EB))
+            : ('要確認', AppColors.warning);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+            fontSize: 11, fontWeight: FontWeight.w600, color: color),
       ),
     );
   }
@@ -453,142 +512,150 @@ class _RestaurantTabState extends State<_RestaurantTab> {
 
   @override
   Widget build(BuildContext context) {
-    final state = widget.state;
-    final notifier = widget.notifier;
-    final selected = state.selectedMeetingPoint!;
-    final categories = MidpointService.getCategories(selected.stationIndex);
+    final s = widget.state;
+    final n = widget.notifier;
+    final stationIdx = s.selectedMeetingPoint!.stationIndex;
+    final categories = MidpointService.getCategories(stationIdx);
 
     return Column(
       children: [
-        // フィルターバー
+        // フィルター
         Container(
-          color: Colors.white,
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+          color: AppColors.surface,
           child: Column(
             children: [
               // カテゴリ
               SizedBox(
-                height: 36,
+                height: 44,
                 child: ListView(
                   scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 6),
                   children: [
-                    _chip('すべて', state.restaurantCategory == null,
-                        () => notifier.setRestaurantCategory(null)),
-                    ...categories.map((c) => _chip(
+                    _filterChip(
+                        '全て', s.restaurantCategory == null,
+                        () => n.setRestaurantCategory(null)),
+                    ...categories.map((c) => _filterChip(
                           c,
-                          state.restaurantCategory == c,
-                          () => notifier.setRestaurantCategory(
-                              state.restaurantCategory == c ? null : c),
+                          s.restaurantCategory == c,
+                          () => n.setRestaurantCategory(
+                              s.restaurantCategory == c ? null : c),
                         )),
                   ],
                 ),
               ),
-              const SizedBox(height: 8),
-              // フィルタートグル行
+              const Divider(height: 1),
+              // トグル
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                 child: Row(
                   children: [
-                    _ToggleChip(
-                      label: '女性に人気',
-                      icon: Icons.favorite_rounded,
-                      active: state.showFemaleFriendly,
-                      onTap: () => notifier
-                          .setFemaleFriendly(!state.showFemaleFriendly),
+                    _ToggleBtn(
+                      '女性人気',
+                      Icons.favorite_outline,
+                      s.showFemaleFriendly,
+                      () => n.setFemaleFriendly(!s.showFemaleFriendly),
                     ),
-                    const SizedBox(width: 6),
-                    _ToggleChip(
-                      label: '個室あり',
-                      icon: Icons.meeting_room_rounded,
-                      active: state.showPrivateRoom,
-                      onTap: () =>
-                          notifier.setPrivateRoom(!state.showPrivateRoom),
+                    const SizedBox(width: 8),
+                    _ToggleBtn(
+                      '個室あり',
+                      Icons.door_back_door_outlined,
+                      s.showPrivateRoom,
+                      () => n.setPrivateRoom(!s.showPrivateRoom),
                     ),
-                    const SizedBox(width: 6),
-                    _ToggleChip(
-                      label: 'ランチ',
-                      icon: Icons.wb_sunny_outlined,
-                      active: state.timeSlot == TimeSlot.lunch,
-                      onTap: () => notifier.setTimeSlot(
-                          state.timeSlot == TimeSlot.lunch
-                              ? TimeSlot.all
-                              : TimeSlot.lunch),
+                    const SizedBox(width: 8),
+                    _ToggleBtn(
+                      'ランチ',
+                      Icons.wb_sunny_outlined,
+                      s.timeSlot == TimeSlot.lunch,
+                      () => n.setTimeSlot(s.timeSlot == TimeSlot.lunch
+                          ? TimeSlot.all
+                          : TimeSlot.lunch),
                     ),
-                    const SizedBox(width: 6),
-                    _ToggleChip(
-                      label: 'ディナー',
-                      icon: Icons.nightlight_round,
-                      active: state.timeSlot == TimeSlot.dinner,
-                      onTap: () => notifier.setTimeSlot(
-                          state.timeSlot == TimeSlot.dinner
-                              ? TimeSlot.all
-                              : TimeSlot.dinner),
+                    const SizedBox(width: 8),
+                    _ToggleBtn(
+                      'ディナー',
+                      Icons.nightlight_outlined,
+                      s.timeSlot == TimeSlot.dinner,
+                      () => n.setTimeSlot(s.timeSlot == TimeSlot.dinner
+                          ? TimeSlot.all
+                          : TimeSlot.dinner),
                     ),
-                    const SizedBox(width: 6),
-                    _ToggleChip(
-                      label: '予算',
-                      icon: Icons.attach_money_rounded,
-                      active: state.maxBudget > 0,
-                      onTap: () =>
-                          setState(() => _showBudget = !_showBudget),
+                    const SizedBox(width: 8),
+                    _ToggleBtn(
+                      s.maxBudget > 0
+                          ? '〜¥${_fmt(s.maxBudget)}'
+                          : '予算',
+                      Icons.attach_money,
+                      s.maxBudget > 0 || _showBudget,
+                      () => setState(() => _showBudget = !_showBudget),
                     ),
                   ],
                 ),
               ),
               if (_showBudget) ...[
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Text(
-                      '上限: ${state.maxBudget == 0 ? "制限なし" : "¥${_fmt(state.maxBudget)}"}',
-                      style: const TextStyle(
-                          fontSize: 12, fontWeight: FontWeight.w600),
-                    ),
-                  ],
-                ),
-                SliderTheme(
-                  data: SliderTheme.of(context).copyWith(
-                    activeTrackColor: AppColors.primary,
-                    thumbColor: AppColors.primary,
-                    overlayColor:
-                        AppColors.primary.withValues(alpha: 0.15),
-                    inactiveTrackColor: Colors.grey.shade200,
-                    trackHeight: 3,
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: Row(
+                    children: [
+                      Text(
+                        '上限: ${s.maxBudget == 0 ? "制限なし" : "¥${_fmt(s.maxBudget)}"}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
                   ),
-                  child: Slider(
-                    value: state.maxBudget.toDouble(),
-                    min: 0,
-                    max: 8000,
-                    divisions: 16,
-                    onChanged: (v) => notifier.setMaxBudget(v.round()),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                  child: SliderTheme(
+                    data: SliderTheme.of(context).copyWith(
+                      activeTrackColor: AppColors.primary,
+                      thumbColor: AppColors.primary,
+                      overlayColor:
+                          AppColors.primary.withValues(alpha: 0.12),
+                      inactiveTrackColor: AppColors.border,
+                      trackHeight: 2,
+                    ),
+                    child: Slider(
+                      value: s.maxBudget.toDouble(),
+                      min: 0,
+                      max: 8000,
+                      divisions: 16,
+                      onChanged: (v) => n.setMaxBudget(v.round()),
+                    ),
                   ),
                 ),
               ],
-              const SizedBox(height: 8),
               const Divider(height: 1),
             ],
           ),
         ),
         // リスト
         Expanded(
-          child: state.restaurants.isEmpty
+          child: s.restaurants.isEmpty
               ? Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Text('🍽️', style: TextStyle(fontSize: 48)),
+                      const Text('🍽️',
+                          style: TextStyle(fontSize: 40)),
                       const SizedBox(height: 12),
-                      Text('条件に合うお店がありません',
-                          style:
-                              TextStyle(color: Colors.grey.shade600)),
-                      const SizedBox(height: 8),
+                      const Text('条件に合うお店がありません',
+                          style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 15)),
+                      const SizedBox(height: 12),
                       TextButton(
                         onPressed: () {
-                          notifier.setFemaleFriendly(false);
-                          notifier.setPrivateRoom(false);
-                          notifier.setRestaurantCategory(null);
-                          notifier.setMaxBudget(0);
-                          notifier.setTimeSlot(TimeSlot.all);
+                          n.setFemaleFriendly(false);
+                          n.setPrivateRoom(false);
+                          n.setRestaurantCategory(null);
+                          n.setMaxBudget(0);
+                          n.setTimeSlot(TimeSlot.all);
                         },
                         child: const Text('フィルターをリセット'),
                       ),
@@ -597,13 +664,13 @@ class _RestaurantTabState extends State<_RestaurantTab> {
                 )
               : ListView.builder(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                  itemCount: state.restaurants.length,
+                  itemCount: s.restaurants.length,
                   itemBuilder: (ctx, i) => RestaurantCard(
-                    restaurant: state.restaurants[i],
+                    restaurant: s.restaurants[i],
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => RestaurantDetailScreen(
-                            restaurant: state.restaurants[i]),
+                            restaurant: s.restaurants[i]),
                       ),
                     ),
                   ),
@@ -617,35 +684,34 @@ class _RestaurantTabState extends State<_RestaurantTab> {
       n >= 1000 ? '${n ~/ 1000},${(n % 1000).toString().padLeft(3, '0')}' : '$n';
 }
 
-Widget _chip(String label, bool selected, VoidCallback onTap) {
+Widget _filterChip(String label, bool sel, VoidCallback onTap) {
   return GestureDetector(
     onTap: onTap,
     child: AnimatedContainer(
-      duration: const Duration(milliseconds: 150),
+      duration: const Duration(milliseconds: 120),
       margin: const EdgeInsets.only(right: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
       decoration: BoxDecoration(
-        color: selected ? AppColors.primary : Colors.grey.shade100,
+        color: sel ? AppColors.primaryLight : AppColors.background,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+            color: sel ? AppColors.primary : AppColors.divider,
+            width: sel ? 1.5 : 1),
       ),
       child: Text(
         label,
         style: TextStyle(
           fontSize: 13,
-          fontWeight: FontWeight.w600,
-          color: selected ? Colors.white : Colors.grey.shade700,
+          fontWeight: sel ? FontWeight.w600 : FontWeight.w400,
+          color: sel ? AppColors.primary : AppColors.textSecondary,
         ),
       ),
     ),
   );
 }
 
-class _ToggleChip extends StatelessWidget {
-  const _ToggleChip(
-      {required this.label,
-      required this.icon,
-      required this.active,
-      required this.onTap});
+class _ToggleBtn extends StatelessWidget {
+  const _ToggleBtn(this.label, this.icon, this.active, this.onTap);
   final String label;
   final IconData icon;
   final bool active;
@@ -656,29 +722,33 @@ class _ToggleChip extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        duration: const Duration(milliseconds: 120),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: active
-              ? AppColors.primary.withValues(alpha: 0.1)
-              : Colors.grey.shade100,
+          color: active ? AppColors.primaryLight : AppColors.background,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-              color: active ? AppColors.primary : Colors.transparent),
+              color: active ? AppColors.primary : AppColors.divider,
+              width: active ? 1.5 : 1),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(icon,
                 size: 13,
-                color: active ? AppColors.primary : Colors.grey.shade500),
+                color: active
+                    ? AppColors.primary
+                    : AppColors.textSecondary),
             const SizedBox(width: 4),
             Text(
               label,
               style: TextStyle(
                 fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: active ? AppColors.primary : Colors.grey.shade600,
+                fontWeight:
+                    active ? FontWeight.w600 : FontWeight.w400,
+                color: active
+                    ? AppColors.primary
+                    : AppColors.textSecondary,
               ),
             ),
           ],
@@ -688,35 +758,19 @@ class _ToggleChip extends StatelessWidget {
   }
 }
 
-// ─── 目的バナー ───────────────────────────────────────────────────────────────
-
-class _OccasionBanner extends StatelessWidget {
-  const _OccasionBanner({required this.occasion});
-  final Occasion occasion;
+class _EmptyRestaurant extends StatelessWidget {
+  const _EmptyRestaurant();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-            color: AppColors.primary.withValues(alpha: 0.2)),
-      ),
-      child: Row(
+    return const Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Text(occasion.emoji, style: const TextStyle(fontSize: 18)),
-          const SizedBox(width: 8),
-          Text(
-            '${occasion.label}に最適な場所を表示中',
-            style: TextStyle(
-              color: AppColors.primary,
-              fontWeight: FontWeight.w600,
-              fontSize: 13,
-            ),
-          ),
+          Text('←', style: TextStyle(fontSize: 32)),
+          SizedBox(height: 12),
+          Text('まず集合場所を選んでください',
+              style: TextStyle(color: AppColors.textSecondary)),
         ],
       ),
     );
@@ -748,10 +802,10 @@ class _ShareSheetState extends State<_ShareSheet> {
   Widget build(BuildContext context) {
     return Container(
       padding: EdgeInsets.fromLTRB(
-          20, 20, 20, MediaQuery.of(context).padding.bottom + 20),
+          20, 16, 20, MediaQuery.of(context).padding.bottom + 20),
       decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -768,46 +822,56 @@ class _ShareSheetState extends State<_ShareSheet> {
             ),
           ),
           const SizedBox(height: 16),
-          const Text('友達にシェアする',
-              style:
-                  TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+          const Text(
+            'LINEやSNSでシェア',
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+          ),
           const SizedBox(height: 4),
-          Text('コピーしてLINEやSNSに貼り付けてください',
-              style:
-                  TextStyle(fontSize: 13, color: Colors.grey.shade500)),
+          const Text(
+            'コピーして貼り付けてください',
+            style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+          ),
           const SizedBox(height: 14),
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: Colors.grey.shade50,
+              color: AppColors.background,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey.shade200),
+              border: Border.all(color: AppColors.border),
             ),
-            child: Text(widget.text,
-                style: const TextStyle(fontSize: 12, height: 1.6)),
+            child: Text(
+              widget.text,
+              style: const TextStyle(
+                fontSize: 12,
+                height: 1.7,
+                color: AppColors.textPrimary,
+              ),
+            ),
           ),
           const SizedBox(height: 14),
           SizedBox(
             width: double.infinity,
-            height: 50,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: _copied ? const Color(0xFF10B981) : null,
-                gradient: _copied ? null : AppColors.primaryGradient,
-                borderRadius: BorderRadius.circular(14),
+            child: ElevatedButton.icon(
+              onPressed: _copy,
+              icon: Icon(
+                  _copied ? Icons.check : Icons.copy_outlined, size: 18),
+              label: Text(
+                _copied ? 'コピーしました！LINEに貼り付けてね' : 'テキストをコピーする',
+                style: const TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.w700),
               ),
-              child: TextButton(
-                onPressed: _copy,
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                ),
-                child: Text(
-                  _copied ? '✓ コピーしました！LINEに貼り付けてね' : 'コピーしてLINEで送る',
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w700, fontSize: 15),
-                ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor:
+                    _copied ? AppColors.success : AppColors.primary,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
               ),
             ),
           ),

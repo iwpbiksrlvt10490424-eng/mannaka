@@ -100,7 +100,7 @@ class RestaurantDetailScreen extends StatelessWidget {
                         _Badge(
                           icon: Icons.meeting_room_rounded,
                           label: '個室あり',
-                          color: AppColors.secondary,
+                          color: const Color(0xFF7C3AED),
                         ),
                       if (restaurant.isReservable)
                         _Badge(

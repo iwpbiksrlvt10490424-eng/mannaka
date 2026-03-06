@@ -14,87 +14,83 @@ class HomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final history = ref.watch(historyProvider);
+    final hour = DateTime.now().hour;
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ─── ヘッダー ───────────────────────────
-            Container(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-              decoration: const BoxDecoration(
-                gradient: AppColors.primaryGradient,
-                borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
-              ),
+      body: CustomScrollView(
+        slivers: [
+          // ─── ヘッダー ────────────────────────────────────────
+          SliverToBoxAdapter(
+            child: Container(
+              color: AppColors.surface,
+              padding: EdgeInsets.fromLTRB(
+                  20, MediaQuery.of(context).padding.top + 16, 20, 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // ロゴ行
                   Row(
                     children: [
-                      const Text('🗺️', style: TextStyle(fontSize: 28)),
-                      const SizedBox(width: 8),
-                      const Text(
+                      Text(
                         'まんなか',
                         style: TextStyle(
-                          color: Colors.white,
                           fontSize: 22,
                           fontWeight: FontWeight.w800,
+                          color: AppColors.textPrimary,
+                          letterSpacing: -0.5,
                         ),
                       ),
+                      const Spacer(),
                     ],
                   ),
                   const SizedBox(height: 20),
+                  // グリーティング
+                  Text(
+                    _greeting(hour),
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
                   const Text(
-                    'みんなが集まりやすい\n場所を見つけよう',
+                    '今日はどこに\n集まりますか？',
                     style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 24,
+                      fontSize: 30,
                       fontWeight: FontWeight.w800,
-                      height: 1.3,
+                      color: AppColors.textPrimary,
+                      height: 1.2,
+                      letterSpacing: -0.8,
                     ),
                   ),
                   const SizedBox(height: 20),
-                  // メインCTA
+                  // 検索CTA
                   GestureDetector(
                     onTap: () {
                       HapticFeedback.mediumImpact();
                       onNavigate?.call(1);
                     },
                     child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 16, horizontal: 18),
                       decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.15),
-                            blurRadius: 16,
-                            offset: const Offset(0, 6),
-                          ),
-                        ],
+                        color: AppColors.primary,
+                        borderRadius: BorderRadius.circular(14),
                       ),
-                      child: Row(
+                      child: const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              gradient: AppColors.primaryGradient,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Icon(Icons.search_rounded,
-                                color: Colors.white, size: 18),
-                          ),
-                          const SizedBox(width: 10),
-                          const Text(
+                          Icon(Icons.place_outlined,
+                              color: Colors.white, size: 20),
+                          SizedBox(width: 8),
+                          Text(
                             '集合場所を探す',
                             style: TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.black87,
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.3,
                             ),
                           ),
                         ],
@@ -104,90 +100,139 @@ class HomeScreen extends ConsumerWidget {
                 ],
               ),
             ),
+          ),
 
-            // ─── コンテンツ ──────────────────────────
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+          // ─── 目的から探す ─────────────────────────────────────
+          SliverToBoxAdapter(
+            child: Container(
+              color: AppColors.surface,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 目的別ショートカット
-                  const Text(
-                    '何の集まり？',
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
-                  ),
-                  const SizedBox(height: 12),
-                  _OccasionRow(onNavigate: onNavigate),
-                  const SizedBox(height: 28),
-
-                  // 最近の検索
-                  if (history.isEmpty)
-                    _EmptyState()
-                  else ...[
-                    const Text(
-                      '最近の検索',
-                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+                  const Divider(height: 1),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
+                    child: const Text(
+                      '目的から探す',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textSecondary,
+                        letterSpacing: 0.2,
+                      ),
                     ),
-                    const SizedBox(height: 12),
-                    ...history.take(5).map((e) => _HistoryCard(entry: e)),
-                  ],
+                  ),
+                  _OccasionChips(onNavigate: onNavigate),
+                  const SizedBox(height: 16),
                 ],
+              ),
+            ),
+          ),
+
+          const SliverToBoxAdapter(child: SizedBox(height: 8)),
+
+          // ─── 最近の検索 ──────────────────────────────────────
+          if (history.isEmpty)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+                child: _FirstUseCard(),
+              ),
+            )
+          else ...[
+            SliverToBoxAdapter(
+              child: Container(
+                color: AppColors.surface,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Divider(height: 1),
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(20, 14, 20, 4),
+                      child: Text(
+                        '最近の検索',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textSecondary,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (ctx, i) => _HistoryRow(entry: history[i]),
+                childCount: history.length > 5 ? 5 : history.length,
               ),
             ),
           ],
-        ),
+
+          const SliverToBoxAdapter(child: SizedBox(height: 40)),
+        ],
       ),
     );
   }
+
+  String _greeting(int hour) {
+    if (hour < 11) return '☀️ おはようございます';
+    if (hour < 17) return '🌤 こんにちは';
+    return '🌙 こんばんは';
+  }
 }
 
-// ─── 目的別ショートカット ────────────────────────────────────────────────────
+// ─── 目的チップ ──────────────────────────────────────────────────────────────
 
-class _OccasionRow extends StatelessWidget {
-  const _OccasionRow({this.onNavigate});
+class _OccasionChips extends StatelessWidget {
+  const _OccasionChips({this.onNavigate});
   final NavigateCallback? onNavigate;
 
   static const _items = [
-    (Occasion.girlsNight, '女子会', '👑', Color(0xFFFF4E8C)),
-    (Occasion.birthday, '誕生日', '🎂', Color(0xFFA855F7)),
-    (Occasion.lunch, 'ランチ', '🥗', Color(0xFF10B981)),
-    (Occasion.mixer, '合コン', '🥂', Color(0xFF3B82F6)),
-    (Occasion.welcome, '歓迎会', '🎉', Color(0xFFF59E0B)),
-    (Occasion.date, 'デート', '💕', Color(0xFFEC4899)),
+    (Occasion.girlsNight, '女子会', '👑'),
+    (Occasion.birthday, '誕生日', '🎂'),
+    (Occasion.lunch, 'ランチ', '🥗'),
+    (Occasion.mixer, '合コン', '🥂'),
+    (Occasion.welcome, '歓迎会', '🎉'),
+    (Occasion.date, 'デート', '💕'),
   ];
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 86,
+      height: 38,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
         itemCount: _items.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 10),
-        itemBuilder: (ctx, i) {
-          final (occasion, label, emoji, color) = _items[i];
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (_, i) {
+          final (occasion, label, emoji) = _items[i];
           return GestureDetector(
             onTap: () {
               HapticFeedback.lightImpact();
               onNavigate?.call(1, occasion: occasion);
             },
             child: Container(
-              width: 72,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: color.withValues(alpha: 0.25)),
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppColors.divider),
               ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(emoji, style: const TextStyle(fontSize: 24)),
-                  const SizedBox(height: 5),
+                  Text(emoji, style: const TextStyle(fontSize: 13)),
+                  const SizedBox(width: 5),
                   Text(
                     label,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: color,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.textPrimary,
                     ),
                   ),
                 ],
@@ -200,39 +245,37 @@ class _OccasionRow extends StatelessWidget {
   }
 }
 
-// ─── 空状態 ──────────────────────────────────────────────────────────────────
+// ─── 初回利用カード ──────────────────────────────────────────────────────────
 
-class _EmptyState extends StatelessWidget {
+class _FirstUseCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(32),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         children: [
-          const Text('🗺️', style: TextStyle(fontSize: 52)),
-          const SizedBox(height: 16),
+          const Text('📍', style: TextStyle(fontSize: 40)),
+          const SizedBox(height: 12),
           const Text(
-            'はじめてみよう！',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+            'はじめてみよう',
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
-            '参加者の最寄り駅を入力するだけで\n全員に公平な集合場所を自動計算します',
+            '参加者全員の最寄り駅を入力するだけで\n全員に公平な集合場所を自動計算します',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 13,
-              color: Colors.grey.shade600,
+              color: AppColors.textSecondary,
               height: 1.6,
             ),
           ),
@@ -242,100 +285,94 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-// ─── 履歴カード ──────────────────────────────────────────────────────────────
+// ─── 履歴行（Tabelog風リストセル） ──────────────────────────────────────────
 
-class _HistoryCard extends StatelessWidget {
-  const _HistoryCard({required this.entry});
+class _HistoryRow extends StatelessWidget {
+  const _HistoryRow({required this.entry});
   final HistoryEntry entry;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
+      color: AppColors.surface,
+      child: Column(
         children: [
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              gradient: AppColors.primaryGradient,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            alignment: Alignment.center,
-            child: Text(entry.meetingPoint.stationEmoji,
-                style: const TextStyle(fontSize: 26)),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            child: Row(
               children: [
-                Text(
-                  '${entry.meetingPoint.stationName}駅',
-                  style: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.w700),
+                // アイコン
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryLight,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    entry.meetingPoint.stationEmoji,
+                    style: const TextStyle(fontSize: 22),
+                  ),
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  entry.participantNames.join('・'),
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                const SizedBox(width: 14),
+                // テキスト
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${entry.meetingPoint.stationName}駅',
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        entry.participantNames.join(' · '),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
                 ),
+                // 右側
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      '平均 ${entry.meetingPoint.averageMinutes.toStringAsFixed(0)}分',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      entry.meetingPoint.fairnessLabel,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textTertiary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 8),
+                const Icon(Icons.chevron_right,
+                    size: 18, color: AppColors.textTertiary),
               ],
             ),
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                '平均${entry.meetingPoint.averageMinutes.toStringAsFixed(0)}分',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.primary,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: _fairnessColor(entry.meetingPoint.fairnessScore)
-                      .withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  entry.meetingPoint.fairnessLabel,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: _fairnessColor(entry.meetingPoint.fairnessScore),
-                  ),
-                ),
-              ),
-            ],
-          ),
+          const Divider(indent: 20, endIndent: 0, height: 1),
         ],
       ),
     );
-  }
-
-  Color _fairnessColor(double score) {
-    if (score >= 0.85) return const Color(0xFF10B981);
-    if (score >= 0.65) return const Color(0xFF3B82F6);
-    return const Color(0xFFF59E0B);
   }
 }

@@ -18,145 +18,226 @@ class SearchScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text(
-          '集合場所を探す',
-          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20),
-        ),
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
-        elevation: 0,
+        title: const Text('集合場所を探す'),
         actions: [
-          TextButton.icon(
+          TextButton(
             onPressed: () {
               HapticFeedback.lightImpact();
               notifier.reset();
             },
-            icon: const Icon(Icons.refresh_rounded, size: 16),
-            label: const Text('リセット'),
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.grey.shade500,
+            child: const Text(
+              'リセット',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 14,
+              ),
             ),
           ),
         ],
       ),
-      body: Column(
+      body: ListView(
+        padding: EdgeInsets.zero,
         children: [
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          const SizedBox(height: 8),
+
+          // ─── 参加者 ──────────────────────────────────────────
+          _SectionLabel(label: '参加者と最寄り駅'),
+          Container(
+            color: AppColors.surface,
+            child: Column(
               children: [
-                // ─── STEP 1: 参加者 ───────────────────────────
-                _SectionHeader(
-                  step: '1',
-                  title: '参加者と最寄り駅',
-                  trailing: state.participants.length < 6
-                      ? GestureDetector(
-                          onTap: () {
-                            HapticFeedback.lightImpact();
-                            notifier.addParticipant();
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.add_rounded,
-                                    color: AppColors.primary, size: 16),
-                                const SizedBox(width: 4),
-                                Text(
-                                  '追加',
-                                  style: TextStyle(
-                                    color: AppColors.primary,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              ],
+                const Divider(height: 1),
+                ...state.participants.asMap().entries.map((e) {
+                  final p = e.value;
+                  final isLast = e.key == state.participants.length - 1;
+                  return _ParticipantRow(
+                    key: ValueKey(p.id),
+                    participant: p,
+                    index: e.key,
+                    showDivider: !isLast,
+                    canRemove: state.participants.length > 1,
+                    onStationTap: () => _pickStation(context, ref, p.id),
+                    onStationClear: () => notifier.clearStation(p.id),
+                    onNameChanged: (n) =>
+                        notifier.updateParticipantName(p.id, n),
+                    onRemove: () => notifier.removeParticipant(p.id),
+                  );
+                }),
+                if (state.participants.length < 6) ...[
+                  const Divider(height: 1),
+                  InkWell(
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      notifier.addParticipant();
+                    },
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 14),
+                      child: Row(
+                        children: [
+                          Icon(Icons.add_circle_outline,
+                              size: 20, color: AppColors.primary),
+                          SizedBox(width: 10),
+                          Text(
+                            '参加者を追加',
+                            style: TextStyle(
+                              fontSize: 15,
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
-                        )
-                      : null,
-                ),
-                const SizedBox(height: 10),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.05),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
+                        ],
                       ),
+                    ),
+                  ),
+                ],
+                const Divider(height: 1),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          // ─── 目的 ─────────────────────────────────────────────
+          _SectionLabel(label: '目的（任意）'),
+          Container(
+            color: AppColors.surface,
+            child: Column(
+              children: [
+                const Divider(height: 1),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      ...[
+                        (Occasion.none, 'なし', ''),
+                        (Occasion.girlsNight, '女子会', '👑'),
+                        (Occasion.birthday, '誕生日', '🎂'),
+                        (Occasion.lunch, 'ランチ', '🥗'),
+                        (Occasion.mixer, '合コン', '🥂'),
+                        (Occasion.welcome, '歓迎会', '🎉'),
+                        (Occasion.date, 'デート', '💕'),
+                      ].map((item) {
+                        final (occ, label, emoji) = item;
+                        final selected = state.occasion == occ;
+                        return GestureDetector(
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            notifier.setOccasion(occ);
+                          },
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 150),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: selected
+                                  ? AppColors.primaryLight
+                                  : AppColors.background,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: selected
+                                    ? AppColors.primary
+                                    : AppColors.divider,
+                                width: selected ? 1.5 : 1,
+                              ),
+                            ),
+                            child: Text(
+                              occ == Occasion.none
+                                  ? label
+                                  : '$emoji $label',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: selected
+                                    ? FontWeight.w600
+                                    : FontWeight.w400,
+                                color: selected
+                                    ? AppColors.primary
+                                    : AppColors.textSecondary,
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
                     ],
                   ),
-                  child: Column(
-                    children: state.participants.asMap().entries.map((e) {
-                      final i = e.key;
-                      final p = e.value;
-                      final isLast = i == state.participants.length - 1;
-                      return _ParticipantRow(
-                        key: ValueKey(p.id),
-                        participant: p,
-                        index: i,
-                        showDivider: !isLast,
-                        canRemove: state.participants.length > 1,
-                        onNameChanged: (name) =>
-                            notifier.updateParticipantName(p.id, name),
-                        onStationTap: () =>
-                            _pickStation(context, ref, p.id),
-                        onStationClear: () => notifier.clearStation(p.id),
-                        onRemove: () => notifier.removeParticipant(p.id),
+                ),
+                const Divider(height: 1),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          // ─── 時間帯 ───────────────────────────────────────────
+          _SectionLabel(label: '時間帯（任意）'),
+          Container(
+            color: AppColors.surface,
+            child: Column(
+              children: [
+                const Divider(height: 1),
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
+                    children: TimeSlot.values.map((t) {
+                      final selected = state.timeSlot == t;
+                      return Expanded(
+                        child: GestureDetector(
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            notifier.setTimeSlot(t);
+                          },
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 150),
+                            margin: EdgeInsets.only(
+                                right: t != TimeSlot.values.last ? 8 : 0),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            decoration: BoxDecoration(
+                              color: selected
+                                  ? AppColors.primaryLight
+                                  : AppColors.background,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: selected
+                                    ? AppColors.primary
+                                    : AppColors.divider,
+                                width: selected ? 1.5 : 1,
+                              ),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              '${t.emoji} ${t.label}',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: selected
+                                    ? FontWeight.w600
+                                    : FontWeight.w400,
+                                color: selected
+                                    ? AppColors.primary
+                                    : AppColors.textSecondary,
+                              ),
+                            ),
+                          ),
+                        ),
                       );
                     }).toList(),
                   ),
                 ),
-
-                // ─── STEP 2: 目的（任意） ──────────────────────
-                const SizedBox(height: 20),
-                const _SectionHeader(step: '2', title: '目的（任意）'),
-                const SizedBox(height: 10),
-                _OccasionPicker(
-                  selected: state.occasion,
-                  onSelect: notifier.setOccasion,
-                ),
-
-                // ─── STEP 3: 時間帯（任意） ────────────────────
-                const SizedBox(height: 20),
-                const _SectionHeader(step: '3', title: '時間帯（任意）'),
-                const SizedBox(height: 10),
-                _TimeSlotPicker(
-                  selected: state.timeSlot,
-                  onSelect: notifier.setTimeSlot,
-                ),
-
-                const SizedBox(height: 100),
+                const Divider(height: 1),
               ],
             ),
           ),
+
+          const SizedBox(height: 100),
         ],
       ),
-      bottomNavigationBar: _SearchButton(
-        state: state,
-        onSearch: () async {
-          HapticFeedback.mediumImpact();
-          await notifier.calculate();
-          if (context.mounted) {
-            Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const ResultsScreen()),
-            );
-          }
-        },
-      ),
+      bottomNavigationBar: _SearchButton(state: state, notifier: notifier),
     );
   }
 
-  void _pickStation(BuildContext context, WidgetRef ref, String participantId) async {
+  void _pickStation(
+      BuildContext context, WidgetRef ref, String participantId) async {
     HapticFeedback.lightImpact();
     final favorites = ref.read(favoritesProvider);
     final currentStation = ref
@@ -188,130 +269,25 @@ class SearchScreen extends ConsumerWidget {
   }
 }
 
-// ─── 検索ボタン ───────────────────────────────────────────────────────────────
+// ─── セクションラベル ─────────────────────────────────────────────────────────
 
-class _SearchButton extends StatelessWidget {
-  const _SearchButton({required this.state, required this.onSearch});
-  final SearchState state;
-  final VoidCallback onSearch;
-
-  @override
-  Widget build(BuildContext context) {
-    final canSearch = state.canCalculate && !state.isCalculating;
-    return Container(
-      padding: EdgeInsets.fromLTRB(
-          16, 12, 16, MediaQuery.of(context).padding.bottom + 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 12,
-            offset: const Offset(0, -3),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (!state.canCalculate)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Text(
-                '2人以上の駅を設定してください',
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
-              ),
-            ),
-          SizedBox(
-            width: double.infinity,
-            height: 54,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: canSearch ? AppColors.primaryGradient : null,
-                color: canSearch ? null : Colors.grey.shade200,
-                borderRadius: BorderRadius.circular(14),
-                boxShadow: canSearch
-                    ? [
-                        BoxShadow(
-                          color: AppColors.primary.withValues(alpha: 0.35),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ]
-                    : null,
-              ),
-              child: TextButton(
-                onPressed: canSearch ? onSearch : null,
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                ),
-                child: state.isCalculating
-                    ? const SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(
-                            color: Colors.white, strokeWidth: 2.5),
-                      )
-                    : Text(
-                        state.occasion != Occasion.none
-                            ? '${state.occasion.emoji} ${state.occasion.label}の集合場所を探す'
-                            : '最適な集合場所を探す',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: canSearch ? Colors.white : Colors.grey.shade400,
-                        ),
-                      ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── セクションヘッダー ────────────────────────────────────────────────────────
-
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.step, required this.title, this.trailing});
-  final String step;
-  final String title;
-  final Widget? trailing;
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel({required this.label});
+  final String label;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 24,
-          height: 24,
-          decoration: const BoxDecoration(
-            gradient: AppColors.primaryGradient,
-            shape: BoxShape.circle,
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            step,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: AppColors.textSecondary,
+          letterSpacing: 0.3,
         ),
-        const SizedBox(width: 8),
-        Text(
-          title,
-          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-        ),
-        if (trailing != null) ...[
-          const Spacer(),
-          trailing!,
-        ],
-      ],
+      ),
     );
   }
 }
@@ -325,9 +301,9 @@ class _ParticipantRow extends StatefulWidget {
     required this.index,
     required this.showDivider,
     required this.canRemove,
-    required this.onNameChanged,
     required this.onStationTap,
     required this.onStationClear,
+    required this.onNameChanged,
     required this.onRemove,
   });
 
@@ -335,9 +311,9 @@ class _ParticipantRow extends StatefulWidget {
   final int index;
   final bool showDivider;
   final bool canRemove;
-  final void Function(String) onNameChanged;
   final VoidCallback onStationTap;
   final VoidCallback onStationClear;
+  final void Function(String) onNameChanged;
   final VoidCallback onRemove;
 
   @override
@@ -361,257 +337,169 @@ class _ParticipantRowState extends State<_ParticipantRow> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = [
-      AppColors.primary, AppColors.secondary,
-      const Color(0xFF3B82F6), const Color(0xFF10B981),
-      const Color(0xFFF59E0B), const Color(0xFF8B5CF6),
-    ];
-    final color = colors[widget.index % colors.length];
     final p = widget.participant;
     final hasStation = p.stationIndex != null;
 
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           child: Row(
             children: [
-              // アバター
-              CircleAvatar(
-                radius: 18,
-                backgroundColor: color.withValues(alpha: 0.15),
-                child: Text(
-                  (p.name as String).isNotEmpty ? (p.name as String)[0] : '?',
-                  style: TextStyle(
-                      color: color,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14),
-                ),
-              ),
-              const SizedBox(width: 12),
-              // 名前
+              // 名前入力
               SizedBox(
-                width: 80,
+                width: 88,
                 child: TextField(
                   controller: _ctrl,
                   style: const TextStyle(
-                      fontWeight: FontWeight.w600, fontSize: 15),
+                    fontWeight: FontWeight.w500,
+                    fontSize: 15,
+                    color: AppColors.textPrimary,
+                  ),
                   decoration: const InputDecoration(
                     isDense: true,
                     contentPadding: EdgeInsets.zero,
                     border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
                     hintText: '名前',
+                    hintStyle: TextStyle(
+                        color: AppColors.textTertiary, fontSize: 15),
                   ),
                   onChanged: widget.onNameChanged,
                 ),
               ),
-              const SizedBox(width: 8),
               // 駅ボタン
               Expanded(
                 child: GestureDetector(
                   onTap: widget.onStationTap,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: hasStation
-                          ? color.withValues(alpha: 0.1)
-                          : Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.train_rounded,
-                          size: 14,
-                          color: hasStation ? color : Colors.grey.shade400,
-                        ),
-                        const SizedBox(width: 5),
-                        Expanded(
-                          child: Text(
-                            hasStation ? p.stationName as String : '駅を選ぶ',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: hasStation
-                                  ? color
-                                  : Colors.grey.shade400,
-                            ),
-                            overflow: TextOverflow.ellipsis,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      if (hasStation) ...[
+                        Text(
+                          p.stationName as String,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.textPrimary,
                           ),
                         ),
-                        if (hasStation)
-                          GestureDetector(
-                            onTap: widget.onStationClear,
-                            child: Icon(Icons.close_rounded,
-                                size: 14, color: color),
-                          )
-                        else
-                          Icon(Icons.chevron_right_rounded,
-                              size: 16, color: Colors.grey.shade400),
+                        const SizedBox(width: 6),
+                        GestureDetector(
+                          onTap: widget.onStationClear,
+                          child: const Icon(Icons.cancel,
+                              size: 16, color: AppColors.textTertiary),
+                        ),
+                      ] else ...[
+                        const Text(
+                          '最寄り駅を選ぶ',
+                          style: TextStyle(
+                            fontSize: 15,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.chevron_right,
+                            size: 18, color: AppColors.primary),
                       ],
-                    ),
+                    ],
                   ),
                 ),
               ),
-              // 削除
               if (widget.canRemove) ...[
-                const SizedBox(width: 6),
+                const SizedBox(width: 12),
                 GestureDetector(
                   onTap: () {
                     HapticFeedback.lightImpact();
                     widget.onRemove();
                   },
-                  child: Icon(Icons.remove_circle_outline_rounded,
-                      color: Colors.grey.shade400, size: 20),
+                  child: const Icon(Icons.remove_circle,
+                      size: 20, color: AppColors.textTertiary),
                 ),
               ],
             ],
           ),
         ),
         if (widget.showDivider)
-          Divider(
-              height: 1,
-              indent: 14,
-              endIndent: 14,
-              color: Colors.grey.shade100),
+          const Divider(height: 1, indent: 20, endIndent: 0),
       ],
     );
   }
 }
 
-// ─── 目的ピッカー ─────────────────────────────────────────────────────────────
+// ─── 検索ボタン ───────────────────────────────────────────────────────────────
 
-class _OccasionPicker extends StatelessWidget {
-  const _OccasionPicker({required this.selected, required this.onSelect});
-  final Occasion selected;
-  final void Function(Occasion) onSelect;
-
-  static const _items = [
-    (Occasion.none, 'なし', '–'),
-    (Occasion.girlsNight, '女子会', '👑'),
-    (Occasion.birthday, '誕生日', '🎂'),
-    (Occasion.lunch, 'ランチ', '🥗'),
-    (Occasion.mixer, '合コン', '🥂'),
-    (Occasion.welcome, '歓迎会', '🎉'),
-    (Occasion.date, 'デート', '💕'),
-  ];
+class _SearchButton extends ConsumerWidget {
+  const _SearchButton({required this.state, required this.notifier});
+  final SearchState state;
+  final SearchNotifier notifier;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final canSearch = state.canCalculate && !state.isCalculating;
+
     return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+      padding: EdgeInsets.fromLTRB(
+          16, 12, 16, MediaQuery.of(context).padding.bottom + 12),
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(top: BorderSide(color: AppColors.border)),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: _items.map((item) {
-            final (occasion, label, emoji) = item;
-            final isSelected = selected == occasion;
-            return GestureDetector(
-              onTap: () {
-                HapticFeedback.lightImpact();
-                onSelect(occasion);
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  gradient: isSelected ? AppColors.primaryGradient : null,
-                  color: isSelected ? null : Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  occasion == Occasion.none ? label : '$emoji $label',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: isSelected ? Colors.white : Colors.grey.shade700,
-                  ),
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-      ),
-    );
-  }
-}
-
-// ─── 時間帯ピッカー ───────────────────────────────────────────────────────────
-
-class _TimeSlotPicker extends StatelessWidget {
-  const _TimeSlotPicker({required this.selected, required this.onSelect});
-  final TimeSlot selected;
-  final void Function(TimeSlot) onSelect;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: TimeSlot.values.map((t) {
-          final isSelected = selected == t;
-          return Expanded(
-            child: GestureDetector(
-              onTap: () {
-                HapticFeedback.lightImpact();
-                onSelect(t);
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                margin: EdgeInsets.only(
-                    right: t != TimeSlot.values.last ? 8 : 0),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                decoration: BoxDecoration(
-                  gradient: isSelected ? AppColors.primaryGradient : null,
-                  color: isSelected ? null : Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                alignment: Alignment.center,
-                child: Column(
-                  children: [
-                    Text(t.emoji, style: const TextStyle(fontSize: 18)),
-                    const SizedBox(height: 3),
-                    Text(
-                      t.label,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color:
-                            isSelected ? Colors.white : Colors.grey.shade600,
-                      ),
-                    ),
-                  ],
-                ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (!state.canCalculate)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                '2人以上の駅を設定してください',
+                style: const TextStyle(
+                    fontSize: 13, color: AppColors.textSecondary),
               ),
             ),
-          );
-        }).toList(),
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton(
+              onPressed: canSearch
+                  ? () async {
+                      HapticFeedback.mediumImpact();
+                      await notifier.calculate();
+                      if (context.mounted) {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                              builder: (_) => const ResultsScreen()),
+                        );
+                      }
+                    }
+                  : null,
+              style: ElevatedButton.styleFrom(
+                backgroundColor:
+                    canSearch ? AppColors.primary : Colors.grey.shade200,
+                foregroundColor:
+                    canSearch ? Colors.white : AppColors.textTertiary,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              child: state.isCalculating
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                          color: Colors.white, strokeWidth: 2),
+                    )
+                  : Text(
+                      state.occasion != Occasion.none
+                          ? '${state.occasion.emoji} ${state.occasion.label}の集合場所を探す'
+                          : '最適な集合場所を探す',
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w700),
+                    ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -633,29 +521,36 @@ class _StationSheetState extends State<_StationSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final all = List.generate(kStations.length, (i) => i);
-    final filtered = all.where((i) => kStations[i].contains(_query)).toList();
+    final filtered = List.generate(kStations.length, (i) => i)
+        .where((i) => kStations[i].contains(_query))
+        .toList();
 
     return Container(
       height: MediaQuery.of(context).size.height * 0.82,
       decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Column(
         children: [
           const SizedBox(height: 8),
           Container(
-            width: 36, height: 4,
+            width: 36,
+            height: 4,
             decoration: BoxDecoration(
               color: Colors.grey.shade300,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-          const SizedBox(height: 16),
-          const Text('最寄り駅を選択',
-              style:
-                  TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 14),
+          const Text(
+            '最寄り駅を選択',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+          ),
           const SizedBox(height: 12),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -663,51 +558,56 @@ class _StationSheetState extends State<_StationSheet> {
               autofocus: true,
               decoration: InputDecoration(
                 hintText: '駅名を検索',
-                prefixIcon: const Icon(Icons.search_rounded),
+                prefixIcon: const Icon(Icons.search,
+                    color: AppColors.textTertiary, size: 20),
                 filled: true,
-                fillColor: Colors.grey.shade100,
+                fillColor: AppColors.background,
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: AppColors.border),
                 ),
-                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: AppColors.border),
+                ),
               ),
               onChanged: (v) => setState(() => _query = v),
             ),
           ),
-          // お気に入り
           if (widget.favorites.isNotEmpty && _query.isEmpty) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             SizedBox(
-              height: 40,
+              height: 36,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 itemCount: widget.favorites.length,
                 separatorBuilder: (_, __) => const SizedBox(width: 8),
                 itemBuilder: (_, i) {
-                  final fav = widget.favorites[i];
+                  final f = widget.favorites[i];
                   return GestureDetector(
-                    onTap: () => Navigator.pop(context, fav.stationIndex),
+                    onTap: () => Navigator.pop(context, f.stationIndex),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                            color: AppColors.primary.withValues(alpha: 0.3)),
+                        color: AppColors.primaryLight,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: AppColors.primaryBorder),
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.star_rounded,
+                          const Icon(Icons.star,
                               size: 12, color: AppColors.primary),
                           const SizedBox(width: 4),
-                          Text(fav.stationName,
-                              style: TextStyle(
-                                  color: AppColors.primary,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600)),
+                          Text(
+                            f.stationName,
+                            style: const TextStyle(
+                              color: AppColors.primary,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -719,8 +619,10 @@ class _StationSheetState extends State<_StationSheet> {
           const SizedBox(height: 8),
           const Divider(height: 1),
           Expanded(
-            child: ListView.builder(
+            child: ListView.separated(
               itemCount: filtered.length,
+              separatorBuilder: (_, __) =>
+                  const Divider(height: 1, indent: 56),
               itemBuilder: (_, i) {
                 final idx = filtered[i];
                 final isSelected = widget.currentIndex == idx;
@@ -730,13 +632,18 @@ class _StationSheetState extends State<_StationSheet> {
                   title: Text(
                     kStations[idx],
                     style: TextStyle(
-                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                      color: isSelected ? AppColors.primary : null,
+                      fontWeight: isSelected
+                          ? FontWeight.w700
+                          : FontWeight.w400,
+                      color: isSelected
+                          ? AppColors.primary
+                          : AppColors.textPrimary,
+                      fontSize: 15,
                     ),
                   ),
                   trailing: isSelected
-                      ? Icon(Icons.check_circle_rounded,
-                          color: AppColors.primary)
+                      ? const Icon(Icons.check_circle,
+                          color: AppColors.primary, size: 20)
                       : null,
                   onTap: () => Navigator.pop(context, idx),
                 );

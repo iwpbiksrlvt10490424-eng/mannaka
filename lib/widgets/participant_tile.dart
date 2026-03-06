@@ -72,7 +72,7 @@ class _ParticipantTileState extends ConsumerState<ParticipantTile> {
   Widget build(BuildContext context) {
     final avatarColors = [
       AppColors.primary,
-      AppColors.secondary,
+      const Color(0xFF7C3AED),
       const Color(0xFF3B82F6),
       const Color(0xFF10B981),
       const Color(0xFFF59E0B),

@@ -53,7 +53,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _NavItem(
                 icon: Icons.tune_rounded,
                 label: '重み設定',
-                color: AppColors.secondary,
+                color: const Color(0xFF7C3AED),
                 subtitle: '効率性 40% / 公平性 60%',
                 onTap: () => _showWeightInfo(context),
               ),

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/search_provider.dart';
-import '../theme/app_theme.dart';
 import 'home_screen.dart';
 import 'search_screen.dart';
 import 'history_screen.dart';
@@ -18,7 +17,7 @@ class MainScreen extends ConsumerWidget {
     final index = ref.watch(_navIndexProvider);
 
     void navigate(int tabIndex, {Occasion? occasion}) {
-      HapticFeedback.lightImpact();
+      HapticFeedback.selectionClick();
       if (occasion != null) {
         ref.read(searchProvider.notifier).startWithOccasion(occasion);
       }
@@ -40,29 +39,25 @@ class MainScreen extends ConsumerWidget {
           HapticFeedback.selectionClick();
           ref.read(_navIndexProvider.notifier).state = i;
         },
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
-        indicatorColor: AppColors.primary.withValues(alpha: 0.12),
-        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home_rounded, color: AppColors.primary),
+            selectedIcon: Icon(Icons.home_rounded),
             label: 'ホーム',
           ),
           NavigationDestination(
             icon: Icon(Icons.search_outlined),
-            selectedIcon: Icon(Icons.search_rounded, color: AppColors.primary),
+            selectedIcon: Icon(Icons.search_rounded),
             label: '検索',
           ),
           NavigationDestination(
             icon: Icon(Icons.history_outlined),
-            selectedIcon: Icon(Icons.history_rounded, color: AppColors.primary),
+            selectedIcon: Icon(Icons.history_rounded),
             label: '履歴',
           ),
           NavigationDestination(
             icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings_rounded, color: AppColors.primary),
+            selectedIcon: Icon(Icons.settings_rounded),
             label: '設定',
           ),
         ],

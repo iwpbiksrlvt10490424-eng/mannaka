@@ -2,29 +2,28 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/onboarding_provider.dart';
 import '../theme/app_theme.dart';
+import '../widgets/illustrations.dart';
 
 class _Slide {
-  const _Slide({required this.emoji, required this.title, required this.body});
-  final String emoji;
+  const _Slide({required this.title, required this.body, this.caption});
   final String title;
   final String body;
+  final String? caption; // ボタン直前に表示する一言
 }
 
 const _slides = [
   _Slide(
-    emoji: '👥',
-    title: 'みんなの駅を登録',
-    body: 'グループ全員の最寄り駅を入力するだけ。\n面倒な操作は一切なし！',
+    title: '「どこでもいい」は、\nもう終わりにしよう。',
+    body: 'あの子は東京、私は横浜、彼女は川崎。\nそんな3人にも、ちょうどいい場所がある。',
   ),
   _Slide(
-    emoji: '🎯',
-    title: '最適な集合場所を発見',
-    body: '移動時間と公平さを考慮して\n全員にとってベストな駅を自動計算。',
+    title: '「場所どうする？」の\nLINEが、消える。',
+    body: '駅を入れて、お店を選んで、リンクを送るだけ。\nあの終わらない「どこでもいいよ〜」の往復が\n一瞬で終わる。',
   ),
   _Slide(
-    emoji: '🍽️',
-    title: 'お店もまとめて提案',
-    body: '集合駅周辺のレストランも表示。\nそのままお店選びもできちゃう！',
+    title: '今日、どこで会おうか。',
+    body: '友達と過ごす時間は、場所を決める手間より\nずっと大切なはず。\nまんなかで、そのぶんだけ長く笑っていよう。',
+    caption: '準備は、駅の名前だけ。',
   ),
 ];
 
@@ -63,6 +62,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final currentSlide = _slides[_page];
     return Scaffold(
       body: SafeArea(
         child: Column(
@@ -79,7 +79,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 controller: _pageCtrl,
                 itemCount: _slides.length,
                 onPageChanged: (i) => setState(() => _page = i),
-                itemBuilder: (ctx, i) => _SlidePage(slide: _slides[i]),
+                itemBuilder: (ctx, i) => _SlidePage(slide: _slides[i], slideIndex: i),
               ),
             ),
             // Dots
@@ -92,14 +92,30 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   width: _page == i ? 24 : 8,
                   height: 8,
                   decoration: BoxDecoration(
-                    gradient: _page == i ? AppColors.primaryGradient : null,
-                    color: _page == i ? null : Colors.grey.shade300,
+                    color: _page == i ? AppColors.primary : Colors.grey.shade300,
                     borderRadius: BorderRadius.circular(4),
                   ),
                 );
               }),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 24),
+            // キャプション（最終スライドのみ）
+            AnimatedOpacity(
+              opacity: currentSlide.caption != null ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 300),
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Text(
+                  currentSlide.caption ?? '',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey.shade500,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: GestureDetector(
@@ -108,15 +124,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   decoration: BoxDecoration(
-                    gradient: AppColors.primaryGradient,
+                    color: AppColors.primary,
                     borderRadius: BorderRadius.circular(14),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primary.withValues(alpha: 0.35),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
                   ),
                   alignment: Alignment.center,
                   child: Text(
@@ -139,33 +148,24 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 }
 
 class _SlidePage extends StatelessWidget {
-  const _SlidePage({required this.slide});
+  const _SlidePage({required this.slide, required this.slideIndex});
   final _Slide slide;
+  final int slideIndex;
 
   @override
   Widget build(BuildContext context) {
+    final illustrations = [
+      const AnimatedInputIllustration(),
+      const AnimatedMidpointIllustration(size: 200),
+      const AnimatedResultIllustration(),
+    ];
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 32),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            width: 120,
-            height: 120,
-            decoration: BoxDecoration(
-              gradient: AppColors.primaryGradient,
-              borderRadius: BorderRadius.circular(32),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.primary.withValues(alpha: 0.3),
-                  blurRadius: 24,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
-            alignment: Alignment.center,
-            child: Text(slide.emoji, style: const TextStyle(fontSize: 56)),
-          ),
+          illustrations[slideIndex],
           const SizedBox(height: 40),
           Text(
             slide.title,

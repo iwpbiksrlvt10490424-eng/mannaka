@@ -1,184 +1,667 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../theme/app_theme.dart';
+import '../providers/favorites_provider.dart';
+import '../data/station_data.dart';
+import '../widgets/station_search_sheet.dart';
+import 'support_screen.dart';
+import 'policy_screen.dart';
 
-class SettingsScreen extends StatefulWidget {
+// ─── プロフィールプロバイダー ─────────────────────────────────────────────────
+final nicknameProvider = StateProvider<String>((ref) => '');
+final homeStationProvider = StateProvider<int?>((ref) => null);
+final ageGroupProvider = StateProvider<String?>((ref) => null);
+final genderProvider = StateProvider<String?>((ref) => null);
+final profileImagePathProvider = StateProvider<String?>((ref) => null);
+
+const _kAgeGroups = [
+  '18〜19歳', '20〜24歳', '25〜29歳', '30〜34歳',
+  '35〜39歳', '40〜44歳', '45〜49歳', '50〜54歳',
+  '55〜59歳', '60歳以上',
+];
+const _kGenders = ['女性', '男性', 'その他', '回答しない'];
+
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
-
   @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
-  bool _haptic = true;
-  bool _notification = false;
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  late final TextEditingController _nameCtrl;
+  final _picker = ImagePicker();
+  bool _isNavigating = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameCtrl = TextEditingController();
+    _loadPrefs();
+  }
+
+  Future<void> _loadPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final name = prefs.getString('user_nickname') ?? '';
+    final homeStation = prefs.getInt('home_station');
+    final ageGroup = prefs.getString('age_group');
+    final gender = prefs.getString('gender');
+    final imagePath = prefs.getString('profile_image_path');
+    if (mounted) {
+      _nameCtrl.text = name;
+      ref.read(nicknameProvider.notifier).state = name;
+      ref.read(homeStationProvider.notifier).state = homeStation;
+      ref.read(ageGroupProvider.notifier).state = ageGroup;
+      ref.read(genderProvider.notifier).state = gender;
+      ref.read(profileImagePathProvider.notifier).state = imagePath;
+      setState(() {});
+    }
+  }
+
+  Future<void> _saveName(String value) async {
+    ref.read(nicknameProvider.notifier).state = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('user_nickname', value);
+  }
+
+  Future<void> _pickProfileImage() async {
+    HapticFeedback.lightImpact();
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: const BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 40, height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.divider,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text('プロフィール画像を選択',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            ListTile(
+              leading: const Icon(Icons.photo_library_rounded),
+              title: const Text('フォトライブラリから選ぶ'),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt_rounded),
+              title: const Text('カメラで撮影する'),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+            ),
+            SizedBox(height: MediaQuery.of(ctx).padding.bottom + 8),
+          ],
+        ),
+      ),
+    );
+    if (source == null) return;
+    final picked = await _picker.pickImage(
+      source: source,
+      maxWidth: 512,
+      maxHeight: 512,
+      imageQuality: 80,
+    );
+    if (picked == null) return;
+    if (!mounted) return;
+    ref.read(profileImagePathProvider.notifier).state = picked.path;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('profile_image_path', picked.path);
+    setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final homeStationIdx = ref.watch(homeStationProvider);
+    final ageGroup = ref.watch(ageGroupProvider);
+    final gender = ref.watch(genderProvider);
+    final imagePath = ref.watch(profileImagePathProvider);
+    final favorites = ref.watch(favoritesProvider);
+
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text('設定', style: TextStyle(fontWeight: FontWeight.w800)),
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          _ProfileCard(),
-          const SizedBox(height: 16),
-          _SectionLabel('アプリ設定'),
-          _SettingsGroup(
-            children: [
-              _SwitchItem(
-                icon: Icons.vibration_rounded,
-                label: '触覚フィードバック',
-                color: AppColors.primary,
-                value: _haptic,
-                onChanged: (v) => setState(() => _haptic = v),
+      body: CustomScrollView(
+        slivers: [
+          SliverAppBar(
+            pinned: true,
+            backgroundColor: AppColors.primary,
+            foregroundColor: Colors.white,
+            surfaceTintColor: Colors.transparent,
+            scrolledUnderElevation: 0,
+            title: const Text(
+              'マイページ',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.3,
               ),
-              _SwitchItem(
-                icon: Icons.notifications_rounded,
-                label: '通知',
-                color: const Color(0xFF3B82F6),
-                value: _notification,
-                onChanged: (v) => setState(() => _notification = v),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _SectionLabel('計算設定'),
-          _SettingsGroup(
-            children: [
-              _NavItem(
-                icon: Icons.tune_rounded,
-                label: '重み設定',
-                color: const Color(0xFF7C3AED),
-                subtitle: '効率性 40% / 公平性 60%',
-                onTap: () => _showWeightInfo(context),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _SectionLabel('サポート'),
-          _SettingsGroup(
-            children: [
-              _NavItem(
-                icon: Icons.help_outline_rounded,
-                label: 'ヘルプ・使い方',
-                color: const Color(0xFF10B981),
-                onTap: () {},
-              ),
-              _NavItem(
-                icon: Icons.star_outline_rounded,
-                label: 'アプリを評価する',
-                color: const Color(0xFFF59E0B),
-                onTap: () {},
-              ),
-              _NavItem(
-                icon: Icons.mail_outline_rounded,
-                label: 'お問い合わせ',
-                color: Colors.grey,
-                onTap: () {},
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _SectionLabel('情報'),
-          _SettingsGroup(
-            children: [
-              _NavItem(
-                icon: Icons.privacy_tip_outlined,
-                label: 'プライバシーポリシー',
-                color: Colors.grey,
-                onTap: () {},
-              ),
-              _NavItem(
-                icon: Icons.description_outlined,
-                label: '利用規約',
-                color: Colors.grey,
-                onTap: () {},
-              ),
-              _InfoItem(label: 'バージョン', value: '1.0.0'),
-            ],
-          ),
-          const SizedBox(height: 32),
-        ],
-      ),
-    );
-  }
-
-  void _showWeightInfo(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('計算の重みについて'),
-        content: const Text(
-          '集合場所のスコアは以下の重みで計算されます。\n\n'
-          '• 効率性（移動時間の合計）: 40%\n'
-          '• 公平性（移動時間のばらつき）: 60%\n\n'
-          '全員がなるべく同じ時間で来られる場所を優先しています。',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('閉じる'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ProfileCard extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: AppColors.primaryGradient,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.3),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.25),
-              shape: BoxShape.circle,
             ),
-            alignment: Alignment.center,
-            child: const Text('🗺️', style: TextStyle(fontSize: 30)),
+            centerTitle: true,
           ),
-          const SizedBox(width: 16),
-          const Expanded(
+
+          SliverToBoxAdapter(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'まんなか',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
+                const SizedBox(height: 8),
+
+                // ─── プロフィールカード ────────────────────────────────
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: AppColors.cardShadow,
+                    ),
+                    child: Row(
+                      children: [
+                        // プロフィール画像
+                        GestureDetector(
+                          onTap: _pickProfileImage,
+                          child: Stack(
+                            children: [
+                              Container(
+                                width: 72,
+                                height: 72,
+                                decoration: BoxDecoration(
+                                  color: AppColors.primaryLight,
+                                  shape: BoxShape.circle,
+                                  image: imagePath != null && File(imagePath).existsSync()
+                                      ? DecorationImage(
+                                          image: FileImage(File(imagePath)),
+                                          fit: BoxFit.cover,
+                                        )
+                                      : null,
+                                ),
+                                child: imagePath == null || !File(imagePath).existsSync()
+                                    ? (_nameCtrl.text.isNotEmpty
+                                        ? Center(
+                                            child: Text(
+                                              _nameCtrl.text[0],
+                                              style: const TextStyle(
+                                                fontSize: 28,
+                                                fontWeight: FontWeight.w700,
+                                                color: AppColors.primary,
+                                              ),
+                                            ),
+                                          )
+                                        : const Icon(Icons.person_rounded,
+                                            size: 32, color: AppColors.primary))
+                                    : null,
+                              ),
+                              Positioned(
+                                right: 0,
+                                bottom: 0,
+                                child: Container(
+                                  width: 24,
+                                  height: 24,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                        color: Colors.white, width: 2),
+                                  ),
+                                  child: const Icon(Icons.camera_alt_rounded,
+                                      size: 12, color: Colors.white),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              TextField(
+                                controller: _nameCtrl,
+                                onChanged: _saveName,
+                                onTap: () => HapticFeedback.lightImpact(),
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.textPrimary,
+                                ),
+                                decoration: const InputDecoration(
+                                  hintText: 'ニックネームを入力',
+                                  hintStyle: TextStyle(
+                                    fontSize: 15,
+                                    color: AppColors.textTertiary,
+                                    fontWeight: FontWeight.w400,
+                                  ),
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.zero,
+                                  border: InputBorder.none,
+                                  enabledBorder: InputBorder.none,
+                                  focusedBorder: InputBorder.none,
+                                  fillColor: Colors.transparent,
+                                  filled: false,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              // ホーム駅（タップで選択）
+                              GestureDetector(
+                                onTap: () => _pickHomeStation(context, ref),
+                                child: Text(
+                                  homeStationIdx != null
+                                      ? '${kStations[homeStationIdx]}駅'
+                                      : 'ホーム駅を設定',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: homeStationIdx != null
+                                        ? AppColors.textSecondary
+                                        : AppColors.primary,
+                                    fontWeight: homeStationIdx != null
+                                        ? FontWeight.w400
+                                        : FontWeight.w600,
+                                    decoration: TextDecoration.underline,
+                                    decorationColor: homeStationIdx != null
+                                        ? AppColors.textSecondary
+                                        : AppColors.primary,
+                                  ),
+                                ),
+                              ),
+                              if (ageGroup != null || gender != null) ...[
+                                const SizedBox(height: 6),
+                                Wrap(
+                                  spacing: 6,
+                                  children: [
+                                    if (ageGroup != null)
+                                      _MiniChip(ageGroup),
+                                    if (gender != null && gender != '回答しない')
+                                      _MiniChip(gender),
+                                  ],
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                SizedBox(height: 4),
-                Text(
-                  'みんなが集まりやすい場所へ',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 13,
+
+                const SizedBox(height: 16),
+
+                // ─── プロフィール詳細 ──────────────────────────────────
+                _SectionLabel('プロフィール詳細'),
+                _SettingsGroup(
+                  children: [
+                    _NavItem(
+                      label: '年代',
+                      subtitle: ageGroup ?? '任意・未設定',
+                      onTap: () => _pickAgeGroup(context, ref),
+                    ),
+                    _NavItem(
+                      label: '性別',
+                      subtitle: (gender != null && gender != '回答しない')
+                          ? gender
+                          : '任意・未設定',
+                      onTap: () => _pickGender(context, ref),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 16),
+
+                // ─── よく使う条件 ─────────────────────────────────────────────────────
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 6),
+                  child: Text(
+                    'よく使う条件',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary,
+                      letterSpacing: 0.5,
+                    ),
                   ),
                 ),
+                _DefaultConditionTile(
+                  icon: Icons.people_outline_rounded,
+                  label: 'いつもの人数',
+                  prefKey: 'default_group_size',
+                  options: const ['2人', '3〜4人', '5人以上'],
+                ),
+                const SizedBox(height: 1, child: ColoredBox(color: Color(0xFFEEEEEE))),
+                _DefaultConditionTile(
+                  icon: Icons.schedule_rounded,
+                  label: 'よく行く時間帯',
+                  prefKey: 'default_time_slot',
+                  options: const ['ランチ', 'カフェ', 'ディナー', '飲み'],
+                ),
+
+                const SizedBox(height: 24),
+
+                // ─── お気に入りの駅 ────────────────────────────────────
+                _SectionLabel('お気に入りの駅'),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: AppColors.cardShadow,
+                    ),
+                    child: Column(
+                      children: [
+                        if (favorites.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 16),
+                            child: Row(
+                              children: [
+                                Text(
+                                  'よく使う駅を登録しておくと便利です',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.grey.shade500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ...favorites.asMap().entries.map((e) {
+                          final f = e.value;
+                          final isLast = e.key == favorites.length - 1;
+                          return Column(
+                            children: [
+                              ListTile(
+                                dense: true,
+                                contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 4),
+                                title: Text(f.stationName,
+                                    style: const TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w500)),
+                                trailing: IconButton(
+                                  icon: const Icon(Icons.close,
+                                      size: 18, color: AppColors.textTertiary),
+                                  onPressed: () {
+                                    HapticFeedback.lightImpact();
+                                    ref
+                                        .read(favoritesProvider.notifier)
+                                        .remove(f.stationIndex);
+                                  },
+                                ),
+                              ),
+                              if (!isLast)
+                                const Padding(
+                                  padding: EdgeInsets.only(left: 16),
+                                  child: SizedBox(
+                                    height: 1,
+                                    child: ColoredBox(
+                                        color: Color(0xFFEEEEEE)),
+                                  ),
+                                ),
+                            ],
+                          );
+                        }),
+                        if (favorites.isNotEmpty)
+                          const Padding(
+                            padding: EdgeInsets.only(left: 16),
+                            child: SizedBox(
+                              height: 1,
+                              child: ColoredBox(color: Color(0xFFEEEEEE)),
+                            ),
+                          ),
+                        ListTile(
+                          dense: true,
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 4),
+                          leading: Icon(
+                            favorites.length >= 3
+                                ? Icons.block_rounded
+                                : Icons.add_rounded,
+                            color: favorites.length >= 3
+                                ? Colors.grey.shade400
+                                : AppColors.primary,
+                            size: 20,
+                          ),
+                          title: Text(
+                            favorites.length >= 3 ? '上限に達しました' : '駅を追加する',
+                            style: TextStyle(
+                              fontSize: 15,
+                              color: favorites.length >= 3
+                                  ? Colors.grey.shade400
+                                  : AppColors.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          trailing: Text(
+                            '${favorites.length} / 3',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: favorites.length >= 3
+                                  ? AppColors.primary
+                                  : Colors.grey.shade400,
+                            ),
+                          ),
+                          onTap: favorites.length >= 3
+                              ? null
+                              : () => _addFavoriteStation(context, ref),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // ─── アプリ設定 ────────────────────────────────────────
+                _SectionLabel('アプリ設定'),
+                _SettingsGroup(
+                  children: [
+                    _NavItem(
+                      icon: Icons.my_location_rounded,
+                      label: '現在地を使う',
+                      color: AppColors.primary,
+                      trailing: FutureBuilder<LocationPermission>(
+                        future: Geolocator.checkPermission(),
+                        builder: (context, snap) {
+                          final granted =
+                              snap.data == LocationPermission.always ||
+                                  snap.data == LocationPermission.whileInUse;
+                          return Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                granted ? 'オン' : 'オフ',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: granted
+                                      ? AppColors.primary
+                                      : AppColors.textTertiary,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Icon(Icons.chevron_right_rounded,
+                                  size: 18, color: Colors.grey.shade400),
+                            ],
+                          );
+                        },
+                      ),
+                      onTap: () async {
+                        await Geolocator.openAppSettings();
+                      },
+                    ),
+                    _NavItem(
+                      icon: Icons.location_on_rounded,
+                      label: '位置情報の設定',
+                      color: const Color(0xFF3B82F6),
+                      subtitle: 'タップしてアプリ設定を開く',
+                      onTap: () => Geolocator.openAppSettings(),
+                    ),
+                    _NavItem(
+                      icon: Icons.notifications_rounded,
+                      label: 'プッシュ通知の設定',
+                      color: const Color(0xFFF59E0B),
+                      subtitle: 'タップしてアプリ設定を開く',
+                      onTap: () => Geolocator.openAppSettings(),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 24),
+
+                // ─── 友だちに教える ────────────────────────────────────
+                _SectionLabel('友だちに教える'),
+                _SettingsGroup(
+                  children: [
+                    _NavItem(
+                      icon: Icons.chat_bubble_rounded,
+                      label: 'LINEで送る',
+                      color: const Color(0xFF06C755),
+                      subtitle: 'LINEでシェアする',
+                      onTap: () async {
+                        const text =
+                            'まんなか — みんなが行きやすいお店を一緒に探せるアプリ！\nhttps://apps.apple.com/app/id0000000000';
+                        final encoded = Uri.encodeComponent(text);
+                        final lineUrl =
+                            Uri.parse('https://line.me/R/share?text=$encoded');
+                        if (await canLaunchUrl(lineUrl)) {
+                          await launchUrl(lineUrl,
+                              mode: LaunchMode.externalApplication);
+                        } else {
+                          await Share.share(text);
+                        }
+                      },
+                    ),
+                    _NavItem(
+                      icon: Icons.ios_share_rounded,
+                      label: 'アプリを紹介する',
+                      color: const Color(0xFF3B82F6),
+                      subtitle: 'LINEやSNSでシェア',
+                      onTap: () async {
+                        await Share.share(
+                          '【まんなか】グループの集合場所が一発で決まるアプリ！\n'
+                          'みんなの出発駅を入れるだけで、ちょうどいいお店を提案してくれます。',
+                          sharePositionOrigin: Rect.fromCenter(
+                            center: Offset(
+                              MediaQuery.of(context).size.width / 2,
+                              MediaQuery.of(context).size.height / 2,
+                            ),
+                            width: 100,
+                            height: 100,
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 24),
+
+                // ─── サポート ──────────────────────────────────────────
+                _SectionLabel('サポート'),
+                _SettingsGroup(
+                  children: [
+                    _NavItem(
+                      icon: Icons.mail_outline_rounded,
+                      label: 'お問い合わせ',
+                      color: const Color(0xFF3B82F6),
+                      subtitle: 'メールでお送りします',
+                      onTap: () => launchUrl(
+                        Uri.parse(
+                          'mailto:support@mannaka.app?subject=%E3%81%BE%E3%82%93%E3%81%AA%E3%81%8B%20%E3%81%8A%E5%95%8F%E3%81%84%E5%90%88%E3%82%8F%E3%81%9B',
+                        ),
+                        mode: LaunchMode.externalApplication,
+                      ),
+                    ),
+                    _NavItem(
+                      icon: Icons.bug_report_outlined,
+                      label: 'バグ・改善要望の報告',
+                      color: const Color(0xFFEF4444),
+                      subtitle: '不具合を見つけたらこちら',
+                      onTap: () => launchUrl(
+                        Uri.parse(
+                          'mailto:support@mannaka.app?subject=%E4%B8%8D%E5%85%B7%E5%90%88%E3%83%BB%E6%94%B9%E5%96%84%E8%A6%81%E6%9C%9B',
+                        ),
+                        mode: LaunchMode.externalApplication,
+                      ),
+                    ),
+                    _NavItem(
+                      icon: Icons.star_outline_rounded,
+                      label: 'App Storeでレビューを書く',
+                      color: const Color(0xFFF59E0B),
+                      subtitle: '応援していただけると励みになります',
+                      onTap: () {
+                        // TODO: App Store公開後に実際のApp IDに変更する
+                        // 例: https://apps.apple.com/jp/app/id1234567890
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('App Store公開後にご利用いただけます'),
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      },
+                    ),
+                    _NavItem(
+                      icon: Icons.help_outline_rounded,
+                      label: 'よくある質問',
+                      color: const Color(0xFF10B981),
+                      subtitle: 'FAQ・詳細サポート',
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const SupportScreen()),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 24),
+
+                // ─── 情報 ──────────────────────────────────────────────
+                _SectionLabel('情報'),
+                _SettingsGroup(
+                  children: [
+                    _NavItem(
+                      icon: Icons.privacy_tip_outlined,
+                      label: 'プライバシーポリシー',
+                      color: const Color(0xFF6B7280),
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()),
+                      ),
+                    ),
+                    _NavItem(
+                      icon: Icons.description_outlined,
+                      label: '利用規約',
+                      color: const Color(0xFF6B7280),
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const TermsScreen()),
+                      ),
+                    ),
+                    _InfoItem(label: 'バージョン', value: '1.0.0'),
+                  ],
+                ),
+
+                const SizedBox(height: 48),
               ],
             ),
           ),
@@ -186,148 +669,352 @@ class _ProfileCard extends StatelessWidget {
       ),
     );
   }
+
+  Future<void> _pickAgeGroup(BuildContext context, WidgetRef ref) async {
+    if (_isNavigating) return;
+    _isNavigating = true;
+    HapticFeedback.lightImpact();
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => Container(
+        height: MediaQuery.of(ctx).size.height * 0.6,
+        decoration: const BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 40, height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.divider,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text('年代を選択（任意）',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 4),
+            Text('選択した年代はランキングの集計などに使われます',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+            const SizedBox(height: 8),
+            Expanded(
+              child: ListView(
+                children: [
+                  ..._kAgeGroups.map((g) => ListTile(
+                    title: Text(g, style: const TextStyle(fontSize: 16)),
+                    trailing: ref.watch(ageGroupProvider) == g
+                        ? const Icon(Icons.check_rounded,
+                            color: AppColors.primary)
+                        : null,
+                    onTap: () => Navigator.pop(ctx, g),
+                  )),
+                  ListTile(
+                    title: const Text('回答しない',
+                        style: TextStyle(
+                            fontSize: 16, color: AppColors.textTertiary)),
+                    onTap: () => Navigator.pop(ctx, ''),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(height: MediaQuery.of(ctx).padding.bottom + 16),
+          ],
+        ),
+      ),
+    );
+    if (result == null) return;
+    final value = result.isEmpty ? null : result;
+    ref.read(ageGroupProvider.notifier).state = value;
+    final prefs = await SharedPreferences.getInstance();
+    if (value != null) {
+      await prefs.setString('age_group', value);
+    } else {
+      await prefs.remove('age_group');
+    }
+    if (mounted) _isNavigating = false;
+  }
+
+  Future<void> _pickGender(BuildContext context, WidgetRef ref) async {
+    if (_isNavigating) return;
+    _isNavigating = true;
+    HapticFeedback.lightImpact();
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: const BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 40, height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.divider,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text('性別を選択（任意）',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            ..._kGenders.map((g) => ListTile(
+              title: Text(g, style: const TextStyle(fontSize: 16)),
+              trailing: ref.watch(genderProvider) == g
+                  ? const Icon(Icons.check_rounded, color: AppColors.primary)
+                  : null,
+              onTap: () => Navigator.pop(ctx, g),
+            )),
+            SizedBox(height: MediaQuery.of(ctx).padding.bottom + 16),
+          ],
+        ),
+      ),
+    );
+    if (mounted) _isNavigating = false;
+    if (result == null) return;
+    ref.read(genderProvider.notifier).state = result;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('gender', result);
+  }
+
+  Future<void> _pickHomeStation(BuildContext context, WidgetRef ref) async {
+    HapticFeedback.lightImpact();
+    final currentHome = ref.read(homeStationProvider);
+    final favorites = ref.read(favoritesProvider);
+    final result = await showModalBottomSheet<int>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => StationSearchSheet(
+        currentIndex: currentHome,
+        favorites: favorites,
+      ),
+    );
+    if (result != null) {
+      ref.read(homeStationProvider.notifier).state = result;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('home_station', result);
+    }
+  }
+
+  Future<void> _addFavoriteStation(
+      BuildContext context, WidgetRef ref) async {
+    HapticFeedback.lightImpact();
+    String query = '';
+    final result = await showModalBottomSheet<int>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) {
+          final currentFavorites = ref.read(favoritesProvider);
+          final filtered = List.generate(kStations.length, (i) => i)
+              .where((i) =>
+                  kStations[i].contains(query) &&
+                  !currentFavorites.any((f) => f.stationIndex == i))
+              .toList();
+          return Container(
+            height: MediaQuery.of(ctx).size.height * 0.75,
+            decoration: const BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: Column(
+              children: [
+                const SizedBox(height: 8),
+                Container(
+                  width: 40, height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.divider,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text('お気に入り駅を追加',
+                    style: TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 12),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: TextField(
+                    autofocus: true,
+                    decoration: const InputDecoration(
+                      hintText: '駅名を検索',
+                      prefixIcon: Icon(Icons.search,
+                          color: AppColors.textTertiary, size: 20),
+                    ),
+                    onChanged: (v) => setS(() => query = v),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const SizedBox(height: 1, child: ColoredBox(color: Color(0xFFEEEEEE))),
+                Expanded(
+                  child: ListView.separated(
+                    itemCount: filtered.length,
+                    separatorBuilder: (_, __) => const Padding(
+                      padding: EdgeInsets.only(left: 16),
+                      child: SizedBox(height: 1, child: ColoredBox(color: Color(0xFFEEEEEE))),
+                    ),
+                    itemBuilder: (_, i) {
+                      final idx = filtered[i];
+                      return ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                        title: Text(kStations[idx]),
+                        onTap: () => Navigator.pop(ctx, idx),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+    if (result != null) {
+      ref.read(favoritesProvider.notifier).add(FavoriteStation(
+            stationIndex: result,
+            stationName: kStations[result],
+            emoji: kStationEmojis[result],
+          ));
+    }
+  }
+
 }
 
-class _SectionLabel extends StatelessWidget {
-  const _SectionLabel(this.text);
-  final String text;
+// ─── デフォルト条件タイル ─────────────────────────────────────────────────────
+class _DefaultConditionTile extends StatefulWidget {
+  const _DefaultConditionTile({
+    required this.icon,
+    required this.label,
+    required this.prefKey,
+    required this.options,
+  });
+  final IconData icon;
+  final String label;
+  final String prefKey;
+  final List<String> options;
 
   @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 4, bottom: 8),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
-          color: Colors.grey.shade500,
-          letterSpacing: 0.5,
+  State<_DefaultConditionTile> createState() => _DefaultConditionTileState();
+}
+
+class _DefaultConditionTileState extends State<_DefaultConditionTile> {
+  String? _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    SharedPreferences.getInstance().then((p) {
+      final v = p.getString(widget.prefKey);
+      if (mounted) setState(() => _selected = v);
+    });
+  }
+
+  Future<void> _showPicker() async {
+    HapticFeedback.lightImpact();
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              margin: const EdgeInsets.symmetric(vertical: 10),
+              width: 36, height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Text(
+              widget.label,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 16),
+            ...widget.options.map((opt) {
+              final isSelected = _selected == opt;
+              return GestureDetector(
+                onTap: () async {
+                  HapticFeedback.selectionClick();
+                  final next = _selected == opt ? null : opt;
+                  setState(() => _selected = next);
+                  final p = await SharedPreferences.getInstance();
+                  if (next == null) {
+                    p.remove(widget.prefKey);
+                  } else {
+                    p.setString(widget.prefKey, next);
+                  }
+                  if (ctx.mounted) Navigator.pop(ctx);
+                },
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                  margin: const EdgeInsets.only(bottom: 8),
+                  decoration: BoxDecoration(
+                    color: isSelected ? AppColors.primaryLight : AppColors.background,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isSelected ? AppColors.primary : AppColors.divider,
+                      width: isSelected ? 1.5 : 1,
+                    ),
+                  ),
+                  child: Text(
+                    opt,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
+                      color: isSelected ? AppColors.primary : AppColors.textPrimary,
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ],
         ),
       ),
     );
   }
-}
-
-class _SettingsGroup extends StatelessWidget {
-  const _SettingsGroup({required this.children});
-  final List<Widget> children;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        children: children.asMap().entries.map((e) {
-          final Widget child = e.value;
-          if (e.key < children.length - 1) {
-            return Column(
-              children: [child, const Divider(height: 1, indent: 52)],
-            );
-          }
-          return child;
-        }).toList(),
-      ),
-    );
-  }
-}
-
-class _SwitchItem extends StatelessWidget {
-  const _SwitchItem({
-    required this.icon,
-    required this.label,
-    required this.color,
-    required this.value,
-    required this.onChanged,
-  });
-  final IconData icon;
-  final String label;
-  final Color color;
-  final bool value;
-  final void Function(bool) onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, size: 18, color: color),
-          ),
-          const SizedBox(width: 12),
-          Expanded(child: Text(label, style: const TextStyle(fontSize: 15))),
-          CupertinoSwitch(
-            value: value,
-            onChanged: onChanged,
-            activeTrackColor: AppColors.primary,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _NavItem extends StatelessWidget {
-  const _NavItem({
-    required this.icon,
-    required this.label,
-    required this.color,
-    required this.onTap,
-    this.subtitle,
-  });
-  final IconData icon;
-  final String label;
-  final Color color;
-  final VoidCallback onTap;
-  final String? subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    return GestureDetector(
+      onTap: _showPicker,
+      child: Container(
+        color: AppColors.surface,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(
           children: [
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(icon, size: 18, color: color),
-            ),
+            Icon(widget.icon, size: 18, color: AppColors.textSecondary),
             const SizedBox(width: 12),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(label, style: const TextStyle(fontSize: 15)),
-                  if (subtitle != null)
-                    Text(subtitle!, style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
-                ],
+              child: Text(
+                widget.label,
+                style: const TextStyle(fontSize: 15, color: AppColors.textPrimary),
               ),
             ),
-            Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400, size: 20),
+            Text(
+              _selected ?? '未設定',
+              style: TextStyle(
+                fontSize: 14,
+                color: _selected != null ? AppColors.primary : AppColors.textTertiary,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Icon(Icons.chevron_right_rounded, size: 18, color: Colors.grey.shade400),
           ],
         ),
       ),
@@ -335,6 +1022,154 @@ class _NavItem extends StatelessWidget {
   }
 }
 
+// ─── ミニチップ ───────────────────────────────────────────────────────────────
+class _MiniChip extends StatelessWidget {
+  const _MiniChip(this.label);
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppColors.primaryLight,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: AppColors.primary,
+        ),
+      ),
+    );
+  }
+}
+
+// ─── セクションラベル ─────────────────────────────────────────────────────────
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: AppColors.textSecondary,
+          letterSpacing: 0.3,
+        ),
+      ),
+    );
+  }
+}
+
+// ─── グループコンテナ ─────────────────────────────────────────────────────────
+class _SettingsGroup extends StatelessWidget {
+  const _SettingsGroup({required this.children});
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: AppColors.cardShadow,
+        ),
+        child: Column(
+          children: children.asMap().entries.map((e) {
+            if (e.key < children.length - 1) {
+              return Column(children: [
+                e.value,
+                const Padding(
+                  padding: EdgeInsets.only(left: 52),
+                  child: SizedBox(
+                      height: 1, child: ColoredBox(color: Color(0xFFEEEEEE))),
+                ),
+              ]);
+            }
+            return e.value;
+          }).toList(),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── ナビゲーション行 ─────────────────────────────────────────────────────────
+class _NavItem extends StatelessWidget {
+  const _NavItem({
+    required this.label,
+    required this.onTap,
+    this.icon,
+    this.color = AppColors.primary,
+    this.subtitle,
+    this.trailing,
+  });
+  final IconData? icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+  final String? subtitle;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onTap();
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            if (icon != null) ...[
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, size: 20, color: color),
+              ),
+              const SizedBox(width: 14),
+            ],
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label,
+                      style: const TextStyle(
+                          fontSize: 15, color: AppColors.textPrimary)),
+                  if (subtitle != null)
+                    Text(subtitle!,
+                        style: const TextStyle(
+                            fontSize: 12, color: AppColors.textSecondary)),
+                ],
+              ),
+            ),
+            trailing ??
+                Icon(Icons.chevron_right_rounded,
+                    color: Colors.grey.shade300, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── 情報行 ───────────────────────────────────────────────────────────────────
 class _InfoItem extends StatelessWidget {
   const _InfoItem({required this.label, required this.value});
   final String label;
@@ -346,8 +1181,14 @@ class _InfoItem extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: Row(
         children: [
-          Expanded(child: Text(label, style: const TextStyle(fontSize: 15))),
-          Text(value, style: TextStyle(fontSize: 14, color: Colors.grey.shade500)),
+          Expanded(
+            child: Text(label,
+                style: const TextStyle(
+                    fontSize: 15, color: AppColors.textPrimary)),
+          ),
+          Text(value,
+              style: const TextStyle(
+                  fontSize: 14, color: AppColors.textSecondary)),
         ],
       ),
     );

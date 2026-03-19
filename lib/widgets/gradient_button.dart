@@ -42,6 +42,7 @@ class _GradientButtonState extends State<GradientButton> with SingleTickerProvid
 
   @override
   Widget build(BuildContext context) {
+    final isDisabled = widget.onPressed == null;
     return GestureDetector(
       onTapDown: (_) => _ctrl.forward(),
       onTapUp: (_) {
@@ -55,20 +56,8 @@ class _GradientButtonState extends State<GradientButton> with SingleTickerProvid
           width: widget.fullWidth ? double.infinity : null,
           padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
           decoration: BoxDecoration(
-            gradient: widget.onPressed == null
-                ? null
-                : AppColors.primaryGradient,
-            color: widget.onPressed == null ? Colors.grey.shade300 : null,
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: widget.onPressed == null
-                ? null
-                : [
-                    BoxShadow(
-                      color: AppColors.primary.withValues(alpha: 0.35),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
+            color: isDisabled ? Colors.grey.shade200 : AppColors.primary,
+            borderRadius: BorderRadius.circular(16),
           ),
           child: Row(
             mainAxisSize: widget.fullWidth ? MainAxisSize.max : MainAxisSize.min,
@@ -85,13 +74,13 @@ class _GradientButtonState extends State<GradientButton> with SingleTickerProvid
                 ),
                 const SizedBox(width: 10),
               ] else if (widget.icon != null) ...[
-                Icon(widget.icon, color: Colors.white, size: 20),
+                Icon(widget.icon, color: isDisabled ? AppColors.textTertiary : Colors.white, size: 20),
                 const SizedBox(width: 8),
               ],
               Text(
                 widget.label,
                 style: TextStyle(
-                  color: widget.onPressed == null ? Colors.grey.shade500 : Colors.white,
+                  color: isDisabled ? AppColors.textTertiary : Colors.white,
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
                 ),

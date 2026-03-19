@@ -1,304 +1,1090 @@
+import 'dart:math' as math;
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart' as gmap;
+import 'package:geolocator/geolocator.dart';
 import '../providers/history_provider.dart';
 import '../providers/search_provider.dart';
+import '../providers/ad_provider.dart';
+import '../models/ad.dart';
 import '../theme/app_theme.dart';
 
 typedef NavigateCallback = void Function(int tabIndex, {Occasion? occasion});
 
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key, this.onNavigate});
   final NavigateCallback? onNavigate;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  final DraggableScrollableController _sheetCtrl =
+      DraggableScrollableController();
+  gmap.GoogleMapController? _mapController;
+
+  double _lastSize = 0;
+
+  Future<void> _moveToCurrentLocation() async {
+    final permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.always ||
+        permission == LocationPermission.whileInUse) {
+      try {
+        final pos = await Geolocator.getCurrentPosition(
+          locationSettings:
+              const LocationSettings(accuracy: LocationAccuracy.medium),
+        );
+        _mapController?.animateCamera(
+          gmap.CameraUpdate.newLatLngZoom(
+            gmap.LatLng(pos.latitude, pos.longitude),
+            13.5,
+          ),
+        );
+      } catch (_) {}
+    }
+  }
+
+  void _onSheetChanged() {
+    final size = _sheetCtrl.size;
+    const snapPoints = [0.10, 0.18, 0.50];
+    for (final snap in snapPoints) {
+      if ((_lastSize - snap).abs() > 0.01 && (size - snap).abs() < 0.01) {
+        HapticFeedback.selectionClick();
+        break;
+      }
+    }
+    _lastSize = size;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _sheetCtrl.addListener(_onSheetChanged);
+  }
+
+  @override
+  void dispose() {
+    _sheetCtrl.removeListener(_onSheetChanged);
+    _sheetCtrl.dispose();
+    _mapController?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final history = ref.watch(historyProvider);
-    final hour = DateTime.now().hour;
+    final searchState = ref.watch(searchProvider);
+
+    final hasResult = searchState.hasCentroid &&
+        searchState.sortedRestaurants.isNotEmpty;
+    final lat = searchState.centroidLat ?? 35.6812;
+    final lng = searchState.centroidLng ?? 139.7671;
+    final scored = searchState.sortedRestaurants;
+
+    // Google Maps SDK for iOS: $7/1,000 map loads.
+    // $200/month free credit → ~28,500 loads/month.
+    // API key should be restricted to iOS bundle ID `com.example.mannaka`
+    // in Google Cloud Console → APIs & Services → Credentials.
+
+    // Build Google Maps markers
+    final gmapMarkers = <gmap.Marker>{};
+    if (hasResult) {
+      // Participant origin markers (blue circle with initial)
+      // Note: Google Maps doesn't support custom Flutter widgets as markers natively;
+      // we use standard markers with InfoWindow for participants.
+      for (final p in searchState.participants.where((p) => p.hasLocation)) {
+        gmapMarkers.add(gmap.Marker(
+          markerId: gmap.MarkerId('participant_${p.name}'),
+          position: gmap.LatLng(p.lat!, p.lng!),
+          infoWindow: gmap.InfoWindow(title: p.name.isNotEmpty ? p.name : '参加者'),
+          icon: gmap.BitmapDescriptor.defaultMarkerWithHue(
+              gmap.BitmapDescriptor.hueAzure),
+        ));
+      }
+      // Centroid marker
+      gmapMarkers.add(gmap.Marker(
+        markerId: const gmap.MarkerId('centroid'),
+        position: gmap.LatLng(lat, lng),
+        infoWindow: const gmap.InfoWindow(title: 'まんなか'),
+        icon: gmap.BitmapDescriptor.defaultMarkerWithHue(
+            gmap.BitmapDescriptor.hueRose),
+      ));
+      // Restaurant markers (top 5)
+      for (final sr in scored.take(5)) {
+        final sLat = sr.restaurant.lat;
+        final sLng = sr.restaurant.lng;
+        if (sLat != null && sLng != null) {
+          gmapMarkers.add(gmap.Marker(
+            markerId: gmap.MarkerId(sr.restaurant.id),
+            position: gmap.LatLng(sLat, sLng),
+            infoWindow: gmap.InfoWindow(title: sr.restaurant.name),
+          ));
+        }
+      }
+    }
 
     return Scaffold(
-      backgroundColor: AppColors.background,
-      body: CustomScrollView(
-        slivers: [
-          // ─── ヘッダー ────────────────────────────────────────
-          SliverToBoxAdapter(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          // ─── 全画面地図 ───────────────────────────────────────
+          Positioned.fill(
+            child: gmap.GoogleMap(
+              initialCameraPosition: gmap.CameraPosition(
+                target: gmap.LatLng(lat, lng),
+                zoom: hasResult ? 15.5 : 13.5,
+              ),
+              markers: gmapMarkers,
+              myLocationButtonEnabled: false,
+              zoomControlsEnabled: false,
+              mapType: gmap.MapType.normal,
+              onMapCreated: (controller) {
+                _mapController = controller;
+                _moveToCurrentLocation();
+              },
+            ),
+          ),
+
+          // ─── トップバー（浮き） ───────────────────────────────
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
             child: Container(
-              color: AppColors.surface,
               padding: EdgeInsets.fromLTRB(
-                  20, MediaQuery.of(context).padding.top + 16, 20, 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // ロゴ行
-                  Row(
-                    children: [
-                      Text(
-                        'まんなか',
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.textPrimary,
-                          letterSpacing: -0.5,
-                        ),
-                      ),
-                      const Spacer(),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  // グリーティング
-                  Text(
-                    _greeting(hour),
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    '今日はどこに\n集まりますか？',
-                    style: TextStyle(
-                      fontSize: 30,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.textPrimary,
-                      height: 1.2,
-                      letterSpacing: -0.8,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  // 検索CTA
-                  GestureDetector(
-                    onTap: () {
-                      HapticFeedback.mediumImpact();
-                      onNavigate?.call(1);
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          vertical: 16, horizontal: 18),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.place_outlined,
-                              color: Colors.white, size: 20),
-                          SizedBox(width: 8),
-                          Text(
-                            '集合場所を探す',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: -0.3,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // ─── 目的から探す ─────────────────────────────────────
-          SliverToBoxAdapter(
-            child: Container(
-              color: AppColors.surface,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Divider(height: 1),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
-                    child: const Text(
-                      '目的から探す',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textSecondary,
-                        letterSpacing: 0.2,
-                      ),
-                    ),
-                  ),
-                  _OccasionChips(onNavigate: onNavigate),
-                  const SizedBox(height: 16),
-                ],
-              ),
-            ),
-          ),
-
-          const SliverToBoxAdapter(child: SizedBox(height: 8)),
-
-          // ─── 最近の検索 ──────────────────────────────────────
-          if (history.isEmpty)
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
-                child: _FirstUseCard(),
-              ),
-            )
-          else ...[
-            SliverToBoxAdapter(
-              child: Container(
-                color: AppColors.surface,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Divider(height: 1),
-                    const Padding(
-                      padding: EdgeInsets.fromLTRB(20, 14, 20, 4),
-                      child: Text(
-                        '最近の検索',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textSecondary,
-                          letterSpacing: 0.2,
-                        ),
-                      ),
-                    ),
+                  20, MediaQuery.of(context).padding.top + 10, 20, 14),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.55),
+                    Colors.transparent,
                   ],
                 ),
               ),
-            ),
-            SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (ctx, i) => _HistoryRow(entry: history[i]),
-                childCount: history.length > 5 ? 5 : history.length,
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.92),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.15),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: const Text(
+                      'まんなか',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.primary,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  if (hasResult)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '${scored.length}件のお店',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
-          ],
+          ),
 
-          const SliverToBoxAdapter(child: SizedBox(height: 40)),
+          // ─── マスコットキャラ（全画面Stackで移動） ───────────
+          Positioned.fill(
+            child: _MascotButton(onNavigate: widget.onNavigate),
+          ),
+
+          // ─── Draggable Bottom Sheet ───────────────────────────
+          DraggableScrollableSheet(
+            controller: _sheetCtrl,
+            initialChildSize: 0.18,
+            minChildSize: 0.10,
+            maxChildSize: 0.38,
+            snap: true,
+            snapSizes: const [0.10, 0.18, 0.38],
+            builder: (ctx, scrollCtrl) {
+              return Container(
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF7F7F7),
+                  borderRadius:
+                      BorderRadius.vertical(top: Radius.circular(28)),
+                  boxShadow: [
+                    BoxShadow(
+                        color: Colors.black26,
+                        blurRadius: 16,
+                        offset: Offset(0, -4)),
+                  ],
+                ),
+                child: CustomScrollView(
+                  controller: scrollCtrl,
+                  slivers: [
+                    SliverToBoxAdapter(
+                      child: Column(
+                        children: [
+                          // ドラッグハンドル
+                          const SizedBox(height: 8),
+                          Container(
+                            width: 36,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade300,
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(
+                                20, 0, 20, 0),
+                            child: Column(
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  '集まりやすいお店、見つけよう',
+                                  style: TextStyle(
+                                    fontSize: 19,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.textPrimary,
+                                    letterSpacing: -0.5,
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                // ─── メインCTA ─────────────────────
+                                Semantics(
+                                  label: '出発地を入力する',
+                                  button: true,
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      HapticFeedback.mediumImpact();
+                                      widget.onNavigate?.call(1);
+                                    },
+                                    child: Container(
+                                      width: double.infinity,
+                                      height: 56,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primary,
+                                      borderRadius:
+                                          BorderRadius.circular(16),
+                                    ),
+                                    child: const Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Icon(Icons.people_alt_rounded,
+                                            color: Colors.white,
+                                            size: 20),
+                                        SizedBox(width: 8),
+                                        Text(
+                                          '出発地を入力する',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w700,
+                                            letterSpacing: -0.3,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          // ─── シーンで絞り込む ──────────────
+                          const SizedBox(height: 12),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 20),
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                'シーンで絞り込む',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  color: Color(0xFF666666),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          _OccasionGrid(
+                              onNavigate: widget.onNavigate),
+                          const SizedBox(height: 6),
+                        ],
+                      ),
+                    ),
+
+                    // ─── 履歴 ──────────────────────────────────
+                    if (history.isNotEmpty) ...[
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(
+                              20, 14, 20, 4),
+                          child: const Text(
+                            '最近の検索',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ),
+                      ),
+                      SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (ctx, i) => _HistoryRow(
+                            entry: history[i],
+                            onNavigate: widget.onNavigate,
+                          ),
+                          childCount: history.length > 5
+                              ? 5
+                              : history.length,
+                        ),
+                      ),
+                    ],
+
+                    const SliverToBoxAdapter(
+                        child: SizedBox(height: 40)),
+                  ],
+                ),
+              );
+            },
+          ),
         ],
       ),
     );
   }
-
-  String _greeting(int hour) {
-    if (hour < 11) return '☀️ おはようございます';
-    if (hour < 17) return '🌤 こんにちは';
-    return '🌙 こんばんは';
-  }
 }
 
-// ─── 目的チップ ──────────────────────────────────────────────────────────────
 
-class _OccasionChips extends StatelessWidget {
-  const _OccasionChips({this.onNavigate});
+
+// ─── 目的グリッド（横スクロール・ピル形状） ─────────────────────────────────
+
+class _OccasionGrid extends StatelessWidget {
+  const _OccasionGrid({this.onNavigate});
   final NavigateCallback? onNavigate;
 
   static const _items = [
-    (Occasion.girlsNight, '女子会', '👑'),
-    (Occasion.birthday, '誕生日', '🎂'),
-    (Occasion.lunch, 'ランチ', '🥗'),
-    (Occasion.mixer, '合コン', '🥂'),
-    (Occasion.welcome, '歓迎会', '🎉'),
-    (Occasion.date, 'デート', '💕'),
+    (Occasion.girlsNight, '女子会'),
+    (Occasion.birthday, '誕生日'),
+    (Occasion.lunch, 'ランチ'),
+    (Occasion.mixer, '合コン'),
+    (Occasion.welcome, '歓迎会'),
+    (Occasion.date, 'デート'),
   ];
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 38,
+      height: 44,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
         itemCount: _items.length,
         separatorBuilder: (_, __) => const SizedBox(width: 8),
         itemBuilder: (_, i) {
-          final (occasion, label, emoji) = _items[i];
-          return GestureDetector(
-            onTap: () {
-              HapticFeedback.lightImpact();
-              onNavigate?.call(1, occasion: occasion);
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.divider),
+          final (occasion, label) = _items[i];
+          return _cell(occasion, label);
+        },
+      ),
+    );
+  }
+
+  Widget _cell(Occasion occasion, String label) {
+    return Semantics(
+      label: '$label シーンで検索',
+      button: true,
+      child: GestureDetector(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          onNavigate?.call(1, occasion: occasion);
+        },
+        child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: AppColors.primary, width: 1),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          label,
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: AppColors.primary,
+            letterSpacing: -0.1,
+          ),
+        ),
+      ),
+      ),
+    );
+  }
+}
+
+// ─── マスコットキャラクター ────────────────────────────────────────────────
+class _MascotButton extends StatefulWidget {
+  const _MascotButton({this.onNavigate});
+  final NavigateCallback? onNavigate;
+
+  @override
+  State<_MascotButton> createState() => _MascotButtonState();
+}
+
+class _MascotButtonState extends State<_MascotButton>
+    with TickerProviderStateMixin {
+  late final AnimationController _blinkCtrl;
+  late final Animation<double> _blinkAnim;
+  late AnimationController _wanderCtrl;
+  late Animation<double> _wanderX;
+  late Animation<double> _wanderY;
+
+  double _posX = -1;
+  double _posY = -1;
+  double _fromX = 0;
+  double _fromY = 0;
+  double _toX = 0;
+  double _toY = 0;
+  bool _dragging = false;
+  bool _pauseWander = false;
+
+  static const _size = 70.0;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _blinkCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 120));
+    _blinkAnim = Tween<double>(begin: 1.0, end: 0.05).animate(
+      CurvedAnimation(parent: _blinkCtrl, curve: Curves.easeInOut),
+    );
+    _scheduleBlink();
+
+    _wanderCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 3000));
+    _wanderX = Tween<double>(begin: 0, end: 0).animate(_wanderCtrl);
+    _wanderY = Tween<double>(begin: 0, end: 0).animate(_wanderCtrl);
+    _wanderCtrl.addStatusListener((status) {
+      if (status == AnimationStatus.completed && !_pauseWander && mounted) {
+        _pickNewTarget();
+      }
+    });
+  }
+
+  void _initPositionIfNeeded(double screenW, double screenH) {
+    if (_posX < 0) {
+      _posX = screenW - _size - 20;
+      _posY = (screenH - _size) / 2;
+      _fromX = _posX;
+      _fromY = _posY;
+      _toX = _posX;
+      _toY = _posY;
+      Future.delayed(const Duration(milliseconds: 500), _pickNewTarget);
+    }
+  }
+
+  void _pickNewTarget() {
+    if (!mounted || _pauseWander) return;
+    final screenW = MediaQuery.of(context).size.width;
+    final screenH = MediaQuery.of(context).size.height;
+    final rng = math.Random();
+    final currentX = _wanderCtrl.isAnimating ? _wanderX.value : _toX;
+    final currentY = _wanderCtrl.isAnimating ? _wanderY.value : _toY;
+    _fromX = currentX;
+    _fromY = currentY;
+    _toX = (_fromX + (rng.nextDouble() - 0.5) * 120).clamp(0.0, screenW - _size);
+    _toY = (_fromY + (rng.nextDouble() - 0.5) * 100).clamp(screenH * 0.12, screenH * 0.82 - _size - 8);
+    _wanderX = Tween<double>(begin: _fromX, end: _toX).animate(
+      CurvedAnimation(parent: _wanderCtrl, curve: Curves.easeInOut),
+    );
+    _wanderY = Tween<double>(begin: _fromY, end: _toY).animate(
+      CurvedAnimation(parent: _wanderCtrl, curve: Curves.easeInOut),
+    );
+    _wanderCtrl.forward(from: 0);
+  }
+
+  void _scheduleBlink() {
+    Future.delayed(Duration(seconds: 3 + math.Random().nextInt(4)), () {
+      if (!mounted) return;
+      _blinkCtrl.forward().then((_) {
+        if (!mounted) return;
+        _blinkCtrl.reverse();
+      }).then((_) {
+        if (!mounted) return;
+        Future.delayed(const Duration(milliseconds: 100), () {
+          if (!mounted) return;
+          _blinkCtrl.forward().then((_) {
+            if (!mounted) return;
+            _blinkCtrl.reverse();
+          }).then((_) {
+            if (!mounted) return;
+            _scheduleBlink();
+          });
+        });
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _blinkCtrl.dispose();
+    _wanderCtrl.dispose();
+    super.dispose();
+  }
+
+  void _onTap(BuildContext context) {
+    HapticFeedback.mediumImpact();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => _MascotSheet(onNavigate: widget.onNavigate),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final screenW = MediaQuery.of(context).size.width;
+    final screenH = MediaQuery.of(context).size.height;
+    _initPositionIfNeeded(screenW, screenH);
+
+    return AnimatedBuilder(
+      animation: Listenable.merge([_blinkAnim, _wanderCtrl]),
+      builder: (context, child) {
+        final x = _dragging ? _posX : (_wanderCtrl.isAnimating ? _wanderX.value : _toX);
+        final y = _dragging ? _posY : (_wanderCtrl.isAnimating ? _wanderY.value : _toY);
+
+        return Stack(
+          children: [
+            Positioned(
+              left: x,
+              top: y,
+              child: Semantics(
+                label: 'まんちゃん',
+                button: true,
+                child: GestureDetector(
+                  onTap: () => _onTap(context),
+                  onPanStart: (_) {
+                  _wanderCtrl.stop();
+                  setState(() {
+                    _dragging = true;
+                    _pauseWander = true;
+                    _posX = _wanderCtrl.isAnimating ? _wanderX.value : _toX;
+                    _posY = _wanderCtrl.isAnimating ? _wanderY.value : _toY;
+                  });
+                },
+                onPanUpdate: (details) {
+                  setState(() {
+                    _posX = (_posX + details.delta.dx).clamp(0.0, screenW - _size);
+                    _posY = (_posY + details.delta.dy).clamp(0.0, screenH - _size);
+                  });
+                },
+                onPanEnd: (_) {
+                  setState(() {
+                    _dragging = false;
+                    _fromX = _posX;
+                    _fromY = _posY;
+                    _toX = _posX;
+                    _toY = _posY;
+                  });
+                  Future.delayed(const Duration(seconds: 2), () {
+                    if (!mounted) return;
+                    setState(() => _pauseWander = false);
+                    _pickNewTarget();
+                  });
+                },
+                child: AnimatedScale(
+                  scale: _dragging ? 1.15 : 1.0,
+                  duration: const Duration(milliseconds: 150),
+                  child: CustomPaint(
+                    size: const Size(_size, _size),
+                    painter: _MascotPainter(blinkAmount: _blinkAnim.value),
+                  ),
+                ),
               ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _MascotPainter extends CustomPainter {
+  const _MascotPainter({required this.blinkAmount});
+  final double blinkAmount;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+
+    // ─ ボディ（丸っこいピン形）
+    final bodyPaint = Paint()..color = AppColors.primary;
+    final bodyPath = ui.Path()
+      ..addOval(Rect.fromCircle(center: Offset(cx, cy - 6), radius: 26));
+    canvas.drawPath(bodyPath, bodyPaint);
+
+    // ピンの先端
+    final pinPaint = Paint()..color = AppColors.primary;
+    final pinPath = ui.Path()
+      ..moveTo(cx - 10, cy + 14)
+      ..lineTo(cx, cy + 26)
+      ..lineTo(cx + 10, cy + 14)
+      ..close();
+    canvas.drawPath(pinPath, pinPaint);
+
+    // ─ 顔の白い丸
+    final facePaint = Paint()..color = Colors.white;
+    canvas.drawCircle(Offset(cx, cy - 8), 18, facePaint);
+
+    // ─ 目（左右）
+    final eyePaint = Paint()..color = const Color(0xFF333333);
+    final eyeH = 5.0 * blinkAmount;
+    // 左目
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(center: Offset(cx - 6, cy - 10), width: 5, height: math.max(eyeH, 0.8)),
+        const Radius.circular(3),
+      ),
+      eyePaint,
+    );
+    // 右目
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(center: Offset(cx + 6, cy - 10), width: 5, height: math.max(eyeH, 0.8)),
+        const Radius.circular(3),
+      ),
+      eyePaint,
+    );
+
+    // ─ ほっぺ
+    final cheekPaint = Paint()
+      ..color = const Color(0xFFFFB3C1).withValues(alpha: 0.7);
+    canvas.drawCircle(Offset(cx - 11, cy - 5), 5, cheekPaint);
+    canvas.drawCircle(Offset(cx + 11, cy - 5), 5, cheekPaint);
+
+    // ─ 口（笑顔の弧）
+    final mouthPaint = Paint()
+      ..color = const Color(0xFF333333)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.8
+      ..strokeCap = StrokeCap.round;
+    final mouthPath = ui.Path();
+    mouthPath.moveTo(cx - 6, cy - 1);
+    mouthPath.quadraticBezierTo(cx, cy + 5, cx + 6, cy - 1);
+    canvas.drawPath(mouthPath, mouthPaint);
+
+    // ─ 小さな星（アクセント）
+    _drawStar(canvas, Offset(cx + 22, cy - 22), 5, const Color(0xFFF59E0B));
+  }
+
+  void _drawStar(Canvas canvas, Offset center, double r, Color color) {
+    final paint = Paint()..color = color;
+    final path = ui.Path();
+    for (int i = 0; i < 5; i++) {
+      final angle = -math.pi / 2 + i * (2 * math.pi / 5);
+      final x = center.dx + r * math.cos(angle);
+      final y = center.dy + r * math.sin(angle);
+      if (i == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
+      final innerAngle = angle + math.pi / 5;
+      path.lineTo(
+        center.dx + r * 0.4 * math.cos(innerAngle),
+        center.dy + r * 0.4 * math.sin(innerAngle),
+      );
+    }
+    path.close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(_MascotPainter old) => old.blinkAmount != blinkAmount;
+}
+
+// ─── マスコット吹き出しシート ───────────────────────────────────────────────
+class _MascotSheet extends ConsumerWidget {
+  const _MascotSheet({this.onNavigate});
+  final NavigateCallback? onNavigate;
+
+  static const _tips = [
+    '今日はみんなで\nどこに集まる？',
+    '出発駅を入力すれば\n30秒で決まるよ！',
+    '予約できるお店を\n優先的に表示してるよ',
+    'よく使う駅を\n登録しておくと便利！',
+  ];
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tip = _tips[DateTime.now().second % _tips.length];
+    final ads = ref.watch(adsProvider);
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.55,
+      minChildSize: 0.4,
+      maxChildSize: 0.85,
+      expand: false,
+      builder: (ctx, scrollCtrl) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: ListView(
+          controller: scrollCtrl,
+          padding: EdgeInsets.zero,
+          children: [
+            const SizedBox(height: 12),
+            Center(
+              child: Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            // キャラクターと吹き出し
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Row(
-                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(emoji, style: const TextStyle(fontSize: 13)),
-                  const SizedBox(width: 5),
-                  Text(
-                    label,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.textPrimary,
+                  CustomPaint(
+                    size: const Size(64, 64),
+                    painter: const _MascotPainter(blinkAmount: 1.0),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryLight,
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(4),
+                          topRight: Radius.circular(16),
+                          bottomLeft: Radius.circular(16),
+                          bottomRight: Radius.circular(16),
+                        ),
+                      ),
+                      child: Text(
+                        tip,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primary,
+                          height: 1.5,
+                        ),
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
-          );
-        },
+            const SizedBox(height: 20),
+            // クイックアクション
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                children: [
+                  _QuickAction(
+                    icon: Icons.search_rounded,
+                    label: 'お店を探す',
+                    color: AppColors.primary,
+                    onTap: () {
+                      Navigator.pop(context);
+                      onNavigate?.call(1);
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _QuickAction(
+                          icon: Icons.celebration_rounded,
+                          label: '女子会',
+                          color: const Color(0xFFEC4899),
+                          onTap: () {
+                            Navigator.pop(context);
+                            onNavigate?.call(1, occasion: Occasion.girlsNight);
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _QuickAction(
+                          icon: Icons.restaurant_rounded,
+                          label: 'ランチ',
+                          color: const Color(0xFFF59E0B),
+                          onTap: () {
+                            Navigator.pop(context);
+                            onNavigate?.call(1, occasion: Occasion.lunch);
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _QuickAction(
+                          icon: Icons.favorite_rounded,
+                          label: 'デート',
+                          color: const Color(0xFFEF4444),
+                          onTap: () {
+                            Navigator.pop(context);
+                            onNavigate?.call(1, occasion: Occasion.date);
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // ─── お店からのお知らせ（広告）───────────────────
+            if (ads.isNotEmpty) ...[
+              const SizedBox(height: 24),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                child: Row(
+                  children: [
+                    const Icon(Icons.campaign_rounded,
+                        size: 14, color: AppColors.textSecondary),
+                    const SizedBox(width: 5),
+                    Text(
+                      'お店からのお知らせ',
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey.shade500),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 160,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: ads.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 12),
+                  itemBuilder: (_, i) => _AdCard(ad: ads[i]),
+                ),
+              ),
+            ],
+            const SizedBox(height: 24),
+          ],
+        ),
       ),
     );
   }
 }
 
-// ─── 初回利用カード ──────────────────────────────────────────────────────────
+class _AdCard extends StatelessWidget {
+  const _AdCard({required this.ad});
+  final AppAd ad;
 
-class _FirstUseCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        children: [
-          const Text('📍', style: TextStyle(fontSize: 40)),
-          const SizedBox(height: 12),
-          const Text(
-            'はじめてみよう',
-            style: TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary,
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        Navigator.pop(context);
+        // 広告URLへ遷移（将来的にはRestaurantDetailScreenへ）
+      },
+      child: Container(
+        width: 220,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey.shade200),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '参加者全員の最寄り駅を入力するだけで\n全員に公平な集合場所を自動計算します',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 13,
-              color: AppColors.textSecondary,
-              height: 1.6,
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 画像
+            ClipRRect(
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(16)),
+              child: Image.network(
+                ad.imageUrl,
+                height: 90,
+                width: double.infinity,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  height: 90,
+                  color: AppColors.primaryLight,
+                  alignment: Alignment.center,
+                  child: const Icon(Icons.restaurant_rounded,
+                      color: AppColors.primary, size: 32),
+                ),
+              ),
             ),
-          ),
-        ],
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 6),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          ad.restaurantName,
+                          style: const TextStyle(
+                              fontSize: 11,
+                              color: AppColors.textSecondary),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          ad.discount,
+                          style: const TextStyle(
+                              fontSize: 9,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    ad.title,
+                    style: const TextStyle(
+                        fontSize: 12, fontWeight: FontWeight.w700),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
+
+class _QuickAction extends StatelessWidget {
+  const _QuickAction({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onTap();
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: color.withValues(alpha: 0.2)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 18, color: color),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── 初回利用ガイド ────────────────────────────────────────────────────────
+
 
 // ─── 履歴行（Tabelog風リストセル） ──────────────────────────────────────────
 
-class _HistoryRow extends StatelessWidget {
-  const _HistoryRow({required this.entry});
+class _HistoryRow extends ConsumerWidget {
+  const _HistoryRow({required this.entry, this.onNavigate});
   final HistoryEntry entry;
+  final NavigateCallback? onNavigate;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Container(
-      color: AppColors.surface,
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             child: Row(
               children: [
                 // アイコン
@@ -306,13 +1092,14 @@ class _HistoryRow extends StatelessWidget {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: AppColors.primaryLight,
+                    color: AppColors.primary.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   alignment: Alignment.center,
-                  child: Text(
-                    entry.meetingPoint.stationEmoji,
-                    style: const TextStyle(fontSize: 22),
+                  child: const Icon(
+                    Icons.history_rounded,
+                    size: 22,
+                    color: AppColors.textSecondary,
                   ),
                 ),
                 const SizedBox(width: 14),
@@ -351,7 +1138,7 @@ class _HistoryRow extends StatelessWidget {
                       style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: AppColors.primary,
+                        color: AppColors.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 3),
@@ -370,9 +1157,31 @@ class _HistoryRow extends StatelessWidget {
               ],
             ),
           ),
-          const Divider(indent: 20, endIndent: 0, height: 1),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+            child: SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  ref.read(searchProvider.notifier).setParticipantsFromHistory(
+                    entry.participantNames,
+                  );
+                  onNavigate?.call(1);
+                },
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  side: BorderSide(color: AppColors.primary.withValues(alpha: 0.3)),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                child: const Text('このメンバーで再検索', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 }
+

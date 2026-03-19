@@ -18,6 +18,20 @@ class Restaurant {
     this.isFemalePopular = false,
     this.hasPrivateRoom = false,
     this.occasionTags = const [],
+    this.lat,
+    this.lng,
+    this.hotpepperUrl,
+    this.imageUrl,
+    this.imageUrls = const [],
+    this.accessInfo = '',
+    this.stationName = '',
+    this.closeDay = '',
+    this.nonSmoking = false,
+    this.freeDrink = false,
+    this.freeFood = false,
+    this.lunchFromApi = false,
+    this.wifi = false,
+    this.course = false,
   });
 
   final String id;
@@ -37,29 +51,58 @@ class Restaurant {
   final bool isReservable;
   final bool isFemalePopular;
   final bool hasPrivateRoom;
-  // 女子会/誕生日/ランチ会/合コン/歓迎会
   final List<String> occasionTags;
+  final double? lat;
+  final double? lng;
+  final String? hotpepperUrl;
+  final String? imageUrl;
+  final List<String> imageUrls;
+  final String accessInfo;
+  final String stationName;
+  final String closeDay;
+  final bool nonSmoking;
+  final bool freeDrink;
+  final bool freeFood;
+  final bool lunchFromApi;
+  final bool wifi;
+  final bool course;
 
   String get ratingStr => rating.toStringAsFixed(1);
   String get priceStr => '¥${_formatNumber(priceAvg)}〜';
 
-  // openHoursから自動判定
+  bool isOpenNow(DateTime now) {
+    if (openHours.isEmpty) return false;
+    final timeMatch = RegExp(r'(\d{1,2}):(\d{2})[^-]*-[^-]*(\d{1,2}):(\d{2})').firstMatch(openHours);
+    if (timeMatch == null) return false;
+    final openH = int.parse(timeMatch.group(1)!);
+    final openM = int.parse(timeMatch.group(2)!);
+    final closeH = int.parse(timeMatch.group(3)!);
+    final closeM = int.parse(timeMatch.group(4)!);
+    final nowMinutes = now.hour * 60 + now.minute;
+    final openMinutes = openH * 60 + openM;
+    var closeMinutes = closeH * 60 + closeM;
+    if (closeMinutes < openMinutes) closeMinutes += 24 * 60;
+    return nowMinutes >= openMinutes && nowMinutes <= closeMinutes;
+  }
+
   bool get isLunchAvailable {
+    if (lunchFromApi) return true;
     final match = RegExp(r'^(\d+):').firstMatch(openHours);
-    if (match == null) return true;
+    if (match == null) return false; // 時刻不明 → 保守的にfalse
     final openHour = int.tryParse(match.group(1) ?? '') ?? 0;
+    if (openHour <= 5) return false;
     return openHour <= 12;
   }
 
   bool get isDinnerAvailable {
-    return openHours.contains('翌') ||
-        openHours.contains('23:') ||
-        openHours.contains('22:') ||
-        openHours.contains('21:') ||
-        openHours.contains('20:') ||
-        openHours.contains('19:') ||
-        openHours.contains('18:') ||
-        openHours.contains('17:');
+    if (openHours.contains('翌')) return true;
+    // 終了時刻を正規表現で抽出して判定（例: "9:00〜17:00" → 閉店17時 → ディナー不可）
+    final match = RegExp(r'[〜~\-]\s*(\d{1,2}):\d{2}').firstMatch(openHours);
+    if (match != null) {
+      final closeHour = int.tryParse(match.group(1)!) ?? 0;
+      return closeHour >= 18 || closeHour <= 5; // 18時以降 or 深夜5時以前（深夜営業）
+    }
+    return false;
   }
 
   String _formatNumber(int n) {

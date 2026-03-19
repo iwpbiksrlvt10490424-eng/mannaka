@@ -1,167 +1,226 @@
 import 'package:flutter/material.dart';
 import '../models/restaurant.dart';
+import '../models/scored_restaurant.dart';
 import '../theme/app_theme.dart';
 
+/// 標準的なレストランカード（Retty/Tabelog スタイル）
 class RestaurantCard extends StatelessWidget {
   const RestaurantCard({
     super.key,
     required this.restaurant,
     required this.onTap,
+    this.scored,
+    this.rank,
   });
 
   final Restaurant restaurant;
   final VoidCallback onTap;
+  final ScoredRestaurant? scored;
+  final int? rank;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 1),
-        color: AppColors.surface,
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 16, vertical: 14),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 絵文字アイコン
-                  Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: AppColors.background,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: AppColors.border),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(restaurant.emoji,
-                        style: const TextStyle(fontSize: 28)),
-                  ),
-                  const SizedBox(width: 12),
-                  // テキスト
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // 店名行
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: Text(
-                                restaurant.name,
-                                style: const TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.textPrimary,
-                                  height: 1.2,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            // 評価
-                            Row(
-                              children: [
-                                Icon(Icons.star_rounded,
-                                    color: AppColors.star, size: 14),
-                                const SizedBox(width: 2),
-                                Text(
-                                  restaurant.ratingStr,
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.textPrimary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        // カテゴリ＋レビュー数
-                        Text(
-                          '${restaurant.category}  ·  ${restaurant.reviewCount}件のレビュー',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        // 情報行
-                        Row(
-                          children: [
-                            Text(
-                              restaurant.priceStr,
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                                color: AppColors.textPrimary,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            const Icon(Icons.directions_walk,
-                                size: 13,
-                                color: AppColors.textTertiary),
-                            const SizedBox(width: 2),
-                            Text(
-                              '${restaurant.distanceMinutes}分',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                            const Spacer(),
-                            // バッジ群
-                            if (restaurant.hasPrivateRoom)
-                              _Badge('個室', const Color(0xFF7C3AED)),
-                            if (restaurant.isFemalePopular) ...[
-                              const SizedBox(width: 4),
-                              _Badge('女性人気', AppColors.primary),
-                            ],
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  const Icon(Icons.chevron_right,
-                      size: 18, color: AppColors.textTertiary),
-                ],
-              ),
+    final categoryBg = AppColors.getCategoryBg(restaurant.category);
+
+    return Semantics(
+      label: '${restaurant.name}、${restaurant.category}、${restaurant.priceStr}、徒歩${restaurant.distanceMinutes}分',
+      button: true,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
             ),
-            const Divider(height: 1),
           ],
         ),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ─── 写真エリア（80x80） ──────────────────────────
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: SizedBox(
+                  width: 80,
+                  height: 80,
+                  child: restaurant.imageUrl != null &&
+                          restaurant.imageUrl!.isNotEmpty
+                      ? Image.network(
+                          restaurant.imageUrl!,
+                          width: 80,
+                          height: 80,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) =>
+                              _photoFallback(categoryBg),
+                          loadingBuilder: (_, child, progress) =>
+                              progress == null
+                                  ? child
+                                  : _photoFallback(categoryBg),
+                        )
+                      : _photoFallback(categoryBg),
+                ),
+              ),
+              const SizedBox(width: 12),
+
+              // ─── テキスト情報 ──────────────────────────────────
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ランク表示（1〜3位のみ）
+                    if (rank != null && rank! <= 3) ...[
+                      Text(
+                        '${rank!}位',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: rank == 1
+                              ? const Color(0xFFB8860B)
+                              : rank == 2
+                                  ? const Color(0xFF6B6B6B)
+                                  : const Color(0xFF8B5E3C),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                    ],
+                    // 店名
+                    Text(
+                      restaurant.name,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                        height: 1.2,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    // カテゴリ · 価格 · 距離
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '${restaurant.category}  ·  ${restaurant.priceStr}  ·  徒歩${restaurant.distanceMinutes}分',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (restaurant.isOpenNow(DateTime.now())) ...[
+                          const SizedBox(width: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.success,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Text('営業中', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600)),
+                          ),
+                        ],
+                      ],
+                    ),
+                    // 評価（ある場合のみ）
+                    if (restaurant.rating > 0) ...[
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(Icons.star_rounded,
+                              color: AppColors.star, size: 13),
+                          const SizedBox(width: 2),
+                          Text(
+                            restaurant.ratingStr,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          if (restaurant.reviewCount > 0) ...[
+                            const SizedBox(width: 4),
+                            Text(
+                              '${restaurant.reviewCount}件',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: AppColors.textTertiary,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                    // 予約可・個室バッジ
+                    if (restaurant.hasPrivateRoom || restaurant.isReservable) ...[
+                      const SizedBox(height: 5),
+                      Row(
+                        children: [
+                          if (restaurant.isReservable) ...[
+                            const Icon(Icons.event_available_rounded,
+                                size: 12, color: AppColors.success),
+                            const SizedBox(width: 2),
+                            const Text(
+                              '予約可',
+                              style: TextStyle(
+                                  fontSize: 11, color: AppColors.success),
+                            ),
+                            if (restaurant.hasPrivateRoom)
+                              const SizedBox(width: 8),
+                          ],
+                          if (restaurant.hasPrivateRoom) ...[
+                            const Icon(Icons.door_back_door_outlined,
+                                size: 12, color: AppColors.textSecondary),
+                            const SizedBox(width: 2),
+                            const Text(
+                              '個室',
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.textSecondary),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+
+              // 右矢印
+              const Icon(Icons.chevron_right,
+                  size: 18, color: AppColors.textTertiary),
+            ],
+          ),
+        ),
       ),
+    ),
     );
   }
 }
 
-class _Badge extends StatelessWidget {
-  const _Badge(this.label, this.color);
-  final String label;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: color.withValues(alpha: 0.25)),
+Widget _photoFallback(Color bg) {
+  return Container(
+    width: 80,
+    height: 80,
+    decoration: BoxDecoration(
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [bg, bg.withValues(alpha: 0.65)],
       ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.w600,
-          color: color,
-        ),
-      ),
-    );
-  }
+    ),
+    child: const Center(
+      child: Icon(Icons.restaurant, size: 32, color: Colors.white70),
+    ),
+  );
 }

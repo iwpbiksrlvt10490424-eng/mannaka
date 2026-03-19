@@ -2,14 +2,31 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 abstract final class AppColors {
-  // メインカラー（使いすぎない）
-  static const Color primary = Color(0xFFE8174F);
+  // メインカラー（コーラルピンク）
+  static const Color primary = Color(0xFFFF6B81);
   static const Color primaryLight = Color(0xFFFFF0F4);
   static const Color primaryBorder = Color(0xFFFFCDD9);
 
   // 背景・サーフェス
   static const Color background = Color(0xFFF7F7F8);
   static const Color surface = Color(0xFFFFFFFF);
+
+  // ページ背景（ライトグレー — 白いカードが映える）
+  static const Color pageBackground = Color(0xFFF7F7F7);
+
+  // カード背景（ピュアホワイト）
+  static const Color cardBg = Colors.white;
+
+  // 統一スペーシング
+  static const double spacing4 = 4;
+  static const double spacing8 = 8;
+  static const double spacing12 = 12;
+  static const double spacing16 = 16;
+  static const double spacing20 = 20;
+  static const double spacing24 = 24;
+
+  // アクセント背景
+  static const Color accentBg = Color(0xFFF7F5F0);
 
   // テキスト
   static const Color textPrimary = Color(0xFF111827);
@@ -25,26 +42,40 @@ abstract final class AppColors {
   static const Color warning = Color(0xFFD97706);
   static const Color star = Color(0xFFF59E0B);
 
-  // 唯一のグラデーション（CTAボタンにのみ使用）
-  static const Gradient primaryGradient = LinearGradient(
-    begin: Alignment.centerLeft,
-    end: Alignment.centerRight,
-    colors: [Color(0xFFE8174F), Color(0xFFFF5C85)],
-  );
-
   // カードの標準シャドウ
   static List<BoxShadow> get cardShadow => [
         BoxShadow(
-          color: Colors.black.withValues(alpha: 0.05),
-          blurRadius: 8,
-          offset: const Offset(0, 1),
+          color: Colors.black.withValues(alpha: 0.06),
+          blurRadius: 12,
+          offset: const Offset(0, 2),
         ),
         BoxShadow(
           color: Colors.black.withValues(alpha: 0.03),
-          blurRadius: 2,
+          blurRadius: 3,
           offset: const Offset(0, 0),
         ),
       ];
+
+  // CTAボタンのシャドウ（最小限）
+  static List<BoxShadow> get ctaShadow => [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.08),
+          blurRadius: 8,
+          offset: const Offset(0, 2),
+        ),
+      ];
+
+  /// カテゴリ別背景色（暖かみのある統一トーン）
+  static Color getCategoryBg(String category) => switch (category) {
+        'バー' => const Color(0xFF1E293B),
+        _ => const Color(0xFFF7F5F0),
+      };
+
+  /// カテゴリ別アクセント色（暖かみのある統一トーン）
+  static Color getCategoryColor(String category) => switch (category) {
+        'バー' => const Color(0xFF64748B),
+        _ => const Color(0xFF6B6560),
+      };
 }
 
 abstract final class AppTheme {

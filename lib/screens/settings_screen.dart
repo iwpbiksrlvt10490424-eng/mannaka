@@ -346,7 +346,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 const SizedBox(height: 1, child: ColoredBox(color: Color(0xFFEEEEEE))),
                 _DefaultConditionTile(
                   icon: Icons.schedule_rounded,
-                  label: 'デフォルト時間帯',
+                  label: 'よく行くシーン',
                   prefKey: 'default_time_slot',
                   options: const ['ランチ', 'カフェ', 'ディナー', '飲み'],
                 ),

@@ -52,7 +52,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     if (profileImagePath != null) ref.read(profileImagePathProvider.notifier).state = profileImagePath;
 
     if (!mounted) return;
-    final completed = ref.read(onboardingCompletedProvider);
+    final completed = prefs.getBool('onboarding_completed') ?? false;
+    if (completed) ref.read(onboardingCompletedProvider.notifier).state = true;
     if (completed) {
       Navigator.of(context).pushReplacementNamed('/main');
     } else {

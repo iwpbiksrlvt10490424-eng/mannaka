@@ -302,6 +302,14 @@ class SearchNotifier extends Notifier<SearchState> {
     setStation(first.id, homeIdx, kStations[homeIdx]);
   }
 
+  /// マイページでホーム駅が変更されたとき、自分（先頭参加者）の駅を更新する
+  void setHomeStation(int stationIndex) {
+    if (stationIndex >= kStations.length) return;
+    if (state.participants.isEmpty) return;
+    final first = state.participants.first;
+    setStation(first.id, stationIndex, kStations[stationIndex]);
+  }
+
   void addParticipant() {
     final count = state.participants.length + 1;
     final names = ['友達A', '友達B', '友達C', '友達D', '友達E'];

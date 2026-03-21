@@ -553,12 +553,27 @@ class _LineShareSheet extends StatelessWidget {
     final encoded = Uri.encodeComponent(text);
     final lineUri = Uri.parse('https://line.me/R/share?text=$encoded');
 
+    // 予約済みとして保存
+    final entry = _buildEntry(r, station);
+    onShared(entry);
+
     if (await canLaunchUrl(lineUri)) {
       await launchUrl(lineUri, mode: LaunchMode.externalApplication);
     }
 
-    // 予約済みとして保存
-    final entry = ReservedRestaurant(
+    if (context.mounted) Navigator.pop(context);
+  }
+
+  void _saveOnly(BuildContext context) {
+    final r = restaurant;
+    final station =
+        r.lat != null && r.lng != null ? _nearestStationName(r.lat!, r.lng!) : '';
+    onShared(_buildEntry(r, station));
+    Navigator.pop(context);
+  }
+
+  ReservedRestaurant _buildEntry(dynamic r, String station) {
+    return ReservedRestaurant(
       id: '${r.id}_${DateTime.now().millisecondsSinceEpoch}',
       restaurantName: r.name,
       category: r.category,
@@ -570,9 +585,6 @@ class _LineShareSheet extends StatelessWidget {
       lng: r.lng,
       nearestStation: station,
     );
-    onShared(entry);
-
-    if (context.mounted) Navigator.pop(context);
   }
 
   @override
@@ -707,7 +719,16 @@ class _LineShareSheet extends StatelessWidget {
               ),
             ),
           ),
-          SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: TextButton(
+              onPressed: () => _saveOnly(context),
+              child: const Text('LINEで送らず記録だけする',
+                  style: TextStyle(fontSize: 13, color: Colors.grey)),
+            ),
+          ),
+          SizedBox(height: MediaQuery.of(context).padding.bottom + 8),
         ],
       ),
     );

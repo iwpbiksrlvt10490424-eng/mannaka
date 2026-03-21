@@ -31,6 +31,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   // 生のGPS座標は保持しない。最寄駅に変換した座標のみを使用（プライバシー保護）
   gmap.LatLng? _nearestStationLatLng;
   int? _nearestStationIdx;
+  // ホーム駅マーカー（listenManual で確実に更新）
+  gmap.Marker? _homeStationMarker;
+  ProviderSubscription<int?>? _homeStationSub;
 
   double _lastSize = 0;
 
@@ -85,6 +88,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     } catch (_) {}
   }
 
+
   void _onSheetChanged() {
     final size = _sheetCtrl.size;
     const snapPoints = [0.04, 0.09, 0.32];
@@ -102,10 +106,40 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     super.initState();
     _sheetCtrl.addListener(_onSheetChanged);
     _fetchLocation();
+    // homeStationProvider の変化を listenManual で確実に捕捉
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _homeStationSub = ref.listenManual<int?>(
+        homeStationProvider,
+        (prev, next) {
+          if (next == null || next >= kStationLatLng.length) return;
+          final (sLat, sLng) = kStationLatLng[next];
+          final pos = gmap.LatLng(sLat, sLng);
+          setState(() {
+            _homeStationMarker = gmap.Marker(
+              markerId: const gmap.MarkerId('home_station'),
+              position: pos,
+              infoWindow: gmap.InfoWindow(title: '🏠 ${kStations[next]}'),
+              icon: gmap.BitmapDescriptor.defaultMarkerWithHue(
+                  gmap.BitmapDescriptor.hueRose),
+            );
+          });
+          // カメラを駅へ移動（検索結果表示中は移動しない）
+          if (!ref.read(searchProvider).hasCentroid) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _mapController?.animateCamera(
+                gmap.CameraUpdate.newLatLngZoom(pos, 14.0),
+              );
+            });
+          }
+        },
+        fireImmediately: true, // 起動時に既存値でもマーカーを初期化
+      );
+    });
   }
 
   @override
   void dispose() {
+    _homeStationSub?.close();
     _sheetCtrl.removeListener(_onSheetChanged);
     _sheetCtrl.dispose();
     _mapController?.dispose();
@@ -124,16 +158,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ? kStationLatLng[homeStationIdx]
         : null;
 
-    // ホーム駅が変更されたらカメラをアニメーションで移動（検索結果がないとき）
-    ref.listen<int?>(homeStationProvider, (prev, next) {
-      if (next == null || next >= kStationLatLng.length) return;
-      if (searchState.hasCentroid) return; // 検索結果表示中は移動しない
-      if (_nearestStationLatLng != null) return; // GPS取得済みなら移動しない
-      final (sLat, sLng) = kStationLatLng[next];
-      _mapController?.animateCamera(
-        gmap.CameraUpdate.newLatLngZoom(gmap.LatLng(sLat, sLng), 14.0),
-      );
-    });
     final lat = searchState.centroidLat
         ?? _nearestStationLatLng?.latitude
         ?? homeLatLng?.$1
@@ -161,16 +185,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             gmap.BitmapDescriptor.hueAzure),
       ));
     }
-    // ホーム駅ピン（常時表示 — 設定で変更したらすぐ地図に反映）
-    if (homeLatLng != null && homeStationIdx != null) {
-      gmapMarkers.add(gmap.Marker(
-        markerId: const gmap.MarkerId('home_station'),
-        position: gmap.LatLng(homeLatLng.$1, homeLatLng.$2),
-        infoWindow: gmap.InfoWindow(title: '🏠 ${kStations[homeStationIdx]}'),
-        icon: gmap.BitmapDescriptor.defaultMarkerWithHue(
-            gmap.BitmapDescriptor.hueRose),
-      ));
-    }
+    // ホーム駅ピン（setState管理 or 初回起動時はproviderから生成）
+    final effectiveHomeMarker = _homeStationMarker ??
+        (homeLatLng != null && homeStationIdx != null
+            ? gmap.Marker(
+                markerId: const gmap.MarkerId('home_station'),
+                position: gmap.LatLng(homeLatLng.$1, homeLatLng.$2),
+                infoWindow:
+                    gmap.InfoWindow(title: '🏠 ${kStations[homeStationIdx]}'),
+                icon: gmap.BitmapDescriptor.defaultMarkerWithHue(
+                    gmap.BitmapDescriptor.hueRose),
+              )
+            : null);
+    if (effectiveHomeMarker != null) gmapMarkers.add(effectiveHomeMarker);
     if (hasResult) {
       // Participant origin markers (blue circle with initial)
       // Note: Google Maps doesn't support custom Flutter widgets as markers natively;

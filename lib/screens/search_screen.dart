@@ -301,26 +301,28 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             ),
           ),
 
-          // ─── ステップ区切り ───────────────────────────────────────────
           const SizedBox(height: 16),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                Expanded(child: Divider(thickness: 1, color: Color(0xFFE0E0E0))),
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 10),
-                  child: Text('好みを絞り込む（任意）',
-                      style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFFBBBBBB))),
-                ),
-                Expanded(child: Divider(thickness: 1, color: Color(0xFFE0E0E0))),
-              ],
+
+          // ─── ステップ区切り（2人未満のときのみ表示） ────────────────────
+          if (located < 2)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  Expanded(child: Divider(thickness: 1, color: Color(0xFFE0E0E0))),
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 10),
+                    child: Text('先にメンバーの駅を入れてね',
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFFBBBBBB))),
+                  ),
+                  Expanded(child: Divider(thickness: 1, color: Color(0xFFE0E0E0))),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
+          if (located < 2) const SizedBox(height: 8),
 
           // ─── 好みを選ぼう（ステップ2：駅が2人分入力されるまでロック） ────
           IgnorePointer(
@@ -372,15 +374,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                         notifier.setGroupRelation(relation),
                   ),
 
-                  // ─── 女子会モード ─────────────────────────────────────
+                  // ─── シーン選択 ───────────────────────────────────────
                   const SizedBox(height: 8),
-                  _GirlsNightToggle(
-                    active: state.occasion == Occasion.girlsNight,
-                    onToggle: () {
-                      final next = state.occasion == Occasion.girlsNight
-                          ? Occasion.none
-                          : Occasion.girlsNight;
-                      notifier.setOccasion(next);
+                  _OccasionChips(
+                    selected: state.occasion,
+                    onSelect: (o) {
+                      notifier.setOccasion(
+                          state.occasion == o ? Occasion.none : o);
                     },
                   ),
                 ],
@@ -1199,7 +1199,7 @@ class _DateTimeChip extends StatelessWidget {
                         ),
                         if (_isDefault)
                           const Text(
-                            '日程や時間帯を選ぶと、営業時間で絞り込めます',
+                            '日程・時間帯を選択してください',
                             style: TextStyle(
                               fontSize: 11,
                               color: AppColors.textTertiary,
@@ -1226,87 +1226,80 @@ class _DateTimeChip extends StatelessWidget {
 
 // ─── 女子会モードトグル ────────────────────────────────────────────────────────
 
-class _GirlsNightToggle extends StatelessWidget {
-  const _GirlsNightToggle({required this.active, required this.onToggle});
-  final bool active;
-  final VoidCallback onToggle;
+class _OccasionChips extends StatelessWidget {
+  const _OccasionChips({required this.selected, required this.onSelect});
+  final Occasion selected;
+  final ValueChanged<Occasion> onSelect;
+
+  static const _options = [
+    (Occasion.girlsNight, '女子会'),
+    (Occasion.birthday, '誕生日'),
+    (Occasion.lunch, 'ランチ'),
+    (Occasion.mixer, '合コン'),
+    (Occasion.welcome, '歓迎会'),
+    (Occasion.date, 'デート'),
+  ];
 
   @override
   Widget build(BuildContext context) {
     return Container(
+      width: double.infinity,
       color: AppColors.surface,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: 1, child: ColoredBox(color: Color(0xFFEEEEEE))),
-          GestureDetector(
-            onTap: onToggle,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              color: active
-                  ? AppColors.primary.withValues(alpha: 0.05)
-                  : AppColors.surface,
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.people_alt_rounded,
-                    size: 22,
-                    color: active ? AppColors.primary : AppColors.textSecondary,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '女子会モード',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: active
-                                ? AppColors.primary
-                                : AppColors.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '個室・女性に人気のお店を優先して表示',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: active
-                                ? AppColors.primary.withValues(alpha: 0.7)
-                                : AppColors.textTertiary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    width: 44,
-                    height: 26,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Text(
+              'シーン',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade500,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _options.map((opt) {
+                final (occasion, label) = opt;
+                final isSelected = selected == occasion;
+                return GestureDetector(
+                  onTap: () => onSelect(occasion),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 8),
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(13),
-                      color: active ? AppColors.primary : const Color(0xFFDDDDDD),
+                      color: isSelected
+                          ? AppColors.primaryLight
+                          : Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: isSelected ? AppColors.primary : AppColors.divider,
+                        width: isSelected ? 1.5 : 1,
+                      ),
                     ),
-                    child: AnimatedAlign(
-                      duration: const Duration(milliseconds: 200),
-                      alignment: active
-                          ? Alignment.centerRight
-                          : Alignment.centerLeft,
-                      child: Container(
-                        margin: const EdgeInsets.all(3),
-                        width: 20,
-                        height: 20,
-                        decoration: const BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                        ),
+                    child: Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: isSelected
+                            ? FontWeight.w600
+                            : FontWeight.w400,
+                        color: isSelected
+                            ? AppColors.primary
+                            : AppColors.textSecondary,
                       ),
                     ),
                   ),
-                ],
-              ),
+                );
+              }).toList(),
             ),
           ),
           const SizedBox(height: 1, child: ColoredBox(color: Color(0xFFEEEEEE))),
@@ -1337,13 +1330,26 @@ class _FoodCategoryChips extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      width: double.infinity,
       color: AppColors.surface,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: 1, child: ColoredBox(color: Color(0xFFEEEEEE))),
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Text(
+              'ジャンル',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade500,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
             child: Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -1407,13 +1413,26 @@ class _GroupRelationChips extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      width: double.infinity,
       color: AppColors.surface,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: 1, child: ColoredBox(color: Color(0xFFEEEEEE))),
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Text(
+              'メンバー',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade500,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
             child: Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -1428,8 +1447,8 @@ class _GroupRelationChips extends StatelessWidget {
                         horizontal: 14, vertical: 8),
                     decoration: BoxDecoration(
                       color: isSelected
-                          ? const Color(0xFFF7F5F0)
-                          : AppColors.background,
+                          ? AppColors.primaryLight
+                          : Colors.white,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
                         color: isSelected

@@ -298,7 +298,7 @@ class _VisitedTab extends ConsumerWidget {
             const Text('まだ行ったお店がないみたい',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
-            Text('LINEでシェアしたお店が、ここに残るよ',
+            Text('行ったお店を記録すると、ここに残るよ',
                 style: TextStyle(fontSize: 14, color: Colors.grey.shade500)),
           ],
         ),

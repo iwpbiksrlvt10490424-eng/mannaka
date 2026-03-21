@@ -11,6 +11,7 @@ import '../theme/app_theme.dart';
 import '../providers/favorites_provider.dart';
 import '../providers/profile_provider.dart';
 import '../providers/nav_provider.dart';
+import '../providers/search_provider.dart';
 import '../data/station_data.dart';
 import '../widgets/station_search_sheet.dart';
 import 'support_screen.dart';
@@ -719,6 +720,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (result != null && result.kIndex != null) {
       final idx = result.kIndex!;
       ref.read(homeStationProvider.notifier).state = idx;
+      ref.read(searchProvider.notifier).setHomeStation(idx);
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt('home_station', idx);
       // ホーム画面へ遷移して変更を確認できるようにする

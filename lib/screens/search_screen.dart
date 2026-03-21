@@ -1164,7 +1164,7 @@ class _DateTimeChip extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '$_dateLabel・$_slotLabel',
+                          _isDefault ? _dateLabel : '$_dateLabel・$_slotLabel',
                           style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w600,

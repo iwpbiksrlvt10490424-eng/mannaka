@@ -57,17 +57,25 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen>
               child: const Text('クリア', style: TextStyle(color: Colors.white70)),
             ),
         ],
-        bottom: TabBar(
-          controller: _tab,
-          indicatorColor: Colors.white,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white60,
-          labelStyle:
-              const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-          tabs: const [
-            Tab(text: '検索履歴'),
-            Tab(text: '予約済み'),
-          ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(49),
+          child: Column(
+            children: [
+              TabBar(
+                controller: _tab,
+                indicatorColor: Colors.white,
+                labelColor: Colors.white,
+                unselectedLabelColor: Colors.white60,
+                labelStyle:
+                    const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                tabs: const [
+                  Tab(text: '検索履歴'),
+                  Tab(text: '予約済み'),
+                ],
+              ),
+              Container(height: 1, color: Colors.white.withValues(alpha: 0.2)),
+            ],
+          ),
         ),
       ),
       body: TabBarView(

@@ -21,6 +21,32 @@ bool isReservationUrlAllowed(String url) {
   return uri != null && uri.scheme == 'https';
 }
 
+/// mannaka:// ディープリンクを生成する。
+/// 受け取った側がアプリをインストール済みであればお店の詳細画面に直接遷移する。
+String _buildDeepLink(Restaurant r, String station) {
+  final params = <String, String>{
+    if (r.id.isNotEmpty) 'id': r.id,
+    'name': r.name,
+    if (r.lat != null) 'lat': r.lat!.toStringAsFixed(6),
+    if (r.lng != null) 'lng': r.lng!.toStringAsFixed(6),
+    if (r.address.isNotEmpty) 'address': r.address,
+    if (r.category.isNotEmpty) 'category': r.category,
+    if (r.hotpepperUrl != null) 'url': r.hotpepperUrl!,
+    if (r.openHours.isNotEmpty) 'hours': r.openHours,
+    if (r.accessInfo.isNotEmpty) 'access': r.accessInfo,
+    if (r.stationName.isNotEmpty) 'station': r.stationName,
+    if (station.isNotEmpty) 'station': station,
+    if (r.closeDay.isNotEmpty) 'closeDay': r.closeDay,
+    if (r.priceLabel.isNotEmpty) 'price': r.priceLabel,
+    if (r.rating > 0) 'rating': r.rating.toStringAsFixed(1),
+  };
+  final query = params.entries
+      .map((e) =>
+          '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value)}')
+      .join('&');
+  return 'mannaka://restaurant?$query';
+}
+
 /// レストランの緯度経度から最寄り kStation 名を取得（シェア用）
 String _nearestStationName(double lat, double lng) {
   double best = double.infinity;
@@ -478,14 +504,17 @@ class _LineShareSheet extends StatelessWidget {
 
   Future<void> _shareLine(BuildContext context) async {
     final r = restaurant;
+    final station =
+        r.lat != null && r.lng != null ? _nearestStationName(r.lat!, r.lng!) : '';
+
+    // mannaka:// ディープリンク（アプリインストール済みの人はここからお店詳細へ直接遷移）
+    final deepLink = _buildDeepLink(r, station);
+
     // Googleマップ目的地リンク（受け取った側が自分の現在地からルート確認）
     // 送信者の位置情報は含まない
     final mapsUrl = r.lat != null && r.lng != null
         ? 'https://maps.google.com/maps?daddr=${r.lat},${r.lng}'
         : '';
-
-    final station =
-        r.lat != null && r.lng != null ? _nearestStationName(r.lat!, r.lng!) : '';
 
     final lines = <String>[
       '【集合場所が決まりました！】',
@@ -493,6 +522,7 @@ class _LineShareSheet extends StatelessWidget {
       if (r.address.isNotEmpty) '📍 ${r.address}',
       if (station.isNotEmpty) '🚉 最寄り駅: $station駅',
       if (mapsUrl.isNotEmpty) '\n📍 道順はこちら\n$mapsUrl',
+      '\n📲 まんなかアプリで開く\n$deepLink',
       '\n「まんなか」で見つけたよ！',
     ];
     final text = lines.join('\n');
@@ -605,6 +635,10 @@ class _LineShareSheet extends StatelessWidget {
                         color: Colors.blue.shade600,
                         decoration: TextDecoration.underline,
                         decorationColor: Colors.blue.shade600)),
+                const SizedBox(height: 2),
+                Text('📲 まんなかアプリで開く（インストール済みの方）',
+                    style: TextStyle(
+                        fontSize: 12, color: Colors.grey.shade500)),
                 const SizedBox(height: 4),
                 Text('「まんなか」で見つけたよ！',
                     style: TextStyle(
@@ -615,6 +649,7 @@ class _LineShareSheet extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             '※ 受け取った方が自分の現在地からGoogleマップで道順を確認できます。\n'
+            '※ まんなかアプリをお持ちの方はアプリ内でお店の詳細を確認できます。\n'
             '　 あなたの現在地は共有されません。',
             style: TextStyle(fontSize: 11, color: Colors.grey.shade400),
           ),
@@ -708,40 +743,83 @@ class _GMapCardState extends State<_GMapCard> {
     super.dispose();
   }
 
+  Future<void> _openGoogleMaps() async {
+    final r = widget.restaurant;
+    final uri = Uri.parse(
+        'https://maps.google.com/?q=${Uri.encodeComponent(r.name)}&ll=${r.lat},${r.lng}');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final pos = gmap.LatLng(widget.restaurant.lat!, widget.restaurant.lng!);
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
-      child: SizedBox(
-        height: 180,
-        child: gmap.GoogleMap(
-          initialCameraPosition: gmap.CameraPosition(target: pos, zoom: 16),
-          onMapCreated: (ctrl) => _ctrl = ctrl,
-          markers: {
-            gmap.Marker(
-              markerId: const gmap.MarkerId('restaurant'),
-              position: pos,
-              infoWindow:
-                  gmap.InfoWindow(title: widget.restaurant.name),
-              onTap: () async {
-                final uri = Uri.parse(
-                    'https://maps.google.com/?q=${widget.restaurant.lat},${widget.restaurant.lng}');
-                if (await canLaunchUrl(uri)) {
-                  await launchUrl(uri,
-                      mode: LaunchMode.externalApplication);
-                }
+      child: Stack(
+        children: [
+          SizedBox(
+            height: 180,
+            child: gmap.GoogleMap(
+              initialCameraPosition:
+                  gmap.CameraPosition(target: pos, zoom: 16),
+              onMapCreated: (ctrl) => _ctrl = ctrl,
+              markers: {
+                gmap.Marker(
+                  markerId: const gmap.MarkerId('restaurant'),
+                  position: pos,
+                  infoWindow:
+                      gmap.InfoWindow(title: widget.restaurant.name),
+                ),
               },
+              myLocationEnabled: false,
+              myLocationButtonEnabled: false,
+              zoomControlsEnabled: false,
+              scrollGesturesEnabled: false,
+              rotateGesturesEnabled: false,
+              tiltGesturesEnabled: false,
+              zoomGesturesEnabled: false,
+              onTap: (_) => _openGoogleMaps(),
             ),
-          },
-          myLocationEnabled: false,
-          myLocationButtonEnabled: false,
-          zoomControlsEnabled: false,
-          scrollGesturesEnabled: false,
-          rotateGesturesEnabled: false,
-          tiltGesturesEnabled: false,
-          zoomGesturesEnabled: false,
-        ),
+          ),
+          // 「Googleマップで開く」オーバーレイボタン
+          Positioned(
+            bottom: 10,
+            right: 10,
+            child: GestureDetector(
+              onTap: _openGoogleMaps,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.15),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.open_in_new_rounded,
+                        size: 13, color: Colors.grey.shade700),
+                    const SizedBox(width: 4),
+                    Text('Googleマップで開く',
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey.shade700)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

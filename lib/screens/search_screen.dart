@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/participant.dart';
 import '../providers/search_provider.dart';
 import '../providers/group_provider.dart';
@@ -15,13 +16,41 @@ import '../theme/app_theme.dart';
 import '../widgets/station_search_sheet.dart';
 import 'results_screen.dart';
 
-class SearchScreen extends ConsumerWidget {
+class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SearchScreen> createState() => _SearchScreenState();
+}
+
+class _SearchScreenState extends ConsumerState<SearchScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _showHowToIfNeeded());
+  }
+
+  Future<void> _showHowToIfNeeded() async {
+    final prefs = await SharedPreferences.getInstance();
+    final shown = prefs.getBool('howto_shown') ?? false;
+    if (!shown && mounted) {
+      await prefs.setBool('howto_shown', true);
+      if (mounted) {
+        showModalBottomSheet(
+          context: context,
+          backgroundColor: Colors.transparent,
+          isScrollControlled: true,
+          builder: (_) => const _HowToSheet(),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(searchProvider);
     final notifier = ref.read(searchProvider.notifier);
+    final located = state.participants.where((p) => p.hasLocation).length;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -30,6 +59,10 @@ class SearchScreen extends ConsumerWidget {
         foregroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
         scrolledUnderElevation: 0,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(height: 1, color: Colors.white.withValues(alpha: 0.2)),
+        ),
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -116,7 +149,7 @@ class SearchScreen extends ConsumerWidget {
               padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
               child: Row(
                 children: [
-                  _StepBadge('1', 'みんなの駅を入れて', isActive: activeStep >= 1),
+                  _StepBadge('1', '駅を入れよう', isActive: activeStep >= 1),
                   const _StepArrow(),
                   _StepBadge('2', '好みを選ぼう', isActive: activeStep >= 2),
                   const _StepArrow(),
@@ -143,7 +176,7 @@ class SearchScreen extends ConsumerWidget {
                     index: e.key,
                     showDivider: !isLast,
                     canRemove: state.participants.length > 1,
-                    onStationTap: () => _pickStation(context, ref, p.id),
+                    onStationTap: () => _pickStation(p.id),
                     onStationClear: () => notifier.clearStation(p.id),
                     onNameChanged: (n) =>
                         notifier.updateParticipantName(p.id, n),
@@ -203,7 +236,7 @@ class SearchScreen extends ConsumerWidget {
                   child: GestureDetector(
                     onTap: () {
                       HapticFeedback.lightImpact();
-                      _showSaveGroupDialog(context, ref);
+                      _showSaveGroupDialog();
                     },
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 10),
@@ -236,7 +269,7 @@ class SearchScreen extends ConsumerWidget {
                   child: GestureDetector(
                     onTap: () {
                       HapticFeedback.lightImpact();
-                      _showSavedGroupsSheet(context, ref);
+                      _showSavedGroupsSheet();
                     },
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 10),
@@ -270,57 +303,69 @@ class SearchScreen extends ConsumerWidget {
 
           const SizedBox(height: 12),
 
-          // ─── 日程・時間帯 ─────────────────────────────────────
-          Container(
-            color: AppColors.surface,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                  child: Text(
-                    '日程・時間帯',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey.shade500,
-                      letterSpacing: 0.5,
+          // ─── 好みを選ぼう（ステップ2：駅が2人分入力されるまでロック） ────
+          IgnorePointer(
+            ignoring: located < 2,
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 300),
+              opacity: located >= 2 ? 1.0 : 0.35,
+              child: Column(
+                children: [
+                  // ─── 日程・時間帯 ─────────────────────────────────────
+                  Container(
+                    color: AppColors.surface,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                          child: Text(
+                            '日程・時間帯',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey.shade500,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                        _DateTimeChip(
+                          state: state,
+                          onTap: () => _showTimeSlotSheet(),
+                        ),
+                      ],
                     ),
                   ),
-                ),
-                _DateTimeChip(
-                  state: state,
-                  onTap: () => _showTimeSlotSheet(context, ref),
-                ),
-              ],
+
+                  // ─── ご飯ジャンル ─────────────────────────────────────
+                  _FoodCategoryChips(
+                    selected: state.restaurantCategory,
+                    onSelect: (cat) => notifier.setRestaurantCategory(
+                        cat == state.restaurantCategory ? null : cat),
+                  ),
+
+                  const SizedBox(height: 4),
+
+                  // ─── 誰と行く？ ───────────────────────────────────────
+                  _GroupRelationChips(
+                    selected: state.groupRelation,
+                    onSelect: (relation) =>
+                        notifier.setGroupRelation(relation),
+                  ),
+
+                  // ─── 女子会モード ─────────────────────────────────────
+                  _GirlsNightToggle(
+                    active: state.occasion == Occasion.girlsNight,
+                    onToggle: () {
+                      final next = state.occasion == Occasion.girlsNight
+                          ? Occasion.none
+                          : Occasion.girlsNight;
+                      notifier.setOccasion(next);
+                    },
+                  ),
+                ],
+              ),
             ),
-          ),
-
-          // ─── ご飯ジャンル ─────────────────────────────────────
-          _FoodCategoryChips(
-            selected: state.restaurantCategory,
-            onSelect: (cat) => notifier.setRestaurantCategory(
-                cat == state.restaurantCategory ? null : cat),
-          ),
-
-          const SizedBox(height: 4),
-
-          // ─── 誰と行く？ ───────────────────────────────────────
-          _GroupRelationChips(
-            selected: state.groupRelation,
-            onSelect: (relation) =>
-                notifier.setGroupRelation(relation),
-          ),
-
-          // ─── 女子会モード ─────────────────────────────────────
-          _GirlsNightToggle(
-            active: state.occasion == Occasion.girlsNight,
-            onToggle: () {
-              final next = state.occasion == Occasion.girlsNight
-                  ? Occasion.none
-                  : Occasion.girlsNight;
-              notifier.setOccasion(next);
-            },
           ),
 
           const SizedBox(height: 80),
@@ -330,7 +375,7 @@ class SearchScreen extends ConsumerWidget {
     );
   }
 
-  void _showSaveGroupDialog(BuildContext context, WidgetRef ref) {
+  void _showSaveGroupDialog() {
     final participants = ref.read(searchProvider).participants;
     if (participants.isEmpty) return;
 
@@ -390,7 +435,7 @@ class SearchScreen extends ConsumerWidget {
     ).then((_) => controller.dispose());
   }
 
-  void _showSavedGroupsSheet(BuildContext context, WidgetRef ref) {
+  void _showSavedGroupsSheet() {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -399,7 +444,7 @@ class SearchScreen extends ConsumerWidget {
     );
   }
 
-  void _showTimeSlotSheet(BuildContext context, WidgetRef ref) {
+  void _showTimeSlotSheet() {
     HapticFeedback.lightImpact();
     showModalBottomSheet(
       context: context,
@@ -418,8 +463,7 @@ class SearchScreen extends ConsumerWidget {
     );
   }
 
-  void _pickStation(
-      BuildContext context, WidgetRef ref, String participantId) async {
+  void _pickStation(String participantId) async {
     HapticFeedback.lightImpact();
     final favorites = ref.read(favoritesProvider);
     final currentStation = ref
@@ -1195,7 +1239,7 @@ class _GirlsNightToggle extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '女子会モード 🌸',
+                          '女子会モード',
                           style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w700,
@@ -1650,6 +1694,143 @@ class _StepArrow extends StatelessWidget {
     return const Padding(
       padding: EdgeInsets.only(bottom: 16),
       child: Icon(Icons.chevron_right_rounded, color: Colors.white70, size: 20),
+    );
+  }
+}
+
+// ─── 使い方ガイド（初回のみ表示） ──────────────────────────────────────────────
+
+class _HowToSheet extends StatelessWidget {
+  const _HowToSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.of(context).padding.bottom;
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: EdgeInsets.fromLTRB(24, 20, 24, bottom + 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 36,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade200,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            '使い方はかんたん、3ステップ',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '準備は駅の名前だけ。あとはまんなかにおまかせ。',
+            style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
+          _HowToStep(
+            number: '1',
+            icon: Icons.train_rounded,
+            title: '全員の最寄り駅を入力',
+            body: '自分と友達の駅を入れるだけ。GPS自動取得も使えるよ。',
+            color: AppColors.primary,
+          ),
+          const SizedBox(height: 16),
+          _HowToStep(
+            number: '2',
+            icon: Icons.tune_rounded,
+            title: '好みを選ぶ（任意）',
+            body: '日程・ジャンル・女子会モードなど好みで絞り込める。',
+            color: const Color(0xFF7C3AED),
+          ),
+          const SizedBox(height: 16),
+          _HowToStep(
+            number: '3',
+            icon: Icons.restaurant_rounded,
+            title: 'みんなにぴったりなお店を発見',
+            body: '全員の移動バランスと予約可否を考えて、最高のお店を提案。LINEでそのまま共有できる。',
+            color: const Color(0xFF059669),
+          ),
+          const SizedBox(height: 28),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+              ),
+              child: const Text(
+                'さっそく使ってみる',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HowToStep extends StatelessWidget {
+  const _HowToStep({
+    required this.number,
+    required this.icon,
+    required this.title,
+    required this.body,
+    required this.color,
+  });
+  final String number;
+  final IconData icon;
+  final String title;
+  final String body;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, size: 20, color: color),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Step $number  $title',
+                style: TextStyle(
+                    fontSize: 14, fontWeight: FontWeight.w700, color: color),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                body,
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade600, height: 1.5),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

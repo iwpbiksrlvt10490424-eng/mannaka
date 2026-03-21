@@ -64,16 +64,11 @@ class HotpepperService {
     final hasInfo = (s['catch']?.toString() ?? '').isNotEmpty;
     final rating = hasInfo ? 3.5 : 3.0;
 
-    // 写真URLを複数収集
+    // pc.l / pc.m / mobile.l はすべて同一画像の異なるサイズ。最大サイズのみ使用。
     final pcPhoto = (s['photo'] as Map?)?['pc'] as Map?;
-    final mobilePhoto = (s['photo'] as Map?)?['mobile'] as Map?;
     final photoL = pcPhoto?['l']?.toString() ?? '';
-    final photoM = pcPhoto?['m']?.toString() ?? '';
-    final photoMobileL = mobilePhoto?['l']?.toString() ?? '';
     final imageUrls = <String>[
       if (photoL.isNotEmpty) photoL,
-      if (photoM.isNotEmpty && photoM != photoL) photoM,
-      if (photoMobileL.isNotEmpty && photoMobileL != photoL && photoMobileL != photoM) photoMobileL,
     ];
 
     // アクセス情報から徒歩時間を解析

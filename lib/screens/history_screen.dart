@@ -39,7 +39,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen>
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('あしあと',
+        title: const Text('履歴',
             style: TextStyle(fontWeight: FontWeight.w800, color: Colors.white)),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,

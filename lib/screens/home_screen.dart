@@ -370,7 +370,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 const SizedBox(height: 10),
                                 // ─── メインCTA ─────────────────────
                                 Semantics(
-                                  label: 'お店を探す',
+                                  label: 'Aimaを探す',
                                   button: true,
                                   child: GestureDetector(
                                     onTap: () {
@@ -394,7 +394,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                             size: 20),
                                         SizedBox(width: 8),
                                         Text(
-                                          'お店を探す',
+                                          'Aimaを探す',
                                           style: TextStyle(
                                             color: Colors.white,
                                             fontSize: 15,
@@ -916,7 +916,7 @@ class _MascotSheet extends ConsumerWidget {
                 children: [
                   _QuickAction(
                     icon: Icons.search_rounded,
-                    label: 'お店を探す',
+                    label: 'Aimaを探す',
                     color: AppColors.primary,
                     onTap: () {
                       Navigator.pop(context);

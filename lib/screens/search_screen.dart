@@ -895,7 +895,7 @@ class _SearchButton extends ConsumerWidget {
                   : Text(
                       state.occasion != Occasion.none
                           ? '${state.occasion.label}のお店を見つける'
-                          : 'ちょうどいいお店を探す',
+                          : 'Aimaに探す',
                       style: const TextStyle(
                           fontSize: 16, fontWeight: FontWeight.w700),
                       maxLines: 1,

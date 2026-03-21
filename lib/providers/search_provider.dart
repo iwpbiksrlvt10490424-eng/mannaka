@@ -16,6 +16,7 @@ import '../config/api_config.dart';
 import '../data/restaurant_data.dart';
 import '../services/notification_service.dart';
 import '../services/analytics_service.dart';
+import '../services/restaurant_cache_service.dart';
 
 enum Occasion {
   none,
@@ -446,29 +447,49 @@ class SearchNotifier extends Notifier<SearchState> {
       final centroid = MidpointService.calcCentroid(state.participants);
 
       List<Restaurant> hotpepperRestaurants = [];
-      if (ApiConfig.hotpepperApiKey.isNotEmpty && centroid != null) {
+      if (centroid != null) {
         state = state.copyWith(loadingMessage: 'お店を検索中...');
-        hotpepperRestaurants = await HotpepperService.searchNearCentroid(
-          apiKey: ApiConfig.hotpepperApiKey,
-          lat: centroid.$1,
-          lng: centroid.$2,
-        );
-      }
-      // Hotpepperデータがない場合、Foursquare Places API v3でリアルデータを取得
-      if (hotpepperRestaurants.isEmpty && centroid != null) {
-        state = state.copyWith(loadingMessage: 'お店を検索中...');
-        hotpepperRestaurants = await ref.read(foursquareServiceProvider).searchNearby(
-          centroid.$1,
-          centroid.$2,
-        );
-      }
-      // Foursquareデータもない場合、Overpass API（OpenStreetMap）でフォールバック
-      if (hotpepperRestaurants.isEmpty && centroid != null) {
-        state = state.copyWith(loadingMessage: 'マップデータから検索中...');
-        hotpepperRestaurants = await OverpassService.searchNearby(
-          lat: centroid.$1,
-          lng: centroid.$2,
-        );
+
+        // Check Firebase cache first
+        final cached = await RestaurantCacheService.get(centroid.$1, centroid.$2);
+        if (cached != null && cached.isNotEmpty) {
+          hotpepperRestaurants = cached;
+        } else {
+          // Fire Hotpepper and Foursquare in parallel
+          final foursquare = ref.read(foursquareServiceProvider);
+          final hotpepperFuture = ApiConfig.hotpepperApiKey.isNotEmpty
+              ? HotpepperService.searchNearCentroid(
+                  apiKey: ApiConfig.hotpepperApiKey,
+                  lat: centroid.$1,
+                  lng: centroid.$2,
+                )
+              : Future.value(<Restaurant>[]);
+          final foursquareFuture = foursquare.searchNearby(centroid.$1, centroid.$2);
+
+          // Start Overpass in background (slower, only used as last resort)
+          final overpassFuture = OverpassService.searchNearby(
+            lat: centroid.$1,
+            lng: centroid.$2,
+          );
+
+          // Wait for the two fast APIs first
+          final primaryResults = await Future.wait([hotpepperFuture, foursquareFuture]);
+          hotpepperRestaurants = primaryResults[0].isNotEmpty
+              ? primaryResults[0]
+              : primaryResults[1];
+
+          // Only wait for Overpass if primary APIs returned nothing
+          if (hotpepperRestaurants.isEmpty) {
+            state = state.copyWith(loadingMessage: 'マップデータから検索中...');
+            hotpepperRestaurants = await overpassFuture;
+          }
+
+          // Store in Firebase cache for future searches (fire and forget)
+          if (hotpepperRestaurants.isNotEmpty) {
+            RestaurantCacheService.set(centroid.$1, centroid.$2, hotpepperRestaurants)
+                .ignore();
+          }
+        }
       }
 
       // Build cache — already fetched for the centroid/best point

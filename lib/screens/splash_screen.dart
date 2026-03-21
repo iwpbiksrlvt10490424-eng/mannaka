@@ -115,7 +115,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'お店が、集合場所になる。',
+                    '集合場所になるお店を、すぐ見つけよう。',
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.85),
                       fontSize: 15,

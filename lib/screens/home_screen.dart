@@ -5,7 +5,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gmap;
 import 'package:geolocator/geolocator.dart';
-import '../providers/history_provider.dart';
 import '../providers/search_provider.dart';
 import '../providers/ad_provider.dart';
 import '../models/ad.dart';
@@ -136,7 +135,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final history = ref.watch(historyProvider);
     final searchState = ref.watch(searchProvider);
 
     final hasResult = searchState.hasCentroid &&
@@ -436,34 +434,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       ),
                     ),
 
-                    // ─── 履歴 ──────────────────────────────────
-                    if (history.isNotEmpty) ...[
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(
-                              20, 14, 20, 4),
-                          child: const Text(
-                            '最近の検索',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                        ),
-                      ),
-                      SliverList(
-                        delegate: SliverChildBuilderDelegate(
-                          (ctx, i) => _HistoryRow(
-                            entry: history[i],
-                            onNavigate: widget.onNavigate,
-                          ),
-                          childCount: history.length > 5
-                              ? 5
-                              : history.length,
-                        ),
-                      ),
-                    ],
 
                     const SliverToBoxAdapter(
                         child: SizedBox(height: 40)),
@@ -1155,129 +1125,4 @@ class _QuickAction extends StatelessWidget {
 // ─── 初回利用ガイド ────────────────────────────────────────────────────────
 
 
-// ─── 履歴行（Tabelog風リストセル） ──────────────────────────────────────────
-
-class _HistoryRow extends ConsumerWidget {
-  const _HistoryRow({required this.entry, this.onNavigate});
-  final HistoryEntry entry;
-  final NavigateCallback? onNavigate;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            child: Row(
-              children: [
-                // アイコン
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  alignment: Alignment.center,
-                  child: const Icon(
-                    Icons.history_rounded,
-                    size: 22,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                // テキスト
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${entry.meetingPoint.stationName}駅',
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        entry.participantNames.join(' · '),
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-                // 右側
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      '平均 ${entry.meetingPoint.averageMinutes.toStringAsFixed(0)}分',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      entry.meetingPoint.fairnessLabel,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: AppColors.textTertiary,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(width: 8),
-                const Icon(Icons.chevron_right,
-                    size: 18, color: AppColors.textTertiary),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-            child: SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: () {
-                  HapticFeedback.lightImpact();
-                  ref.read(searchProvider.notifier).setParticipantsFromHistory(
-                    entry.participantNames,
-                  );
-                  onNavigate?.call(1);
-                },
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.primary,
-                  side: BorderSide(color: AppColors.primary.withValues(alpha: 0.3)),
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-                child: const Text('このメンバーで再検索', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 

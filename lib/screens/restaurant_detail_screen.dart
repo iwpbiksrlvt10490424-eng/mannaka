@@ -97,12 +97,52 @@ class _RestaurantDetailScreenState extends ConsumerState<RestaurantDetailScreen>
 
   Future<void> _fetchFoursquarePhotos() async {
     final r = widget.restaurant;
-    if (!r.id.startsWith('fsq_')) return;
 
-    final fsqId = r.id.replaceFirst('fsq_', '');
+    if (r.id.startsWith('fsq_')) {
+      // Foursquareのお店: /photos エンドポイントで追加取得
+      await _fetchFsqPhotosByFsqId(r.id.replaceFirst('fsq_', ''));
+    } else {
+      // Hotpepperのお店: ①Foursquareクロス検索 → ②Google Places Photos を並列実行
+      await Future.wait([
+        _fetchPhotosByFoursquareCross(),
+        _fetchGooglePlacesPhotos(),
+      ]);
+    }
+  }
+
+  /// ① Foursquare テキスト検索でお店を特定し写真を取得
+  Future<void> _fetchPhotosByFoursquareCross() async {
+    final r = widget.restaurant;
+    final fsqKey = ApiConfig.foursquareApiKey;
+    if (fsqKey.isEmpty || r.lat == null || r.lng == null) return;
+    try {
+      // テキスト検索でFoursquare venue IDを取得
+      final searchUri = Uri.parse('https://api.foursquare.com/v3/places/search').replace(
+        queryParameters: {
+          'query': r.name,
+          'll': '${r.lat},${r.lng}',
+          'limit': '1',
+          'fields': 'fsq_id',
+        },
+      );
+      final searchRes = await http.get(searchUri, headers: {
+        'Authorization': fsqKey,
+        'Accept': 'application/json',
+      }).timeout(const Duration(seconds: 5));
+      if (searchRes.statusCode != 200) return;
+      final results = (jsonDecode(utf8.decode(searchRes.bodyBytes))['results'] as List<dynamic>?) ?? [];
+      if (results.isEmpty) return;
+      final fsqId = (results.first as Map<String, dynamic>)['fsq_id'] as String?;
+      if (fsqId == null) return;
+      await _fetchFsqPhotosByFsqId(fsqId);
+    } catch (_) {}
+  }
+
+  /// Foursquare /photos エンドポイントで写真取得（共通）
+  Future<void> _fetchFsqPhotosByFsqId(String fsqId) async {
+    final r = widget.restaurant;
     final apiKey = ApiConfig.foursquareApiKey;
-    if (apiKey.isEmpty || apiKey.startsWith('YOUR_')) return;
-
+    if (apiKey.isEmpty) return;
     try {
       final uri = Uri.parse(
           'https://api.foursquare.com/v3/places/$fsqId/photos?limit=10');
@@ -110,15 +150,9 @@ class _RestaurantDetailScreenState extends ConsumerState<RestaurantDetailScreen>
         'Authorization': apiKey,
         'Accept': 'application/json',
       }).timeout(const Duration(seconds: 5));
-
       if (response.statusCode != 200) return;
-
       final data = jsonDecode(utf8.decode(response.bodyBytes)) as List<dynamic>;
-      final existingUrls = {
-        ...r.imageUrls,
-        if (r.imageUrl != null) r.imageUrl!,
-      };
-
+      final existingUrls = {...r.imageUrls, if (r.imageUrl != null) r.imageUrl!};
       final fetched = <String>[];
       for (final item in data) {
         final photo = item as Map<String, dynamic>;
@@ -126,18 +160,66 @@ class _RestaurantDetailScreenState extends ConsumerState<RestaurantDetailScreen>
         final suffix = photo['suffix'] as String?;
         if (prefix != null && suffix != null) {
           final url = '${prefix}600x600$suffix';
-          if (!existingUrls.contains(url)) {
-            fetched.add(url);
-          }
+          if (!existingUrls.contains(url) && !_extraPhotos.contains(url)) fetched.add(url);
         }
       }
-
       if (fetched.isNotEmpty && mounted) {
-        setState(() => _extraPhotos = fetched);
+        setState(() => _extraPhotos = [..._extraPhotos, ...fetched]);
       }
-    } catch (_) {
-      // サイレントフェイル — 既存写真で表示継続
-    }
+    } catch (_) {}
+  }
+
+  /// ② Google Places Photos API でお店の写真を取得
+  Future<void> _fetchGooglePlacesPhotos() async {
+    final r = widget.restaurant;
+    final gKey = ApiConfig.googleMapsApiKey;
+    if (gKey.isEmpty || r.lat == null || r.lng == null) return;
+    try {
+      // Text Search でplace_idを取得
+      final searchUri = Uri.parse(
+          'https://maps.googleapis.com/maps/api/place/findplacefromtext/json').replace(
+        queryParameters: {
+          'input': r.name,
+          'inputtype': 'textquery',
+          'locationbias': 'point:${r.lat},${r.lng}',
+          'fields': 'place_id',
+          'language': 'ja',
+          'key': gKey,
+        },
+      );
+      final searchRes = await http.get(searchUri).timeout(const Duration(seconds: 5));
+      if (searchRes.statusCode != 200) return;
+      final candidates = (jsonDecode(utf8.decode(searchRes.bodyBytes))['candidates'] as List<dynamic>?) ?? [];
+      if (candidates.isEmpty) return;
+      final placeId = (candidates.first as Map<String, dynamic>)['place_id'] as String?;
+      if (placeId == null) return;
+
+      // Place Details で photos を取得
+      final detailUri = Uri.parse(
+          'https://maps.googleapis.com/maps/api/place/details/json').replace(
+        queryParameters: {
+          'place_id': placeId,
+          'fields': 'photos',
+          'language': 'ja',
+          'key': gKey,
+        },
+      );
+      final detailRes = await http.get(detailUri).timeout(const Duration(seconds: 5));
+      if (detailRes.statusCode != 200) return;
+      final photoRefs = (jsonDecode(utf8.decode(detailRes.bodyBytes))['result']?['photos'] as List<dynamic>?) ?? [];
+
+      final fetched = <String>[];
+      for (final p in photoRefs.take(8)) {
+        final ref = (p as Map<String, dynamic>)['photo_reference'] as String?;
+        if (ref == null) continue;
+        final url = 'https://maps.googleapis.com/maps/api/place/photo'
+            '?maxwidth=800&photo_reference=$ref&key=$gKey';
+        if (!_extraPhotos.contains(url)) fetched.add(url);
+      }
+      if (fetched.isNotEmpty && mounted) {
+        setState(() => _extraPhotos = [..._extraPhotos, ...fetched]);
+      }
+    } catch (_) {}
   }
 
   @override

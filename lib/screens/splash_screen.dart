@@ -28,9 +28,11 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     );
     // SharedPreferences をアニメーションと並列で先読みしてキャッシュに乗せる
     SharedPreferences.getInstance();
-    // アニメーション完了後すぐにナビゲート（固定遅延なし）
+    // アニメーション完了後、少し表示してからナビゲート
     _ctrl.addStatusListener((status) {
-      if (status == AnimationStatus.completed) _navigate();
+      if (status == AnimationStatus.completed) {
+        Future.delayed(const Duration(milliseconds: 700), _navigate);
+      }
     });
     _ctrl.forward();
   }

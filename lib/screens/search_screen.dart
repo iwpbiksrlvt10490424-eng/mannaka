@@ -278,20 +278,18 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(color: AppColors.divider),
                       ),
-                      child: const Column(
-                        mainAxisSize: MainAxisSize.min,
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(Icons.groups_rounded,
                               size: 18, color: AppColors.textSecondary),
-                          SizedBox(height: 4),
+                          SizedBox(width: 6),
                           Text(
-                            '保存済みグループ\nを使用する',
-                            textAlign: TextAlign.center,
+                            '保存グループを使用',
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w500,
                               color: AppColors.textSecondary,
-                              height: 1.4,
                             ),
                           ),
                         ],

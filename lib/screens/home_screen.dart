@@ -31,9 +31,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   // 生のGPS座標は保持しない。最寄駅に変換した座標のみを使用（プライバシー保護）
   gmap.LatLng? _nearestStationLatLng;
   int? _nearestStationIdx;
-  // ホーム駅マーカー（listenManual で確実に更新）
-  gmap.Marker? _homeStationMarker;
-  ProviderSubscription<int?>? _homeStationSub;
+  ProviderSubscription<HomeStationData?>? _homeStationSub;
 
   double _lastSize = 0;
 
@@ -101,39 +99,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     _lastSize = size;
   }
 
+  void _animateCameraToLatLng(double lat, double lng) {
+    if (ref.read(searchProvider).hasCentroid) return;
+    _mapController?.animateCamera(
+      gmap.CameraUpdate.newLatLngZoom(gmap.LatLng(lat, lng), 14.0),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
     _sheetCtrl.addListener(_onSheetChanged);
     _fetchLocation();
-    // homeStationProvider の変化を listenManual で確実に捕捉
+    // ホーム駅の変更を監視してカメラを移動（マーカーはbuild()内のwatchで自動更新）
+    _homeStationSub = ref.listenManual<HomeStationData?>(homeStationDataProvider, (prev, next) {
+      if (next == null) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _animateCameraToLatLng(next.lat, next.lng);
+      });
+    });
+    // 起動時に既存のホーム駅があればカメラを移動
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _homeStationSub = ref.listenManual<int?>(
-        homeStationProvider,
-        (prev, next) {
-          if (next == null || next >= kStationLatLng.length) return;
-          final (sLat, sLng) = kStationLatLng[next];
-          final pos = gmap.LatLng(sLat, sLng);
-          setState(() {
-            _homeStationMarker = gmap.Marker(
-              markerId: const gmap.MarkerId('home_station'),
-              position: pos,
-              infoWindow: gmap.InfoWindow(title: '🏠 ${kStations[next]}'),
-              icon: gmap.BitmapDescriptor.defaultMarkerWithHue(
-                  gmap.BitmapDescriptor.hueRose),
-            );
-          });
-          // カメラを駅へ移動（検索結果表示中は移動しない）
-          if (!ref.read(searchProvider).hasCentroid) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              _mapController?.animateCamera(
-                gmap.CameraUpdate.newLatLngZoom(pos, 14.0),
-              );
-            });
-          }
-        },
-        fireImmediately: true, // 起動時に既存値でもマーカーを初期化
-      );
+      final data = ref.read(homeStationDataProvider);
+      if (data != null) _animateCameraToLatLng(data.lat, data.lng);
     });
   }
 
@@ -153,18 +141,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     final hasResult = searchState.hasCentroid &&
         searchState.sortedRestaurants.isNotEmpty;
-    final homeStationIdx = ref.watch(homeStationProvider);
-    final homeLatLng = homeStationIdx != null && homeStationIdx < kStationLatLng.length
-        ? kStationLatLng[homeStationIdx]
-        : null;
+    final homeStationData = ref.watch(homeStationDataProvider);
 
     final lat = searchState.centroidLat
         ?? _nearestStationLatLng?.latitude
-        ?? homeLatLng?.$1
+        ?? homeStationData?.lat
         ?? 35.6812;
     final lng = searchState.centroidLng
         ?? _nearestStationLatLng?.longitude
-        ?? homeLatLng?.$2
+        ?? homeStationData?.lng
         ?? 139.7671;
     final scored = searchState.sortedRestaurants;
 
@@ -185,18 +170,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             gmap.BitmapDescriptor.hueAzure),
       ));
     }
-    // ホーム駅ピン（setState管理 or 初回起動時はproviderから生成）
-    final effectiveHomeMarker = _homeStationMarker ??
-        (homeLatLng != null && homeStationIdx != null
-            ? gmap.Marker(
-                markerId: const gmap.MarkerId('home_station'),
-                position: gmap.LatLng(homeLatLng.$1, homeLatLng.$2),
-                infoWindow:
-                    gmap.InfoWindow(title: '🏠 ${kStations[homeStationIdx]}'),
-                icon: gmap.BitmapDescriptor.defaultMarkerWithHue(
-                    gmap.BitmapDescriptor.hueRose),
-              )
-            : null);
+    // ホーム駅ピン（実際に選択した駅の座標を使用）
+    final effectiveHomeMarker = homeStationData != null
+        ? gmap.Marker(
+            markerId: const gmap.MarkerId('home_station'),
+            position: gmap.LatLng(homeStationData.lat, homeStationData.lng),
+            infoWindow: gmap.InfoWindow(title: '🏠 ${homeStationData.name}'),
+            icon: gmap.BitmapDescriptor.defaultMarkerWithHue(
+                gmap.BitmapDescriptor.hueRose),
+          )
+        : null;
     if (effectiveHomeMarker != null) gmapMarkers.add(effectiveHomeMarker);
     if (hasResult) {
       // Participant origin markers (blue circle with initial)
@@ -215,7 +198,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       gmapMarkers.add(gmap.Marker(
         markerId: const gmap.MarkerId('centroid'),
         position: gmap.LatLng(lat, lng),
-        infoWindow: const gmap.InfoWindow(title: 'まんなか'),
+        infoWindow: const gmap.InfoWindow(title: 'Aima'),
         icon: gmap.BitmapDescriptor.defaultMarkerWithHue(
             gmap.BitmapDescriptor.hueRose),
       ));
@@ -289,7 +272,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       ],
                     ),
                     child: const Text(
-                      'まんなか',
+                      'Aima',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w800,

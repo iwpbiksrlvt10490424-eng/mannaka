@@ -26,14 +26,12 @@ class GroupNotifier extends Notifier<List<SavedGroup>> {
   }
 
   Future<void> _save() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setStringList(
-          _key, state.map((e) => jsonEncode(e.toJson())).toList());
-    } catch (_) {}
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+        _key, state.map((e) => jsonEncode(e.toJson())).toList());
   }
 
-  void add(String name, List<String> memberNames) {
+  Future<void> add(String name, List<String> memberNames) async {
     final group = SavedGroup(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       name: name,
@@ -41,12 +39,12 @@ class GroupNotifier extends Notifier<List<SavedGroup>> {
       createdAt: DateTime.now(),
     );
     state = [group, ...state];
-    _save();
+    await _save();
   }
 
-  void remove(String id) {
+  Future<void> remove(String id) async {
     state = state.where((g) => g.id != id).toList();
-    _save();
+    await _save();
   }
 }
 

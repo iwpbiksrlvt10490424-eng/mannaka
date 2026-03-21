@@ -399,60 +399,23 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final participants = ref.read(searchProvider).participants;
     if (participants.isEmpty) return;
 
-    final controller = TextEditingController();
     showDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text(
-          'グループを保存',
-          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'メンバー: ${participants.map((p) => p.name).join(', ')}',
-              style: const TextStyle(
-                fontSize: 13,
-                color: AppColors.textSecondary,
+      builder: (ctx) => _SaveGroupDialog(
+        participants: participants.map((p) => p.name).toList(),
+        onSave: (name, names) async {
+          await ref.read(groupProvider.notifier).add(name, names);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('「$name」を保存しました'),
+                behavior: SnackBarBehavior.floating,
               ),
-            ),
-            const SizedBox(height: 14),
-            TextField(
-              controller: controller,
-              autofocus: true,
-              decoration: const InputDecoration(
-                hintText: '例: 金曜の飲み仲間 / 大学の友達',
-                labelText: 'グループ名',
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('キャンセル'),
-          ),
-          TextButton(
-            onPressed: () {
-              final name = controller.text.trim();
-              if (name.isEmpty) return;
-              final names = participants.map((p) => p.name).toList();
-              ref.read(groupProvider.notifier).add(name, names);
-              Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('「$name」を保存しました'),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            },
-            child: const Text('保存'),
-          ),
-        ],
+            );
+          }
+        },
       ),
-    ).then((_) => controller.dispose());
+    );
   }
 
   void _showSavedGroupsSheet() {
@@ -1770,7 +1733,7 @@ class _HowToSheet extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            '準備は駅の名前だけ。あとはまんなかにおまかせ。',
+            '準備は駅の名前だけ。あとはAimaにおまかせ。',
             style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
             textAlign: TextAlign.center,
           ),
@@ -1868,6 +1831,93 @@ class _HowToStep extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SaveGroupDialog extends StatefulWidget {
+  final List<String> participants;
+  final Future<void> Function(String name, List<String> names) onSave;
+
+  const _SaveGroupDialog({required this.participants, required this.onSave});
+
+  @override
+  State<_SaveGroupDialog> createState() => _SaveGroupDialogState();
+}
+
+class _SaveGroupDialogState extends State<_SaveGroupDialog> {
+  final _controller = TextEditingController();
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text(
+        'グループを保存',
+        style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'メンバー: ${widget.participants.join(', ')}',
+            style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _controller,
+            autofocus: true,
+            decoration: const InputDecoration(
+              hintText: '例: 金曜の飲み仲間 / 大学の友達',
+              labelText: 'グループ名',
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.pop(context),
+          child: const Text('キャンセル'),
+        ),
+        TextButton(
+          onPressed: _saving
+              ? null
+              : () async {
+                  final name = _controller.text.trim();
+                  if (name.isEmpty) return;
+                  final nav = Navigator.of(context);
+                  final messenger = ScaffoldMessenger.of(context);
+                  setState(() => _saving = true);
+                  try {
+                    await widget.onSave(name, widget.participants);
+                    if (mounted) nav.pop();
+                  } catch (_) {
+                    if (mounted) {
+                      setState(() => _saving = false);
+                      messenger.showSnackBar(
+                        const SnackBar(
+                          content: Text('保存に失敗しました。もう一度お試しください。'),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    }
+                  }
+                },
+          child: _saving
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2))
+              : const Text('保存'),
         ),
       ],
     );

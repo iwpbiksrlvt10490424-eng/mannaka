@@ -12,7 +12,7 @@ class MannakApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'まんなか',
+      title: 'Aima',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       navigatorKey: navigatorKey,

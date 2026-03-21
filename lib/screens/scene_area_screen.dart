@@ -411,7 +411,7 @@ class _AreaCardWidget extends StatelessWidget {
       '${area.emoji} ${scene.label}するなら「${area.area}」がおすすめ！\n'
       '${area.copy}\n\n'
       '${area.tags.map((t) => '#$t').join(' ')}\n'
-      '#まんなか #${scene.label} #${area.area}',
+      '#Aima #${scene.label} #${area.area}',
       sharePositionOrigin: origin,
     );
   }

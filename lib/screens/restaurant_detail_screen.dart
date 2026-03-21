@@ -546,8 +546,8 @@ class _LineShareSheet extends StatelessWidget {
       if (r.address.isNotEmpty) '📍 ${r.address}',
       if (station.isNotEmpty) '🚉 最寄り駅: $station駅',
       if (mapsUrl.isNotEmpty) '\n📍 道順はこちら\n$mapsUrl',
-      '\n📲 まんなかアプリで開く\n$deepLink',
-      '\n「まんなか」で見つけたよ！',
+      '\n📲 Aimaアプリで開く\n$deepLink',
+      '\n「Aima」で見つけたよ！',
     ];
     final text = lines.join('\n');
     final encoded = Uri.encodeComponent(text);
@@ -672,11 +672,11 @@ class _LineShareSheet extends StatelessWidget {
                         decoration: TextDecoration.underline,
                         decorationColor: Colors.blue.shade600)),
                 const SizedBox(height: 2),
-                Text('📲 まんなかアプリで開く（インストール済みの方）',
+                Text('📲 Aimaアプリで開く（インストール済みの方）',
                     style: TextStyle(
                         fontSize: 12, color: Colors.grey.shade500)),
                 const SizedBox(height: 4),
-                Text('「まんなか」で見つけたよ！',
+                Text('「Aima」で見つけたよ！',
                     style: TextStyle(
                         fontSize: 12, color: Colors.grey.shade400)),
               ],
@@ -685,7 +685,7 @@ class _LineShareSheet extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             '※ 受け取った方が自分の現在地からGoogleマップで道順を確認できます。\n'
-            '※ まんなかアプリをお持ちの方はアプリ内でお店の詳細を確認できます。\n'
+            '※ Aimaアプリをお持ちの方はアプリ内でお店の詳細を確認できます。\n'
             '　 あなたの現在地は共有されません。',
             style: TextStyle(fontSize: 11, color: Colors.grey.shade400),
           ),

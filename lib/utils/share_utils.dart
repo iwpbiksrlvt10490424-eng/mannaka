@@ -44,7 +44,7 @@ class ShareUtils {
       sb.writeln('');
     }
     sb.writeln('');
-    sb.writeln('まんなかアプリで見つけたよ✨');
+    sb.writeln('Aimaアプリで見つけたよ✨');
     sb.writeln('グループでちょうどいいお店を自動提案！');
     sb.writeln('▶ App Store: https://apps.apple.com/jp/app/mannaka');
 
@@ -59,7 +59,7 @@ class ShareUtils {
     }
 
     sb.writeln('');
-    sb.write('#まんなか #グルメ${occasionTag.isNotEmpty ? occasionTag : ' #女子会'}');
+    sb.write('#Aima #グルメ${occasionTag.isNotEmpty ? occasionTag : ' #女子会'}');
 
     return sb.toString();
   }
@@ -93,8 +93,8 @@ class ShareUtils {
         '各自の移動時間：\n'
         '$participantLines'
         '$restaurantSection\n\n'
-        'まんなかで全員にとってちょうどいいお店を見つけたよ✨\n'
-        '#まんなか #女子会 #グルメ';
+        'Aimaで全員にとってちょうどいいお店を見つけたよ✨\n'
+        '#Aima #女子会 #グルメ';
   }
 
   static String buildLineText(SearchState state) {
@@ -119,15 +119,15 @@ class ShareUtils {
         '📍 ${point.stationName}駅周辺\n'
         '移動時間：$participantLines\n\n'
         '他のおすすめ\n$restaurantLines\n\n'
-        '▶ まんなか — グループでちょうどいいお店を自動提案するアプリ\nhttps://apps.apple.com/jp/app/mannaka\n\n'
-        '#まんなか #女子会 #グルメ';
+        '▶ Aima — グループでちょうどいいお店を自動提案するアプリ\nhttps://apps.apple.com/jp/app/mannaka\n\n'
+        '#Aima #女子会 #グルメ';
   }
 
   /// ネイティブ共有シートを開く
   static Future<void> share(BuildContext context, SearchState state) async {
     final text = buildMeetingPointText(state);
     if (text.isEmpty) return;
-    await Share.share(text, subject: 'まんなかで集合場所を見つけました！');
+    await Share.share(text, subject: 'Aimaで集合場所を見つけました！');
   }
 
   /// LINEアプリで直接共有

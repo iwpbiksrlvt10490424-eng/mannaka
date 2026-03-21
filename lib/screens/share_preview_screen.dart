@@ -90,7 +90,7 @@ class _SharePreviewScreenState extends ConsumerState<SharePreviewScreen> {
     // フォールバック：選択レストランのみ
     final r = widget.scored.restaurant;
     final names = widget.participants.map((p) => p.name).join('、');
-    return '${r.emoji} ${r.name} に決まりました！\n\n📍 ${r.address}\n参加者: $names\n\nまんなかアプリで計算しました\n▶ App Store: https://apps.apple.com/jp/app/mannaka\n#まんなか #グルメ';
+    return '${r.emoji} ${r.name} に決まりました！\n\n📍 ${r.address}\n参加者: $names\n\nAimaアプリで計算しました\n▶ App Store: https://apps.apple.com/jp/app/mannaka\n#Aima #グルメ';
   }
 
   Future<void> _shareAsImage() async {

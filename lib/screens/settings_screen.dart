@@ -13,6 +13,8 @@ import '../providers/profile_provider.dart';
 import '../providers/nav_provider.dart';
 import '../providers/search_provider.dart';
 import '../data/station_data.dart';
+import '../services/geocoding_service.dart';
+import '../services/location_service.dart';
 import '../widgets/station_search_sheet.dart';
 import 'support_screen.dart';
 import 'policy_screen.dart';
@@ -46,12 +48,25 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final prefs = await SharedPreferences.getInstance();
     final name = prefs.getString('user_nickname') ?? '';
     final homeStation = prefs.getInt('home_station');
+    final homeStationName = prefs.getString('home_station_name');
+    final homeStationLat = prefs.getDouble('home_station_lat');
+    final homeStationLng = prefs.getDouble('home_station_lng');
     final ageGroup = prefs.getString('age_group');
     final imagePath = prefs.getString('profile_image_path');
     if (mounted) {
       _nameCtrl.text = name;
       ref.read(nicknameProvider.notifier).state = name;
       ref.read(homeStationProvider.notifier).state = homeStation;
+      // 実際の選択駅データを復元（ピン位置の正確性のため）
+      if (homeStationName != null && homeStationLat != null && homeStationLng != null) {
+        ref.read(homeStationDataProvider.notifier).state = HomeStationData(
+          name: homeStationName, lat: homeStationLat, lng: homeStationLng);
+      } else if (homeStation != null) {
+        // 旧データ: kStations の座標で復元
+        final (lat, lng) = kStationLatLng[homeStation];
+        ref.read(homeStationDataProvider.notifier).state = HomeStationData(
+          name: kStations[homeStation], lat: lat, lng: lng);
+      }
       ref.read(ageGroupProvider.notifier).state = ageGroup;
       ref.read(profileImagePathProvider.notifier).state = imagePath;
       setState(() {});
@@ -504,10 +519,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       icon: Icons.send_rounded,
                       label: 'LINEで紹介する',
                       color: const Color(0xFF06C755),
-                      subtitle: '友達にまんなかを教えよう',
+                      subtitle: '友達にAimaを教えよう',
                       onTap: () async {
                         const text =
-                            'まんなか — みんなが行きやすいお店を一緒に探せるアプリ！\nhttps://apps.apple.com/app/id0000000000';
+                            'Aima — みんなが行きやすいお店を一緒に探せるアプリ！\nhttps://apps.apple.com/app/id0000000000';
                         final encoded = Uri.encodeComponent(text);
                         final lineUrl =
                             Uri.parse('https://line.me/R/share?text=$encoded');
@@ -526,7 +541,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       subtitle: 'シェアして一緒に使おう',
                       onTap: () async {
                         await Share.share(
-                          '【まんなか】グループの集合場所が一発で決まるアプリ！\n'
+                          '【Aima】グループの集合場所が一発で決まるアプリ！\n'
                           'みんなの出発駅を入れるだけで、ちょうどいいお店を提案してくれます。',
                           sharePositionOrigin: Rect.fromCenter(
                             center: Offset(
@@ -717,96 +732,64 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ),
     );
     if (mounted) _isNavigating = false;
-    if (result != null && result.kIndex != null) {
-      final idx = result.kIndex!;
+    if (result != null) {
+      // 検索用: kIndex が null の場合は lat/lng から最寄 kStation を特定
+      final idx = result.kIndex ?? LocationService.nearestStationIndex(result.lat, result.lng);
+      // 暫定座標でまず表示（kIndex がある場合は kStationLatLng を使用）
+      final (provisionalLat, provisionalLng) = result.kIndex != null
+          ? kStationLatLng[result.kIndex!]
+          : (result.lat, result.lng);
+      ref.read(homeStationDataProvider.notifier).state = HomeStationData(
+        name: result.name, lat: provisionalLat, lng: provisionalLng);
       ref.read(homeStationProvider.notifier).state = idx;
       ref.read(searchProvider.notifier).setHomeStation(idx);
+      // ホーム画面へ先に遷移（ユーザーをブロックしない）
+      ref.read(navIndexProvider.notifier).state = 0;
+      // Geocoding API で Google Maps の正確な座標を取得してピンを更新
+      GeocodingService.getStationLatLng(result.name).then((coords) {
+        if (coords == null) return;
+        final (gLat, gLng) = coords;
+        if (mounted) {
+          ref.read(homeStationDataProvider.notifier).state = HomeStationData(
+            name: result.name, lat: gLat, lng: gLng);
+        }
+        // prefs にも正確な座標を保存
+        SharedPreferences.getInstance().then((prefs) {
+          prefs.setInt('home_station', idx);
+          prefs.setString('home_station_name', result.name);
+          prefs.setDouble('home_station_lat', gLat);
+          prefs.setDouble('home_station_lng', gLng);
+        });
+      });
+      // prefs に暫定座標を先に保存（API失敗時のフォールバック）
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt('home_station', idx);
-      // ホーム画面へ遷移して変更を確認できるようにする
-      ref.read(navIndexProvider.notifier).state = 0;
+      await prefs.setString('home_station_name', result.name);
+      await prefs.setDouble('home_station_lat', provisionalLat);
+      await prefs.setDouble('home_station_lng', provisionalLng);
     }
   }
 
   Future<void> _addFavoriteStation(
       BuildContext context, WidgetRef ref) async {
     HapticFeedback.lightImpact();
-    String query = '';
-    final result = await showModalBottomSheet<int>(
+    final favorites = ref.read(favoritesProvider);
+    final result = await showModalBottomSheet<SelectedStation>(
       context: context,
+      useRootNavigator: true,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setS) {
-          final currentFavorites = ref.read(favoritesProvider);
-          final filtered = List.generate(kStations.length, (i) => i)
-              .where((i) =>
-                  kStations[i].contains(query) &&
-                  !currentFavorites.any((f) => f.stationIndex == i))
-              .toList();
-          return Container(
-            height: MediaQuery.of(ctx).size.height * 0.75,
-            decoration: const BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-            ),
-            child: Column(
-              children: [
-                const SizedBox(height: 8),
-                Container(
-                  width: 40, height: 4,
-                  decoration: BoxDecoration(
-                    color: AppColors.divider,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const Text('お気に入り駅を追加',
-                    style: TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 12),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: TextField(
-                    autofocus: true,
-                    decoration: const InputDecoration(
-                      hintText: '駅名を検索',
-                      prefixIcon: Icon(Icons.search,
-                          color: AppColors.textTertiary, size: 20),
-                    ),
-                    onChanged: (v) => setS(() => query = v),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const SizedBox(height: 1, child: ColoredBox(color: Color(0xFFEEEEEE))),
-                Expanded(
-                  child: ListView.separated(
-                    itemCount: filtered.length,
-                    separatorBuilder: (_, __) => const Padding(
-                      padding: EdgeInsets.only(left: 16),
-                      child: SizedBox(height: 1, child: ColoredBox(color: Color(0xFFEEEEEE))),
-                    ),
-                    itemBuilder: (_, i) {
-                      final idx = filtered[i];
-                      return ListTile(
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-                        title: Text(kStations[idx]),
-                        onTap: () => Navigator.pop(ctx, idx),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
+      builder: (_) => StationSearchSheet(
+        currentIndex: null,
+        favorites: favorites,
       ),
     );
-    if (result != null) {
+    if (result != null && result.kIndex != null) {
+      final idx = result.kIndex!;
       ref.read(favoritesProvider.notifier).add(FavoriteStation(
-            stationIndex: result,
-            stationName: kStations[result],
-            emoji: kStationEmojis[result],
+            stationIndex: idx,
+            stationName: kStations[idx],
+            emoji: kStationEmojis[idx],
           ));
     }
   }

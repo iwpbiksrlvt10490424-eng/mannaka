@@ -18,7 +18,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
       body: const SingleChildScrollView(
         padding: EdgeInsets.all(20),
         child: _PolicyContent(
-          header: 'まんなか プライバシーポリシー\n制定日：2024年4月1日\n最終改定日：2026年3月17日',
+          header: 'Aima プライバシーポリシー\n制定日：2024年4月1日\n最終改定日：2026年3月17日',
           sections: [
             _PolicySection(
               title: '第1条（個人情報の定義）',
@@ -122,12 +122,12 @@ class TermsScreen extends StatelessWidget {
       body: const SingleChildScrollView(
         padding: EdgeInsets.all(20),
         child: _PolicyContent(
-          header: 'まんなか 利用規約\n制定日：2024年4月1日\n最終改定日：2025年3月15日',
+          header: 'Aima 利用規約\n制定日：2024年4月1日\n最終改定日：2025年3月15日',
           sections: [
             _PolicySection(
               title: '第1条（本規約の適用）',
               content:
-                  '本利用規約（以下「本規約」）は、まんなか（以下「当アプリ」）が提供するサービス（以下「本サービス」）の利用条件を定めるものです。ユーザーは本サービスを利用することにより、本規約に同意したものとみなします。なお、ユーザーが未成年者の場合は、保護者の同意を得た上でご利用ください。',
+                  '本利用規約（以下「本規約」）は、Aima（以下「当アプリ」）が提供するサービス（以下「本サービス」）の利用条件を定めるものです。ユーザーは本サービスを利用することにより、本規約に同意したものとみなします。なお、ユーザーが未成年者の場合は、保護者の同意を得た上でご利用ください。',
             ),
             _PolicySection(
               title: '第2条（サービスの内容）',

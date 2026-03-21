@@ -22,8 +22,8 @@ class _MainScreenState extends ConsumerState<MainScreen> {
   @override
   void initState() {
     super.initState();
-    // 起動から少し遅らせてリテンション通知チェック
-    Future.delayed(const Duration(seconds: 2), _checkRetentionNudge);
+    // 最初のフレーム描画後にリテンション通知チェック
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkRetentionNudge());
   }
 
   Future<void> _checkRetentionNudge() async {

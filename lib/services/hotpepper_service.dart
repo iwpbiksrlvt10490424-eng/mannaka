@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
@@ -26,8 +27,11 @@ class HotpepperService {
     });
 
     try {
-      final res = await http.get(uri).timeout(const Duration(seconds: 3));
-      if (res.statusCode != 200) return [];
+      final res = await http.get(uri).timeout(const Duration(seconds: 5));
+      if (res.statusCode != 200) {
+        debugPrint('[HotpepperService] HTTP ${res.statusCode}: ${res.body.substring(0, min(200, res.body.length))}');
+        return [];
+      }
       final json = jsonDecode(res.body) as Map<String, dynamic>;
       final shops = ((json['results'] as Map?)?['shop'] as List?) ?? [];
       return shops.map((s) => _mapShop(s as Map<String, dynamic>)).toList();

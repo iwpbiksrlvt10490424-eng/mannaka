@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
@@ -38,9 +39,12 @@ class FoursquareService {
               'Accept': 'application/json',
             },
           )
-          .timeout(const Duration(seconds: 3));
+          .timeout(const Duration(seconds: 5));
 
-      if (response.statusCode != 200) return [];
+      if (response.statusCode != 200) {
+        debugPrint('[FoursquareService] HTTP ${response.statusCode}: ${response.body.substring(0, min(200, response.body.length))}');
+        return [];
+      }
 
       final json = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
       final results = json['results'] as List<dynamic>?;

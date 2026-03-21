@@ -90,6 +90,11 @@ void _handleRestaurantDeepLink(Uri uri) {
   if (lat != null && (lat < -90 || lat > 90)) return;
   if (lng != null && (lng < -180 || lng > 180)) return;
 
+  // 日本国内の座標のみ受け付ける（lat 24-46, lng 122-154）
+  if (lat != null && lng != null) {
+    if (lat < 24 || lat > 46 || lng < 122 || lng > 154) return;
+  }
+
   final restaurant = Restaurant(
     id: clean(p['id'], max: 100).isNotEmpty ? clean(p['id'], max: 100) : 'shared',
     name: clean(name, max: 100),

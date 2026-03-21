@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -338,10 +339,11 @@ class _PhotoCarouselState extends State<_PhotoCarousel> {
         PageView.builder(
           itemCount: widget.photos.length,
           onPageChanged: (i) => setState(() => _page = i),
-          itemBuilder: (_, i) => Image.network(
-            widget.photos[i],
+          itemBuilder: (_, i) => CachedNetworkImage(
+            imageUrl: widget.photos[i],
             fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => Container(
+            placeholder: (context, url) => Container(color: Colors.grey.shade100),
+            errorWidget: (context, url, error) => Container(
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,

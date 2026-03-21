@@ -6,6 +6,7 @@ import '../providers/search_provider.dart';
 import '../providers/history_provider.dart';
 import '../models/meeting_point.dart';
 import '../models/restaurant.dart';
+import '../models/scored_restaurant.dart';
 import '../theme/app_theme.dart';
 import '../services/midpoint_service.dart';
 import '../utils/share_utils.dart';
@@ -247,6 +248,10 @@ class _MeetingPointTab extends StatefulWidget {
 class _MeetingPointTabState extends State<_MeetingPointTab> {
   String? _selectedCategory;
 
+  // Score cache — invalidated when base list or participants change
+  List<ScoredRestaurant>? _cachedScored;
+  int? _cachedBaseHash;
+
   List<Restaurant> get _restaurants {
     final state = widget.state;
     final idx = widget.point.stationIndex;
@@ -262,14 +267,26 @@ class _MeetingPointTabState extends State<_MeetingPointTab> {
 
     // centroid がある場合は MidpointService.scoreRestaurants で正しくスコアリング
     if (state.hasCentroid) {
-      final scored = MidpointService.scoreRestaurants(
-        participants: state.participants,
-        centroidLat: state.centroidLat!,
-        centroidLng: state.centroidLng!,
-        baseRestaurants: base,
-        category: _selectedCategory,
-      );
-      return scored.map((s) => s.restaurant).toList();
+      // Cache scored list — re-score only when base restaurants or participants change
+      final baseHash = Object.hashAll([
+        base.length,
+        ...state.participants.map((p) => '${p.id}${p.lat}${p.lng}'),
+      ]);
+      if (_cachedScored == null || _cachedBaseHash != baseHash) {
+        _cachedScored = MidpointService.scoreRestaurants(
+          participants: state.participants,
+          centroidLat: state.centroidLat!,
+          centroidLng: state.centroidLng!,
+          baseRestaurants: base,
+        );
+        _cachedBaseHash = baseHash;
+      }
+      final filtered = _selectedCategory == null
+          ? _cachedScored!
+          : _cachedScored!
+              .where((s) => s.restaurant.category == _selectedCategory)
+              .toList();
+      return filtered.map((s) => s.restaurant).toList();
     }
 
     // centroid なしのフォールバック（通常は発生しない）

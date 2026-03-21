@@ -61,6 +61,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen>
           preferredSize: const Size.fromHeight(49),
           child: Column(
             children: [
+              Container(height: 1, color: Colors.white.withValues(alpha: 0.2)),
               TabBar(
                 controller: _tab,
                 indicatorColor: Colors.white,
@@ -73,7 +74,6 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen>
                   Tab(text: '行ったお店'),
                 ],
               ),
-              Container(height: 1, color: Colors.white.withValues(alpha: 0.2)),
             ],
           ),
         ),

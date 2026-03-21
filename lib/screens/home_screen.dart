@@ -10,6 +10,9 @@ import '../providers/search_provider.dart';
 import '../providers/ad_provider.dart';
 import '../models/ad.dart';
 import '../theme/app_theme.dart';
+import '../data/station_data.dart';
+import '../services/location_service.dart';
+import '../providers/profile_provider.dart';
 
 typedef NavigateCallback = void Function(int tabIndex, {Occasion? occasion});
 
@@ -25,31 +28,66 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   final DraggableScrollableController _sheetCtrl =
       DraggableScrollableController();
   gmap.GoogleMapController? _mapController;
+  // 生のGPS座標は保持しない。最寄駅に変換した座標のみを使用（プライバシー保護）
+  gmap.LatLng? _nearestStationLatLng;
+  int? _nearestStationIdx;
 
   double _lastSize = 0;
 
-  Future<void> _moveToCurrentLocation() async {
-    final permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.always ||
-        permission == LocationPermission.whileInUse) {
-      try {
-        final pos = await Geolocator.getCurrentPosition(
-          locationSettings:
-              const LocationSettings(accuracy: LocationAccuracy.medium),
-        );
-        _mapController?.animateCamera(
-          gmap.CameraUpdate.newLatLngZoom(
-            gmap.LatLng(pos.latitude, pos.longitude),
-            13.5,
-          ),
-        );
-      } catch (_) {}
+  /// GPS取得 → 最寄駅に変換 → 駅座標のみを保持
+  /// 生の緯度経度は外部に露出しない
+  void _updateToNearestStation(double lat, double lng) {
+    final idx = LocationService.nearestStationIndex(lat, lng);
+    final (sLat, sLng) = kStationLatLng[idx];
+    final stationLoc = gmap.LatLng(sLat, sLng);
+    if (mounted) {
+      setState(() {
+        _nearestStationIdx = idx;
+        _nearestStationLatLng = stationLoc;
+      });
     }
+  }
+
+  // Phase 1: getLastKnownPosition（即座）→ 最寄駅ピン表示
+  // Phase 2: getCurrentPosition（バックグラウンド）→ より正確な最寄駅に更新
+  Future<void> _fetchLocation() async {
+    var permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+    if (permission != LocationPermission.always &&
+        permission != LocationPermission.whileInUse) {
+      return;
+    }
+
+    // Phase 1: キャッシュ位置を即座に取得 → 最寄駅に変換
+    try {
+      final last = await Geolocator.getLastKnownPosition();
+      if (last != null) {
+        _updateToNearestStation(last.latitude, last.longitude);
+      }
+    } catch (_) {}
+
+    // Phase 2: バックグラウンドで精度の高い現在地を取得 → 最寄駅を再確定
+    try {
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings:
+            const LocationSettings(accuracy: LocationAccuracy.medium),
+      ).timeout(const Duration(seconds: 5));
+      if (!mounted) return;
+      _updateToNearestStation(pos.latitude, pos.longitude);
+      // 地図が既に表示されていればカメラをアニメーションで移動
+      if (_nearestStationLatLng != null) {
+        _mapController?.animateCamera(
+          gmap.CameraUpdate.newLatLngZoom(_nearestStationLatLng!, 14.0),
+        );
+      }
+    } catch (_) {}
   }
 
   void _onSheetChanged() {
     final size = _sheetCtrl.size;
-    const snapPoints = [0.10, 0.18, 0.50];
+    const snapPoints = [0.04, 0.09, 0.32];
     for (final snap in snapPoints) {
       if ((_lastSize - snap).abs() > 0.01 && (size - snap).abs() < 0.01) {
         HapticFeedback.selectionClick();
@@ -63,6 +101,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void initState() {
     super.initState();
     _sheetCtrl.addListener(_onSheetChanged);
+    _fetchLocation();
   }
 
   @override
@@ -80,8 +119,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     final hasResult = searchState.hasCentroid &&
         searchState.sortedRestaurants.isNotEmpty;
-    final lat = searchState.centroidLat ?? 35.6812;
-    final lng = searchState.centroidLng ?? 139.7671;
+    final homeStationIdx = ref.watch(homeStationProvider);
+    final homeLatLng = homeStationIdx != null && homeStationIdx < kStationLatLng.length
+        ? kStationLatLng[homeStationIdx]
+        : null;
+
+    // ホーム駅が変更されたらカメラをアニメーションで移動（検索結果がないとき）
+    ref.listen<int?>(homeStationProvider, (prev, next) {
+      if (next == null || next >= kStationLatLng.length) return;
+      if (searchState.hasCentroid) return; // 検索結果表示中は移動しない
+      if (_nearestStationLatLng != null) return; // GPS取得済みなら移動しない
+      final (sLat, sLng) = kStationLatLng[next];
+      _mapController?.animateCamera(
+        gmap.CameraUpdate.newLatLngZoom(gmap.LatLng(sLat, sLng), 14.0),
+      );
+    });
+    final lat = searchState.centroidLat
+        ?? _nearestStationLatLng?.latitude
+        ?? homeLatLng?.$1
+        ?? 35.6812;
+    final lng = searchState.centroidLng
+        ?? _nearestStationLatLng?.longitude
+        ?? homeLatLng?.$2
+        ?? 139.7671;
     final scored = searchState.sortedRestaurants;
 
     // Google Maps SDK for iOS: $7/1,000 map loads.
@@ -91,6 +151,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     // Build Google Maps markers
     final gmapMarkers = <gmap.Marker>{};
+    // 最寄駅ピン（GPS取得後に駅座標へ変換したもの）
+    if (_nearestStationLatLng != null && _nearestStationIdx != null) {
+      gmapMarkers.add(gmap.Marker(
+        markerId: const gmap.MarkerId('current_location'),
+        position: _nearestStationLatLng!,
+        infoWindow: gmap.InfoWindow(title: kStations[_nearestStationIdx!]),
+        icon: gmap.BitmapDescriptor.defaultMarkerWithHue(
+            gmap.BitmapDescriptor.hueAzure),
+      ));
+    }
+    // ホーム駅ピン（常時表示 — 設定で変更したらすぐ地図に反映）
+    if (homeLatLng != null && homeStationIdx != null) {
+      gmapMarkers.add(gmap.Marker(
+        markerId: const gmap.MarkerId('home_station'),
+        position: gmap.LatLng(homeLatLng.$1, homeLatLng.$2),
+        infoWindow: gmap.InfoWindow(title: '🏠 ${kStations[homeStationIdx]}'),
+        icon: gmap.BitmapDescriptor.defaultMarkerWithHue(
+            gmap.BitmapDescriptor.hueRose),
+      ));
+    }
     if (hasResult) {
       // Participant origin markers (blue circle with initial)
       // Note: Google Maps doesn't support custom Flutter widgets as markers natively;
@@ -138,12 +218,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 zoom: hasResult ? 15.5 : 13.5,
               ),
               markers: gmapMarkers,
+              myLocationEnabled: true,
               myLocationButtonEnabled: false,
               zoomControlsEnabled: false,
               mapType: gmap.MapType.normal,
               onMapCreated: (controller) {
                 _mapController = controller;
-                _moveToCurrentLocation();
               },
             ),
           ),
@@ -222,11 +302,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           // ─── Draggable Bottom Sheet ───────────────────────────
           DraggableScrollableSheet(
             controller: _sheetCtrl,
-            initialChildSize: 0.18,
-            minChildSize: 0.10,
-            maxChildSize: 0.38,
+            initialChildSize: 0.09,
+            minChildSize: 0.04,
+            maxChildSize: 0.32,
             snap: true,
-            snapSizes: const [0.10, 0.18, 0.38],
+            snapSizes: const [0.04, 0.09, 0.32],
             builder: (ctx, scrollCtrl) {
               return Container(
                 decoration: const BoxDecoration(
@@ -240,23 +320,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         offset: Offset(0, -4)),
                   ],
                 ),
-                child: CustomScrollView(
+                child: Column(
+                  children: [
+                    // ドラッグハンドル（スクロール外に固定）
+                    const SizedBox(height: 10),
+                    Container(
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Expanded(child: CustomScrollView(
                   controller: scrollCtrl,
+                  physics: const ClampingScrollPhysics(),
                   slivers: [
                     SliverToBoxAdapter(
                       child: Column(
                         children: [
-                          // ドラッグハンドル
-                          const SizedBox(height: 8),
-                          Container(
-                            width: 36,
-                            height: 4,
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade300,
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                          ),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 6),
                           Padding(
                             padding: const EdgeInsets.fromLTRB(
                                 20, 0, 20, 0),
@@ -373,6 +457,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
                     const SliverToBoxAdapter(
                         child: SizedBox(height: 40)),
+                  ],
+                )),
                   ],
                 ),
               );

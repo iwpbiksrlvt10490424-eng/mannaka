@@ -1,18 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart' as gmap;
 import 'package:url_launcher/url_launcher.dart';
 import '../config/api_config.dart';
+import '../data/station_data.dart';
+import '../models/reserved_restaurant.dart';
 import '../models/restaurant.dart';
-import '../models/visit_log.dart';
-import '../providers/visit_log_provider.dart';
+import '../providers/reserved_restaurants_provider.dart';
 import '../services/hotpepper_service.dart';
 import '../theme/app_theme.dart';
 
 /// Google Maps ルート検索 URL を構築する。
-/// destination_place_id は不要なため含めない。
 String buildGoogleMapsRouteUrl(double lat, double lng) =>
     'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=walking';
 
@@ -22,32 +21,120 @@ bool isReservationUrlAllowed(String url) {
   return uri != null && uri.scheme == 'https';
 }
 
-class RestaurantDetailScreen extends StatelessWidget {
+/// レストランの緯度経度から最寄り kStation 名を取得（シェア用）
+String _nearestStationName(double lat, double lng) {
+  double best = double.infinity;
+  int bestIdx = 0;
+  for (int i = 0; i < kStationLatLng.length; i++) {
+    final (sLat, sLng) = kStationLatLng[i];
+    final d = (sLat - lat) * (sLat - lat) + (sLng - lng) * (sLng - lng);
+    if (d < best) {
+      best = d;
+      bestIdx = i;
+    }
+  }
+  return kStations[bestIdx];
+}
+
+// ─── メイン画面 ───────────────────────────────────────────────────────────────
+
+class RestaurantDetailScreen extends ConsumerStatefulWidget {
   const RestaurantDetailScreen({super.key, required this.restaurant});
   final Restaurant restaurant;
 
   @override
+  ConsumerState<RestaurantDetailScreen> createState() =>
+      _RestaurantDetailScreenState();
+}
+
+class _RestaurantDetailScreenState extends ConsumerState<RestaurantDetailScreen>
+    with WidgetsBindingObserver {
+  /// Hotpepper を開いた後にアプリへ戻ってきたら LINE 共有シートを出す
+  bool _waitingForReturn = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _waitingForReturn) {
+      _waitingForReturn = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _showLineShare();
+      });
+    }
+  }
+
+  void _onReservePressed() async {
+    HapticFeedback.mediumImpact();
+    final r = widget.restaurant;
+    if (r.hotpepperUrl != null && isReservationUrlAllowed(r.hotpepperUrl!)) {
+      _waitingForReturn = true;
+      await launchUrl(Uri.parse(r.hotpepperUrl!),
+          mode: LaunchMode.externalApplication);
+    } else {
+      // デモ: URLがない場合は直接共有シートを出す
+      _showLineShare();
+    }
+  }
+
+  void _showLineShare() {
+    if (!mounted) return;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _LineShareSheet(
+        restaurant: widget.restaurant,
+        onShared: _onShared,
+      ),
+    );
+  }
+
+  void _onShared(ReservedRestaurant entry) {
+    ref.read(reservedRestaurantsProvider.notifier).add(entry);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('予約済みに保存しました'),
+        backgroundColor: Color(0xFF10B981),
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final photos = restaurant.imageUrls.isNotEmpty
-        ? restaurant.imageUrls
-        : (restaurant.imageUrl != null ? [restaurant.imageUrl!] : <String>[]);
+    final r = widget.restaurant;
+    final photos = r.imageUrls.isNotEmpty
+        ? r.imageUrls
+        : (r.imageUrl != null ? [r.imageUrl!] : <String>[]);
 
     return Scaffold(
       backgroundColor: AppColors.background,
       body: CustomScrollView(
         slivers: [
-          // ─── ヒーロー写真エリア ──────────────────────────────────────────
+          // ─── ヒーロー写真エリア ────────────────────────────────────────
           SliverAppBar(
             expandedHeight: photos.isEmpty ? 160 : 240,
             pinned: true,
             backgroundColor: AppColors.primary,
             leading: IconButton(
-              icon: const Icon(Icons.arrow_back_ios_rounded, size: 20, color: Colors.white),
+              icon: const Icon(Icons.arrow_back_ios_rounded,
+                  size: 20, color: Colors.white),
               onPressed: () => Navigator.pop(context),
             ),
             flexibleSpace: FlexibleSpaceBar(
               background: photos.isEmpty
-                  ? _heroFallback(restaurant)
+                  ? _heroFallback(r)
                   : _PhotoCarousel(photos: photos),
             ),
           ),
@@ -58,123 +145,118 @@ class RestaurantDetailScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Name + rating
+                  // 名前 + 評価
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
-                        child: Text(
-                          restaurant.name,
-                          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
-                        ),
+                        child: Text(r.name,
+                            style: const TextStyle(
+                                fontSize: 24, fontWeight: FontWeight.w800)),
                       ),
-                      if (restaurant.rating > 0)
+                      if (r.rating > 0)
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
-                            Row(
-                              children: [
-                                Icon(Icons.star_rounded, color: Colors.amber.shade400, size: 20),
-                                const SizedBox(width: 4),
-                                Text(
-                                  restaurant.ratingStr,
-                                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                                ),
-                              ],
-                            ),
-                            if (restaurant.reviewCount > 0)
-                              Text(
-                                '${restaurant.reviewCount}件のレビュー',
-                                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                              ),
+                            Row(children: [
+                              Icon(Icons.star_rounded,
+                                  color: Colors.amber.shade400, size: 20),
+                              const SizedBox(width: 4),
+                              Text(r.ratingStr,
+                                  style: const TextStyle(
+                                      fontSize: 18, fontWeight: FontWeight.w700)),
+                            ]),
+                            if (r.reviewCount > 0)
+                              Text('${r.reviewCount}件のレビュー',
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey.shade600)),
                           ],
                         ),
                     ],
                   ),
                   const SizedBox(height: 8),
-                  if (restaurant.description.isNotEmpty)
-                    Text(
-                      restaurant.description,
-                      style: TextStyle(fontSize: 15, color: Colors.grey.shade700, height: 1.5),
-                    ),
+                  if (r.description.isNotEmpty)
+                    Text(r.description,
+                        style: TextStyle(
+                            fontSize: 15,
+                            color: Colors.grey.shade700,
+                            height: 1.5)),
                   const SizedBox(height: 16),
-                  // Tags
-                  if (restaurant.tags.isNotEmpty)
+                  if (r.tags.isNotEmpty)
                     Wrap(
                       spacing: 8,
                       runSpacing: 6,
-                      children: restaurant.tags.map((t) => Chip(
-                        label: Text(t, style: const TextStyle(fontSize: 12)),
-                        backgroundColor: AppColors.primary.withValues(alpha: 0.08),
-                        labelStyle: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600),
-                        side: BorderSide.none,
-                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      )).toList(),
+                      children: r.tags
+                          .map((t) => Chip(
+                                label: Text(t,
+                                    style: const TextStyle(fontSize: 12)),
+                                backgroundColor:
+                                    AppColors.primary.withValues(alpha: 0.08),
+                                labelStyle: TextStyle(
+                                    color: AppColors.primary,
+                                    fontWeight: FontWeight.w600),
+                                side: BorderSide.none,
+                                materialTapTargetSize:
+                                    MaterialTapTargetSize.shrinkWrap,
+                              ))
+                          .toList(),
                     ),
                   const SizedBox(height: 20),
-                  // Info card
-                  _InfoCard(restaurant: restaurant),
+                  _InfoCard(restaurant: r),
                   const SizedBox(height: 20),
-                  // Map
-                  if (restaurant.lat != null && restaurant.lng != null)
-                    _MapCard(restaurant: restaurant),
-                  if (restaurant.lat != null && restaurant.lng != null)
+                  if (r.lat != null && r.lng != null)
+                    _GMapCard(restaurant: r),
+                  if (r.lat != null && r.lng != null)
                     const SizedBox(height: 20),
-                  // Badges
+                  // バッジ
                   Wrap(
                     spacing: 10,
                     runSpacing: 8,
                     children: [
-                      if (restaurant.hasPrivateRoom)
+                      if (r.hasPrivateRoom)
                         _Badge(
-                          icon: Icons.meeting_room_rounded,
-                          label: '個室あり',
-                          color: const Color(0xFF7C3AED),
-                        ),
-                      if (restaurant.isReservable)
+                            icon: Icons.meeting_room_rounded,
+                            label: '個室あり',
+                            color: const Color(0xFF7C3AED)),
+                      if (r.isReservable)
                         _Badge(
-                          icon: Icons.calendar_today_rounded,
-                          label: '予約可',
-                          color: const Color(0xFF10B981),
-                        ),
-                      if (restaurant.freeDrink)
+                            icon: Icons.calendar_today_rounded,
+                            label: '予約可',
+                            color: const Color(0xFF10B981)),
+                      if (r.freeDrink)
                         _Badge(
-                          icon: Icons.local_bar_rounded,
-                          label: '飲み放題',
-                          color: const Color(0xFFEF4444),
-                        ),
-                      if (restaurant.freeFood)
+                            icon: Icons.local_bar_rounded,
+                            label: '飲み放題',
+                            color: const Color(0xFFEF4444)),
+                      if (r.freeFood)
                         _Badge(
-                          icon: Icons.restaurant_rounded,
-                          label: '食べ放題',
-                          color: const Color(0xFFF59E0B),
-                        ),
-                      if (restaurant.wifi)
+                            icon: Icons.restaurant_rounded,
+                            label: '食べ放題',
+                            color: const Color(0xFFF59E0B)),
+                      if (r.wifi)
                         _Badge(
-                          icon: Icons.wifi_rounded,
-                          label: 'Wi-Fi',
-                          color: const Color(0xFF3B82F6),
-                        ),
-                      if (restaurant.nonSmoking)
+                            icon: Icons.wifi_rounded,
+                            label: 'Wi-Fi',
+                            color: const Color(0xFF3B82F6)),
+                      if (r.nonSmoking)
                         _Badge(
-                          icon: Icons.smoke_free_rounded,
-                          label: '禁煙',
-                          color: Colors.grey.shade600,
-                        ),
+                            icon: Icons.smoke_free_rounded,
+                            label: '禁煙',
+                            color: Colors.grey.shade600),
                     ],
                   ),
                   const SizedBox(height: 24),
-                  // ルート検索ボタン
-                  if (restaurant.lat != null && restaurant.lng != null)
-                    _RouteButton(restaurant: restaurant),
+                  if (r.lat != null && r.lng != null)
+                    _RouteButton(restaurant: r),
                   const SizedBox(height: 12),
-                  // 予約ボタン
-                  if (restaurant.isReservable)
-                    _ReserveButton(restaurant: restaurant),
-                  const SizedBox(height: 12),
-                  _VisitLogButton(restaurant: restaurant),
-                  const SizedBox(height: 12),
-                  _NearbySearchButton(restaurant: restaurant),
+                  if (r.isReservable) ...[
+                    _ReserveButton(onPressed: _onReservePressed),
+                    const SizedBox(height: 10),
+                    _LineShareButton(onPressed: _showLineShare),
+                    const SizedBox(height: 12),
+                  ],
+                  _NearbySearchButton(restaurant: r),
                 ],
               ),
             ),
@@ -185,7 +267,7 @@ class RestaurantDetailScreen extends StatelessWidget {
   }
 }
 
-// ─── 写真カルーセル ─────────────────────────────────────────────────────────────
+// ─── 写真カルーセル ────────────────────────────────────────────────────────────
 
 class _PhotoCarousel extends StatefulWidget {
   const _PhotoCarousel({required this.photos});
@@ -230,16 +312,21 @@ class _PhotoCarouselState extends State<_PhotoCarousel> {
             right: 0,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(widget.photos.length, (i) => AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                margin: const EdgeInsets.symmetric(horizontal: 3),
-                width: _page == i ? 16 : 6,
-                height: 6,
-                decoration: BoxDecoration(
-                  color: _page == i ? Colors.white : Colors.white.withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(3),
+              children: List.generate(
+                widget.photos.length,
+                (i) => AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  width: _page == i ? 16 : 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: _page == i
+                        ? Colors.white
+                        : Colors.white.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
                 ),
-              )),
+              ),
             ),
           ),
         if (widget.photos.length > 1)
@@ -247,14 +334,18 @@ class _PhotoCarouselState extends State<_PhotoCarousel> {
             top: 12,
             right: 12,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
                 color: Colors.black.withValues(alpha: 0.5),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
                 '${_page + 1} / ${widget.photos.length}',
-                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600),
               ),
             ),
           ),
@@ -264,15 +355,19 @@ class _PhotoCarouselState extends State<_PhotoCarousel> {
 }
 
 Widget _heroFallback(Restaurant r) => Container(
-  decoration: BoxDecoration(
-    gradient: LinearGradient(
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-      colors: [AppColors.getCategoryBg(r.category), AppColors.getCategoryBg(r.category).withValues(alpha: 0.65)],
-    ),
-  ),
-  child: const Center(child: Icon(Icons.restaurant, size: 64, color: Colors.white70)),
-);
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.getCategoryBg(r.category),
+            AppColors.getCategoryBg(r.category).withValues(alpha: 0.65)
+          ],
+        ),
+      ),
+      child: const Center(
+          child: Icon(Icons.restaurant, size: 64, color: Colors.white70)),
+    );
 
 // ─── ルート検索ボタン ─────────────────────────────────────────────────────────
 
@@ -280,33 +375,28 @@ class _RouteButton extends StatelessWidget {
   const _RouteButton({required this.restaurant});
   final Restaurant restaurant;
 
-  Future<void> _openRoute() async {
-    final uri = Uri.parse(buildGoogleMapsRouteUrl(restaurant.lat!, restaurant.lng!));
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: 'Googleマップでルート検索',
-      child: SizedBox(
+    return SizedBox(
       width: double.infinity,
       height: 48,
       child: OutlinedButton.icon(
-        onPressed: _openRoute,
+        onPressed: () async {
+          final uri = Uri.parse(
+              buildGoogleMapsRouteUrl(restaurant.lat!, restaurant.lng!));
+          if (await canLaunchUrl(uri)) {
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
+          }
+        },
         icon: const Icon(Icons.directions_walk_rounded, size: 18),
-        label: const Text(
-          'Google マップでルート検索',
-          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-        ),
+        label: const Text('Google マップでルート検索',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
         style: OutlinedButton.styleFrom(
           foregroundColor: const Color(0xFF1A73E8),
           side: const BorderSide(color: Color(0xFF1A73E8), width: 1.5),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
-      ),
       ),
     );
   }
@@ -315,108 +405,60 @@ class _RouteButton extends StatelessWidget {
 // ─── 予約ボタン ───────────────────────────────────────────────────────────────
 
 class _ReserveButton extends StatelessWidget {
-  const _ReserveButton({required this.restaurant});
-  final Restaurant restaurant;
-
-  Future<void> _reserve(BuildContext context) async {
-    HapticFeedback.mediumImpact();
-    if (restaurant.hotpepperUrl != null) {
-      final url = restaurant.hotpepperUrl!;
-      if (isReservationUrlAllowed(url)) {
-        await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-      }
-    } else {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('${restaurant.name}の予約画面へ移動します（デモ）'),
-          backgroundColor: AppColors.primary,
-        ));
-      }
-    }
-  }
+  const _ReserveButton({required this.onPressed});
+  final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: '予約する',
-      child: SizedBox(
-        width: double.infinity,
-        height: 52,
-        child: ElevatedButton(
-          onPressed: () => _reserve(context),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.primary,
-            foregroundColor: Colors.white,
-            elevation: 0,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-            shadowColor: AppColors.primary.withValues(alpha: 0.4),
-          ),
-          child: const Text('予約する',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+    return SizedBox(
+      width: double.infinity,
+      height: 52,
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         ),
+        child: const Text('予約する',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
       ),
     );
   }
 }
 
-// ─── 地図 ─────────────────────────────────────────────────────────────────────
+// ─── LINEシェアボタン（単体） ────────────────────────────────────────────────
 
-class _MapCard extends StatelessWidget {
-  const _MapCard({required this.restaurant});
-  final Restaurant restaurant;
+class _LineShareButton extends StatelessWidget {
+  const _LineShareButton({required this.onPressed});
+  final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
-    final pos = LatLng(restaurant.lat!, restaurant.lng!);
-    final isDark = MediaQuery.platformBrightnessOf(context) == Brightness.dark;
-    final tileUrl = isDark
-        ? 'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png'
-        : 'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png';
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: SizedBox(
-        height: 180,
-        child: FlutterMap(
-          options: MapOptions(initialCenter: pos, initialZoom: 16),
+    return SizedBox(
+      width: double.infinity,
+      height: 48,
+      child: OutlinedButton(
+        onPressed: onPressed,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: const Color(0xFF06C755),
+          side: const BorderSide(color: Color(0xFF06C755), width: 1.5),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            TileLayer(
-              urlTemplate: tileUrl,
-              userAgentPackageName: 'jp.mannaka.mannaka',
-              maxZoom: 19,
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: CustomPaint(painter: _MiniLinePainter()),
             ),
-            MarkerLayer(
-              markers: [
-                Marker(
-                  point: pos,
-                  width: 48,
-                  height: 48,
-                  child: GestureDetector(
-                    onTap: () async {
-                      final uri = Uri.parse(
-                          'https://maps.google.com/?q=${restaurant.lat},${restaurant.lng}');
-                      if (await canLaunchUrl(uri)) await launchUrl(uri);
-                    },
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: const Color(0xFFEF4444), width: 2.5),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.2),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Center(
-                        child: Icon(Icons.restaurant_rounded, size: 22, color: AppColors.primary),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+            const SizedBox(width: 8),
+            const Text('LINEで予約情報をシェア',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
           ],
         ),
       ),
@@ -424,7 +466,301 @@ class _MapCard extends StatelessWidget {
   }
 }
 
-// ─── 情報カード ────────────────────────────────────────────────────────────────
+// ─── LINE共有ボトムシート ─────────────────────────────────────────────────────
+
+class _LineShareSheet extends StatelessWidget {
+  const _LineShareSheet({
+    required this.restaurant,
+    required this.onShared,
+  });
+  final Restaurant restaurant;
+  final void Function(ReservedRestaurant) onShared;
+
+  Future<void> _shareLine(BuildContext context) async {
+    final r = restaurant;
+    // Googleマップ目的地リンク（受け取った側が自分の現在地からルート確認）
+    // 送信者の位置情報は含まない
+    final mapsUrl = r.lat != null && r.lng != null
+        ? 'https://maps.google.com/maps?daddr=${r.lat},${r.lng}'
+        : '';
+
+    final station =
+        r.lat != null && r.lng != null ? _nearestStationName(r.lat!, r.lng!) : '';
+
+    final lines = <String>[
+      '【集合場所が決まりました！】',
+      '🍽 ${r.name}',
+      if (r.address.isNotEmpty) '📍 ${r.address}',
+      if (station.isNotEmpty) '🚉 最寄り駅: $station駅',
+      if (mapsUrl.isNotEmpty) '\n📍 道順はこちら\n$mapsUrl',
+      '\n「まんなか」で見つけたよ！',
+    ];
+    final text = lines.join('\n');
+    final encoded = Uri.encodeComponent(text);
+    final lineUri = Uri.parse('https://line.me/R/share?text=$encoded');
+
+    if (await canLaunchUrl(lineUri)) {
+      await launchUrl(lineUri, mode: LaunchMode.externalApplication);
+    }
+
+    // 予約済みとして保存
+    final entry = ReservedRestaurant(
+      id: '${r.id}_${DateTime.now().millisecondsSinceEpoch}',
+      restaurantName: r.name,
+      category: r.category,
+      reservedAt: DateTime.now(),
+      address: r.address,
+      hotpepperUrl: r.hotpepperUrl,
+      imageUrl: r.imageUrl,
+      lat: r.lat,
+      lng: r.lng,
+      nearestStation: station,
+    );
+    onShared(entry);
+
+    if (context.mounted) Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final r = restaurant;
+    final station = r.lat != null && r.lng != null
+        ? _nearestStationName(r.lat!, r.lng!)
+        : '';
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              SizedBox(
+                width: 28,
+                height: 28,
+                child: CustomPaint(painter: _MiniLinePainter()),
+              ),
+              const SizedBox(width: 10),
+              const Text('LINEで集合場所をシェア',
+                  style: TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.w800)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text('友だちに送って、みんなで道順を確認できます',
+              style:
+                  TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+          const SizedBox(height: 16),
+          // プレビュー
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('【集合場所が決まりました！】',
+                    style: TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 4),
+                Text('🍽 ${r.name}',
+                    style: const TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w700)),
+                if (r.address.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text('📍 ${r.address}',
+                      style: TextStyle(
+                          fontSize: 12, color: Colors.grey.shade700)),
+                ],
+                if (station.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text('🚉 最寄り駅: $station駅',
+                      style: TextStyle(
+                          fontSize: 12, color: Colors.grey.shade700)),
+                ],
+                const SizedBox(height: 6),
+                Text('📍 道順はこちら（Googleマップ）',
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.blue.shade600,
+                        decoration: TextDecoration.underline,
+                        decorationColor: Colors.blue.shade600)),
+                const SizedBox(height: 4),
+                Text('「まんなか」で見つけたよ！',
+                    style: TextStyle(
+                        fontSize: 12, color: Colors.grey.shade400)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '※ 受け取った方が自分の現在地からGoogleマップで道順を確認できます。\n'
+            '　 あなたの現在地は共有されません。',
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade400),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton(
+              onPressed: () => _shareLine(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF06C755),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CustomPaint(
+                        painter: _MiniLinePainter(iconColor: Colors.white)),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text('LINEで送る',
+                      style: TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w700)),
+                ],
+              ),
+            ),
+          ),
+          SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
+        ],
+      ),
+    );
+  }
+}
+
+/// LINE吹き出しアイコン（ミニ版）
+class _MiniLinePainter extends CustomPainter {
+  const _MiniLinePainter({this.iconColor});
+  final Color? iconColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (iconColor == null) {
+      // 緑の丸背景
+      final bgPaint = Paint()..color = const Color(0xFF06C755);
+      canvas.drawCircle(
+          Offset(size.width / 2, size.height / 2), size.width / 2, bgPaint);
+    }
+    final paint = Paint()..color = iconColor ?? Colors.white;
+    final bubbleRect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(size.width * 0.18, size.height * 0.20,
+          size.width * 0.64, size.height * 0.44),
+      const Radius.circular(3),
+    );
+    canvas.drawRRect(bubbleRect, paint);
+    final path = Path();
+    final tx = size.width * 0.34;
+    final ty = size.height * 0.63;
+    path.moveTo(tx, ty);
+    path.lineTo(tx - size.width * 0.10, ty + size.height * 0.17);
+    path.lineTo(tx + size.width * 0.14, ty);
+    path.close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(_) => false;
+}
+
+// ─── Google Maps 埋め込み ─────────────────────────────────────────────────────
+
+class _GMapCard extends StatefulWidget {
+  const _GMapCard({required this.restaurant});
+  final Restaurant restaurant;
+
+  @override
+  State<_GMapCard> createState() => _GMapCardState();
+}
+
+class _GMapCardState extends State<_GMapCard> {
+  gmap.GoogleMapController? _ctrl;
+
+  @override
+  void dispose() {
+    _ctrl?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pos = gmap.LatLng(widget.restaurant.lat!, widget.restaurant.lng!);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: SizedBox(
+        height: 180,
+        child: gmap.GoogleMap(
+          initialCameraPosition: gmap.CameraPosition(target: pos, zoom: 16),
+          onMapCreated: (ctrl) => _ctrl = ctrl,
+          markers: {
+            gmap.Marker(
+              markerId: const gmap.MarkerId('restaurant'),
+              position: pos,
+              infoWindow:
+                  gmap.InfoWindow(title: widget.restaurant.name),
+              onTap: () async {
+                final uri = Uri.parse(
+                    'https://maps.google.com/?q=${widget.restaurant.lat},${widget.restaurant.lng}');
+                if (await canLaunchUrl(uri)) {
+                  await launchUrl(uri,
+                      mode: LaunchMode.externalApplication);
+                }
+              },
+            ),
+          },
+          myLocationEnabled: false,
+          myLocationButtonEnabled: false,
+          zoomControlsEnabled: false,
+          scrollGesturesEnabled: false,
+          rotateGesturesEnabled: false,
+          tiltGesturesEnabled: false,
+          zoomGesturesEnabled: false,
+        ),
+      ),
+    );
+  }
+}
+
+// ─── 情報カード ───────────────────────────────────────────────────────────────
+
+List<String> _formatOpenHours(String raw) {
+  if (raw.isEmpty) return [];
+  final parts = raw
+      .split(RegExp(r'[/／\n]'))
+      .map((s) => s.trim())
+      .where((s) => s.isNotEmpty)
+      .toList();
+  return parts.length > 1 ? parts : [raw.trim()];
+}
+
+String _formatCloseDay(String raw) =>
+    raw.replaceAll('　', ' ').trim();
 
 class _InfoCard extends StatelessWidget {
   const _InfoCard({required this.restaurant});
@@ -432,30 +768,8 @@ class _InfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final rows = <Widget>[];
-
-    void addRow(IconData icon, String label, String value) {
-      if (value.isNotEmpty) {
-        if (rows.isNotEmpty) {
-          rows.add(const SizedBox(height: 8));
-        }
-        rows.add(_InfoRow(icon: icon, label: label, value: value));
-      }
-    }
-
-    addRow(Icons.restaurant_menu_rounded, 'カテゴリ', restaurant.category);
-    addRow(Icons.attach_money_rounded, '目安予算', restaurant.priceLabel.isNotEmpty ? restaurant.priceLabel : restaurant.priceStr);
-    if (restaurant.accessInfo.isNotEmpty) {
-      addRow(Icons.directions_walk_rounded, 'アクセス', restaurant.accessInfo);
-    } else if (restaurant.distanceMinutes > 0) {
-      addRow(Icons.directions_walk_rounded, '駅からの距離', '徒歩${restaurant.distanceMinutes}分');
-    }
-    addRow(Icons.access_time_rounded, '営業時間', restaurant.openHours);
-    addRow(Icons.block_rounded, '定休日', restaurant.closeDay);
-    addRow(Icons.location_on_rounded, '住所', restaurant.address);
-
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -467,42 +781,146 @@ class _InfoCard extends StatelessWidget {
           ),
         ],
       ),
-      child: Column(children: rows),
+      child: Column(
+        children: [
+          _buildRow(Icons.restaurant_menu_rounded, 'カテゴリ',
+              restaurant.category),
+          _buildRow(
+              Icons.attach_money_rounded,
+              '予算',
+              restaurant.priceLabel.isNotEmpty
+                  ? restaurant.priceLabel
+                  : restaurant.priceStr),
+          _buildAccessRow(),
+          _buildHoursRow(),
+          _buildCloseDayRow(),
+          _buildRow(
+              Icons.location_on_rounded, '住所', restaurant.address),
+        ].whereType<Widget>().toList(),
+      ),
     );
+  }
+
+  Widget? _buildRow(IconData icon, String label, String value) {
+    if (value.isEmpty) return null;
+    return _InfoRow(icon: icon, label: label, value: value);
+  }
+
+  Widget? _buildAccessRow() {
+    if (restaurant.accessInfo.isNotEmpty) {
+      return _InfoRow(
+          icon: Icons.directions_walk_rounded,
+          label: 'アクセス',
+          value: restaurant.accessInfo);
+    } else if (restaurant.distanceMinutes > 0) {
+      return _InfoRow(
+          icon: Icons.directions_walk_rounded,
+          label: 'アクセス',
+          value: '駅から徒歩${restaurant.distanceMinutes}分');
+    }
+    return null;
+  }
+
+  Widget? _buildHoursRow() {
+    if (restaurant.openHours.isEmpty) return null;
+    final slots = _formatOpenHours(restaurant.openHours);
+    if (slots.length <= 1) {
+      return _InfoRow(
+          icon: Icons.access_time_rounded,
+          label: '営業時間',
+          value: slots.firstOrNull ?? restaurant.openHours);
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.access_time_rounded, size: 18, color: AppColors.primary),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 68,
+            child: Text('営業時間',
+                style:
+                    TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: slots
+                  .map((s) => Text(s,
+                      style: const TextStyle(
+                          fontSize: 13, fontWeight: FontWeight.w600)))
+                  .toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget? _buildCloseDayRow() {
+    final day = _formatCloseDay(restaurant.closeDay);
+    if (day.isEmpty) return null;
+    if (day == '無休' || day == '年中無休') {
+      return _InfoRow(
+          icon: Icons.calendar_month_rounded,
+          label: '定休日',
+          value: '年中無休',
+          valueColor: const Color(0xFF10B981));
+    }
+    return _InfoRow(
+        icon: Icons.calendar_month_rounded,
+        label: '定休日',
+        value: day);
   }
 }
 
 class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.icon, required this.label, required this.value});
+  const _InfoRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.valueColor,
+  });
   final IconData icon;
   final String label;
   final String value;
+  final Color? valueColor;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 18, color: AppColors.primary),
-        const SizedBox(width: 10),
-        SizedBox(
-          width: 80,
-          child: Text(label, style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-            textAlign: TextAlign.end,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: AppColors.primary),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 68,
+            child: Text(label,
+                style:
+                    TextStyle(fontSize: 13, color: Colors.grey.shade600)),
           ),
-        ),
-      ],
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: valueColor),
+              textAlign: TextAlign.end,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
 class _Badge extends StatelessWidget {
-  const _Badge({required this.icon, required this.label, required this.color});
+  const _Badge(
+      {required this.icon, required this.label, required this.color});
   final IconData icon;
   final String label;
   final Color color;
@@ -520,14 +938,16 @@ class _Badge extends StatelessWidget {
         children: [
           Icon(icon, size: 14, color: color),
           const SizedBox(width: 4),
-          Text(label, style: TextStyle(fontSize: 13, color: color, fontWeight: FontWeight.w600)),
+          Text(label,
+              style: TextStyle(
+                  fontSize: 13, color: color, fontWeight: FontWeight.w600)),
         ],
       ),
     );
   }
 }
 
-// ─── エリア周辺探しボタン ──────────────────────────────────────────────────────
+// ─── エリア周辺探しボタン ─────────────────────────────────────────────────────
 
 class _NearbySearchButton extends StatefulWidget {
   const _NearbySearchButton({required this.restaurant});
@@ -544,7 +964,6 @@ class _NearbySearchButtonState extends State<_NearbySearchButton> {
     final lat = widget.restaurant.lat;
     final lng = widget.restaurant.lng;
     if (lat == null || lng == null) return;
-
     setState(() => _loading = true);
     final apiKey = ApiConfig.hotpepperApiKey;
     List<Restaurant> results = [];
@@ -561,7 +980,6 @@ class _NearbySearchButtonState extends State<_NearbySearchButton> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
-
     if (!mounted) return;
     await showModalBottomSheet(
       context: context,
@@ -586,8 +1004,7 @@ class _NearbySearchButtonState extends State<_NearbySearchButton> {
             ? const SizedBox(
                 width: 16,
                 height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
+                child: CircularProgressIndicator(strokeWidth: 2))
             : const Icon(Icons.search_rounded, size: 18),
         label: Text(
           hasLocation ? 'このエリアで他のお店を探す' : '位置情報が取得できません',
@@ -596,12 +1013,11 @@ class _NearbySearchButtonState extends State<_NearbySearchButton> {
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.primary,
           side: BorderSide(
-            color: hasLocation
-                ? AppColors.primary
-                : Colors.grey.shade300,
+            color: hasLocation ? AppColors.primary : Colors.grey.shade300,
             width: 1.5,
           ),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       ),
     );
@@ -609,10 +1025,8 @@ class _NearbySearchButtonState extends State<_NearbySearchButton> {
 }
 
 class _NearbyResultsSheet extends StatelessWidget {
-  const _NearbyResultsSheet({
-    required this.results,
-    required this.restaurantName,
-  });
+  const _NearbyResultsSheet(
+      {required this.results, required this.restaurantName});
   final List<Restaurant> results;
   final String restaurantName;
 
@@ -629,7 +1043,6 @@ class _NearbyResultsSheet extends StatelessWidget {
         ),
         child: Column(
           children: [
-            // ハンドル
             Container(
               margin: const EdgeInsets.only(top: 12, bottom: 8),
               width: 36,
@@ -640,22 +1053,20 @@ class _NearbyResultsSheet extends StatelessWidget {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
               child: Row(
                 children: [
                   Expanded(
                     child: Text(
                       '$restaurantName 周辺のお店',
                       style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                      ),
+                          fontSize: 15, fontWeight: FontWeight.w700),
                     ),
                   ),
-                  Text(
-                    '${results.length}件',
-                    style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-                  ),
+                  Text('${results.length}件',
+                      style: TextStyle(
+                          fontSize: 13, color: Colors.grey.shade600)),
                 ],
               ),
             ),
@@ -663,10 +1074,8 @@ class _NearbyResultsSheet extends StatelessWidget {
             if (results.isEmpty)
               const Expanded(
                 child: Center(
-                  child: Text(
-                    'お店が見つかりませんでした',
-                    style: TextStyle(color: Colors.grey),
-                  ),
+                  child: Text('お店が見つかりませんでした',
+                      style: TextStyle(color: Colors.grey)),
                 ),
               )
             else
@@ -682,11 +1091,10 @@ class _NearbyResultsSheet extends StatelessWidget {
                       onTap: () {
                         final nav = Navigator.of(context);
                         nav.pop();
-                        nav.push(
-                          MaterialPageRoute(
-                            builder: (_) => RestaurantDetailScreen(restaurant: r),
-                          ),
-                        );
+                        nav.push(MaterialPageRoute(
+                          builder: (_) =>
+                              RestaurantDetailScreen(restaurant: r),
+                        ));
                       },
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
@@ -697,13 +1105,10 @@ class _NearbyResultsSheet extends StatelessWidget {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    r.name,
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
+                                  Text(r.name,
+                                      style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600)),
                                   const SizedBox(height: 4),
                                   Row(
                                     children: [
@@ -711,26 +1116,26 @@ class _NearbyResultsSheet extends StatelessWidget {
                                         padding: const EdgeInsets.symmetric(
                                             horizontal: 8, vertical: 2),
                                         decoration: BoxDecoration(
-                                          color: AppColors.getCategoryBg(r.category),
-                                          borderRadius: BorderRadius.circular(10),
+                                          color: AppColors.getCategoryBg(
+                                              r.category),
+                                          borderRadius:
+                                              BorderRadius.circular(10),
                                         ),
                                         child: Text(
                                           r.category,
                                           style: TextStyle(
                                             fontSize: 11,
                                             fontWeight: FontWeight.w600,
-                                            color: AppColors.getCategoryColor(r.category),
+                                            color: AppColors.getCategoryColor(
+                                                r.category),
                                           ),
                                         ),
                                       ),
                                       const SizedBox(width: 8),
-                                      Text(
-                                        r.priceStr,
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.grey.shade600,
-                                        ),
-                                      ),
+                                      Text(r.priceStr,
+                                          style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey.shade600)),
                                     ],
                                   ),
                                 ],
@@ -738,21 +1143,16 @@ class _NearbyResultsSheet extends StatelessWidget {
                             ),
                             if (r.rating > 0) ...[
                               const SizedBox(width: 8),
-                              Row(
-                                children: [
-                                  Icon(Icons.star_rounded,
-                                      size: 14,
-                                      color: Colors.amber.shade400),
-                                  const SizedBox(width: 2),
-                                  Text(
-                                    r.ratingStr,
+                              Row(children: [
+                                Icon(Icons.star_rounded,
+                                    size: 14,
+                                    color: Colors.amber.shade400),
+                                const SizedBox(width: 2),
+                                Text(r.ratingStr,
                                     style: const TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700)),
+                              ]),
                             ],
                             const SizedBox(width: 8),
                             Icon(Icons.chevron_right_rounded,
@@ -765,121 +1165,6 @@ class _NearbyResultsSheet extends StatelessWidget {
                 ),
               ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─── 訪問記録ボタン ────────────────────────────────────────────────────────────
-
-class _VisitLogButton extends ConsumerStatefulWidget {
-  const _VisitLogButton({required this.restaurant});
-  final Restaurant restaurant;
-
-  @override
-  ConsumerState<_VisitLogButton> createState() => _VisitLogButtonState();
-}
-
-class _VisitLogButtonState extends ConsumerState<_VisitLogButton> {
-  Future<void> _showLogDialog() async {
-    int selectedRating = 4;
-    final memoCtrl = TextEditingController();
-    bool? result;
-    String memoText = '';
-    try {
-    result = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setS) => AlertDialog(
-          title: const Text('訪問を記録', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(widget.restaurant.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-              const SizedBox(height: 16),
-              const Text('評価', style: TextStyle(fontSize: 13, color: Colors.grey)),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(5, (i) => GestureDetector(
-                  onTap: () => setS(() => selectedRating = i + 1),
-                  child: Icon(
-                    i < selectedRating ? Icons.star_rounded : Icons.star_outline_rounded,
-                    color: Colors.amber.shade400,
-                    size: 32,
-                  ),
-                )),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: memoCtrl,
-                maxLines: 2,
-                decoration: const InputDecoration(
-                  hintText: 'メモ（任意）',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('キャンセル')),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
-              child: const Text('記録する'),
-            ),
-          ],
-        ),
-      ),
-    );
-    memoText = memoCtrl.text;
-    } finally {
-      memoCtrl.dispose();
-    }
-
-    if (result == true && mounted) {
-      final log = VisitLog(
-        id: '${widget.restaurant.id}_${DateTime.now().millisecondsSinceEpoch}',
-        restaurantId: widget.restaurant.id,
-        restaurantName: widget.restaurant.name,
-        category: widget.restaurant.category,
-        emoji: widget.restaurant.emoji,
-        visitedAt: DateTime.now(),
-        userRating: selectedRating,
-        memo: memoText,
-        imageUrl: widget.restaurant.imageUrl,
-        address: widget.restaurant.address,
-        hotpepperUrl: widget.restaurant.hotpepperUrl,
-      );
-      ref.read(visitLogProvider.notifier).add(log);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('訪問を記録しました！'),
-          backgroundColor: Color(0xFF10B981),
-          behavior: SnackBarBehavior.floating,
-        ));
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: '訪問を記録',
-      child: SizedBox(
-        width: double.infinity,
-        height: 48,
-        child: OutlinedButton.icon(
-          onPressed: _showLogDialog,
-          icon: const Icon(Icons.check_circle_outline_rounded, size: 18),
-          label: const Text('行った！記録する', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: const Color(0xFF10B981),
-            side: const BorderSide(color: Color(0xFF10B981), width: 1.5),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
         ),
       ),
     );

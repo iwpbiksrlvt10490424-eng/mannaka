@@ -396,6 +396,13 @@ const List<TokyoStation> kAllTokyoStations = [
   TokyoStation('本八幡', 35.7017, 139.9234),
 
   // ── 東武東上線 ───────────────────────────────────────────
+  TokyoStation('下板橋', 35.7397, 139.7062),
+  TokyoStation('大山', 35.7457, 139.7055),
+  TokyoStation('中板橋', 35.7521, 139.6965),
+  TokyoStation('ときわ台', 35.7589, 139.6891),
+  TokyoStation('上板橋', 35.7647, 139.6804),
+  TokyoStation('東武練馬', 35.7763, 139.6556),
+  TokyoStation('下赤塚', 35.7793, 139.6463),
   TokyoStation('成増', 35.7821, 139.6453),
   TokyoStation('和光市', 35.7891, 139.6077),
   TokyoStation('朝霞台', 35.7977, 139.5900),

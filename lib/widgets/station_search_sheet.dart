@@ -1,7 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../data/station_data.dart';
 import '../data/all_stations_data.dart';
+import '../data/station_furigana.dart';
 import '../providers/favorites_provider.dart';
+import '../services/station_search_service.dart';
 import '../theme/app_theme.dart';
 
 /// 駅選択の結果
@@ -38,14 +41,17 @@ class StationSearchSheet extends StatefulWidget {
 
 class _StationSearchSheetState extends State<StationSearchSheet> {
   String _query = '';
+  List<StationCandidate> _apiResults = [];
+  bool _isSearching = false;
+  Timer? _debounce;
 
-  /// kStations のインデックスマップ（名前 → index）
+  // kStations の名前 → インデックスマップ
   static final Map<String, int> _kStationIndex = {
     for (int i = 0; i < kStations.length; i++) kStations[i]: i,
   };
 
-  /// 全駅リスト（重複除去）
-  static final List<TokyoStation> _allStations = () {
+  // ローカル全駅リスト（重複除去済み）
+  static final List<TokyoStation> _allLocalStations = () {
     final seen = <String>{};
     final result = <TokyoStation>[];
     for (final s in kAllTokyoStations) {
@@ -54,20 +60,88 @@ class _StationSearchSheetState extends State<StationSearchSheet> {
     return result;
   }();
 
-  List<TokyoStation> get _filtered {
-    if (_query.isEmpty) return _allStations;
-    final q = _query.toLowerCase();
-    return _allStations.where((s) => s.name.contains(q)).toList();
+  // ローカル即時フィルタ（前方一致 → 中間一致の順でスコアリング、ふりがな対応）
+  List<TokyoStation> get _localFiltered {
+    if (_query.isEmpty) return _allLocalStations;
+    final q = _query;
+    // スコア: 1=名前前方一致, 2=ふりがな前方一致, 3=名前中間一致, 4=ふりがな中間一致
+    final buckets = [<TokyoStation>[], <TokyoStation>[], <TokyoStation>[], <TokyoStation>[]];
+    for (final s in _allLocalStations) {
+      final furigana = kStationFurigana[s.name] ?? '';
+      if (s.name.startsWith(q)) {
+        buckets[0].add(s);
+      } else if (furigana.startsWith(q)) {
+        buckets[1].add(s);
+      } else if (s.name.contains(q)) {
+        buckets[2].add(s);
+      } else if (furigana.contains(q)) {
+        buckets[3].add(s);
+      }
+    }
+    return [...buckets[0], ...buckets[1], ...buckets[2], ...buckets[3]];
   }
 
-  SelectedStation _toSelected(TokyoStation s) {
-    final idx = _kStationIndex[s.name];
-    return SelectedStation(name: s.name, lat: s.lat, lng: s.lng, kIndex: idx);
+  void _onQueryChanged(String value) {
+    setState(() {
+      _query = value;
+      _apiResults = [];
+    });
+    _debounce?.cancel();
+    if (value.trim().isEmpty) {
+      setState(() => _isSearching = false);
+      return;
+    }
+    setState(() => _isSearching = true);
+    _debounce = Timer(const Duration(milliseconds: 400), () async {
+      final results = await StationSearchService.search(value.trim());
+      if (!mounted) return;
+      setState(() {
+        _apiResults = results;
+        _isSearching = false;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  // ローカル + API の統合リスト（ローカル優先、API で補完）
+  List<_StationItem> get _mergedResults {
+    final localFiltered = _localFiltered;
+    final localNames = {for (final s in localFiltered) s.name};
+
+    // API結果のうちローカルにない駅を追加
+    final apiOnly = _apiResults.where((c) => !localNames.contains(c.name));
+
+    final items = <_StationItem>[
+      for (final s in localFiltered)
+        _StationItem.fromLocal(s, _kStationIndex[s.name]),
+      for (final c in apiOnly)
+        _StationItem.fromApi(c),
+    ];
+    return items;
+  }
+
+  void _select(_StationItem item) {
+    // kIndex が確定している場合はそのまま、API経由は kIndex 解決済み
+    Navigator.pop(
+      context,
+      SelectedStation(
+        name: item.name,
+        lat: item.lat,
+        lng: item.lng,
+        kIndex: item.kIndex,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final filtered = _filtered;
+    final merged = _mergedResults;
+    final hasQuery = _query.isNotEmpty;
 
     return Container(
       height: MediaQuery.of(context).size.height * 0.82 -
@@ -102,9 +176,22 @@ class _StationSearchSheetState extends State<StationSearchSheet> {
             child: TextField(
               autofocus: false,
               decoration: InputDecoration(
-                hintText: '駅名を検索（例: 学芸大学、代官山）',
+                hintText: '駅名を入力（例: 代官山、学芸大学、吉祥寺）',
                 prefixIcon: const Icon(Icons.search,
                     color: AppColors.textTertiary, size: 20),
+                suffixIcon: _isSearching
+                    ? const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      )
+                    : null,
                 filled: true,
                 fillColor: AppColors.background,
                 border: OutlineInputBorder(
@@ -116,11 +203,12 @@ class _StationSearchSheetState extends State<StationSearchSheet> {
                   borderSide: const BorderSide(color: AppColors.border),
                 ),
               ),
-              onChanged: (v) => setState(() => _query = v),
+              onChanged: _onQueryChanged,
             ),
           ),
-          // お気に入り駅チップ
-          if (widget.favorites.isNotEmpty && _query.isEmpty) ...[
+
+          // お気に入り駅チップ（検索していないときのみ）
+          if (widget.favorites.isNotEmpty && !hasQuery) ...[
             const SizedBox(height: 10),
             SizedBox(
               height: 36,
@@ -133,7 +221,6 @@ class _StationSearchSheetState extends State<StationSearchSheet> {
                   final f = widget.favorites[i];
                   return GestureDetector(
                     onTap: () {
-                      // kStations の駅なので lat/lng も取得
                       final (lat, lng) = kStationLatLng[f.stationIndex];
                       Navigator.pop(
                         context,
@@ -174,44 +261,83 @@ class _StationSearchSheetState extends State<StationSearchSheet> {
               ),
             ),
           ],
+
           const SizedBox(height: 8),
           const SizedBox(
               height: 1, child: ColoredBox(color: Color(0xFFEEEEEE))),
-          // 件数表示
-          if (_query.isNotEmpty)
+
+          // 件数 / ステータス表示
+          if (hasQuery)
             Padding(
               padding:
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  '${filtered.length}件',
-                  style: TextStyle(
-                      fontSize: 12, color: Colors.grey.shade500),
-                ),
+              child: Row(
+                children: [
+                  Text(
+                    merged.isEmpty && !_isSearching
+                        ? '「$_query」は見つかりませんでした'
+                        : '${merged.length}件',
+                    style: TextStyle(
+                        fontSize: 12, color: Colors.grey.shade500),
+                  ),
+                  if (_apiResults.isNotEmpty) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryLight,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text(
+                        '全国対応',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
+
           Expanded(
-            child: filtered.isEmpty
+            child: merged.isEmpty && !_isSearching && hasQuery
                 ? Center(
-                    child: Text(
-                      '「$_query」は見つかりませんでした',
-                      style: TextStyle(
-                          fontSize: 14, color: Colors.grey.shade500),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.train_outlined,
+                            size: 40, color: Colors.grey.shade300),
+                        const SizedBox(height: 8),
+                        Text(
+                          '「$_query」は見つかりませんでした',
+                          style: TextStyle(
+                              fontSize: 14, color: Colors.grey.shade500),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '別の読み方や漢字で試してみてください',
+                          style: TextStyle(
+                              fontSize: 12, color: Colors.grey.shade400),
+                        ),
+                      ],
                     ),
                   )
                 : ListView.separated(
-                    itemCount: filtered.length,
+                    itemCount: merged.length,
                     separatorBuilder: (_, __) => const Padding(
-                        padding: EdgeInsets.only(left: 56),
-                        child: SizedBox(
-                            height: 1,
-                            child: ColoredBox(color: Color(0xFFEEEEEE)))),
+                      padding: EdgeInsets.only(left: 56),
+                      child: SizedBox(
+                          height: 1,
+                          child: ColoredBox(color: Color(0xFFEEEEEE))),
+                    ),
                     itemBuilder: (_, i) {
-                      final station = filtered[i];
-                      final kIdx = _kStationIndex[station.name];
-                      final isSelected = kIdx != null &&
-                          widget.currentIndex == kIdx;
+                      final item = merged[i];
+                      final isSelected = item.kIndex != null &&
+                          widget.currentIndex == item.kIndex;
                       return ListTile(
                         contentPadding: const EdgeInsets.symmetric(
                             horizontal: 16, vertical: 2),
@@ -221,8 +347,7 @@ class _StationSearchSheetState extends State<StationSearchSheet> {
                           decoration: BoxDecoration(
                             color: isSelected
                                 ? AppColors.primary
-                                : AppColors.primary
-                                    .withValues(alpha: 0.08),
+                                : AppColors.primary.withValues(alpha: 0.08),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           alignment: Alignment.center,
@@ -235,7 +360,7 @@ class _StationSearchSheetState extends State<StationSearchSheet> {
                           ),
                         ),
                         title: Text(
-                          station.name,
+                          item.name,
                           style: TextStyle(
                             fontWeight: isSelected
                                 ? FontWeight.w700
@@ -246,12 +371,20 @@ class _StationSearchSheetState extends State<StationSearchSheet> {
                             fontSize: 15,
                           ),
                         ),
+                        subtitle: item.line.isNotEmpty
+                            ? Text(
+                                item.line,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey.shade500,
+                                ),
+                              )
+                            : null,
                         trailing: isSelected
                             ? const Icon(Icons.check_circle,
                                 color: AppColors.primary, size: 20)
                             : null,
-                        onTap: () =>
-                            Navigator.pop(context, _toSelected(station)),
+                        onTap: () => _select(item),
                       );
                     },
                   ),
@@ -260,4 +393,42 @@ class _StationSearchSheetState extends State<StationSearchSheet> {
       ),
     );
   }
+}
+
+// ─── 内部DTO ─────────────────────────────────────────────────────────────────
+
+class _StationItem {
+  const _StationItem({
+    required this.name,
+    required this.lat,
+    required this.lng,
+    required this.line,
+    required this.kIndex,
+  });
+
+  factory _StationItem.fromLocal(TokyoStation s, int? kIdx) {
+    return _StationItem(
+      name: s.name,
+      lat: s.lat,
+      lng: s.lng,
+      line: '',
+      kIndex: kIdx,
+    );
+  }
+
+  factory _StationItem.fromApi(StationCandidate c) {
+    return _StationItem(
+      name: c.name,
+      lat: c.lat,
+      lng: c.lng,
+      line: c.line,
+      kIndex: c.kIndex,
+    );
+  }
+
+  final String name;
+  final double lat;
+  final double lng;
+  final String line; // 路線名（API由来のみ非空）
+  final int? kIndex;
 }

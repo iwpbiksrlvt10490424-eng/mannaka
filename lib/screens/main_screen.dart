@@ -2,14 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/search_provider.dart';
+import '../providers/nav_provider.dart';
 import '../services/notification_service.dart';
 import '../theme/app_theme.dart';
 import 'home_screen.dart';
 import 'search_screen.dart';
 import 'history_screen.dart';
 import 'settings_screen.dart';
-
-final _navIndexProvider = StateProvider<int>((ref) => 0);
 
 class MainScreen extends ConsumerStatefulWidget {
   const MainScreen({super.key});
@@ -78,7 +77,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
                 onPressed: () {
                   Navigator.pop(context);
                   HapticFeedback.mediumImpact();
-                  ref.read(_navIndexProvider.notifier).state = 1;
+                  ref.read(navIndexProvider.notifier).state = 1;
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
@@ -105,12 +104,12 @@ class _MainScreenState extends ConsumerState<MainScreen> {
     if (occasion != null) {
       ref.read(searchProvider.notifier).startWithOccasion(occasion);
     }
-    ref.read(_navIndexProvider.notifier).state = tabIndex;
+    ref.read(navIndexProvider.notifier).state = tabIndex;
   }
 
   @override
   Widget build(BuildContext context) {
-    final index = ref.watch(_navIndexProvider);
+    final index = ref.watch(navIndexProvider);
 
     final screens = [
       HomeScreen(onNavigate: _navigate),
@@ -125,7 +124,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
         selectedIndex: index,
         onDestinationSelected: (i) {
           HapticFeedback.selectionClick();
-          ref.read(_navIndexProvider.notifier).state = i;
+          ref.read(navIndexProvider.notifier).state = i;
         },
         destinations: const [
           NavigationDestination(

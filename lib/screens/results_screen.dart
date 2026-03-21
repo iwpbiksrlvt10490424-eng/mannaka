@@ -51,12 +51,9 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
     final results = state.results;
     final tabCount = results.isEmpty ? 1 : min(5, results.length);
 
-    // タブ数が変わったら次フレームで再構築
+    // タブ数が変わったら即座に再構築（フレームをまたぐと不一致エラーになる）
     if (_tabCount != tabCount) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) setState(() => _rebuildTab(tabCount, results, notifier));
-      });
-      if (_tab == null) _rebuildTab(tabCount, results, notifier);
+      _rebuildTab(tabCount, results, notifier);
     }
 
     final tab = _tab!;

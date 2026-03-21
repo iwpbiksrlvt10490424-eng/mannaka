@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/onboarding_provider.dart';
-import '../screens/settings_screen.dart';
+import '../providers/profile_provider.dart';
 import '../theme/app_theme.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
@@ -43,12 +43,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     final nickname = prefs.getString('user_nickname') ?? '';
     final homeStation = prefs.getInt('home_station');
     final ageGroup = prefs.getString('age_group');
-    final gender = prefs.getString('gender');
     final profileImagePath = prefs.getString('profile_image_path');
     if (nickname.isNotEmpty) ref.read(nicknameProvider.notifier).state = nickname;
     if (homeStation != null) ref.read(homeStationProvider.notifier).state = homeStation;
     if (ageGroup != null) ref.read(ageGroupProvider.notifier).state = ageGroup;
-    if (gender != null) ref.read(genderProvider.notifier).state = gender;
     if (profileImagePath != null) ref.read(profileImagePathProvider.notifier).state = profileImagePath;
 
     if (!mounted) return;

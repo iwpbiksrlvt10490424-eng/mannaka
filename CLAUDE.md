@@ -1,132 +1,127 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-## アプリ概要
+## Project Mission
 「まんなか」— グループ全員にとってベストなお店を自動提案するiOSアプリ。
 ターゲット：20〜30代女性 / App Store公開予定
+忙しい開発者が短時間で価値検証できるMVPを、最小の手戻りで継続開発する。
 
-## コマンド
+## Commands
 ```bash
 flutter pub get
 flutter analyze          # 必須。エラー0件でなければ実装完了とみなさない
 flutter test             # 必須。全パスでなければリリース不可
-flutter run --device-id=366D236E-C477-41BC-A9B1-C80FB6044606
+flutter devices          # 実行前にdevice-idを確認する（ハードコード禁止）
+flutter run --device-id=<flutter devicesで確認したID>
 flutter build ios
+
+# Claude Code: ツール許可プロンプトをスキップして自動実行
+claude --dangerously-skip-permissions
 ```
 
-## 開発ルール（違反禁止）
+## Development Principles
+- MVP優先。まず動く最小構成を作る
+- 早すぎる抽象化を避ける
+- 既存コードの流儀に合わせる
+- 勝手に新技術・依存を追加しない
+- UI・状態管理・API・永続化の責務を分離する
+
+## Flutter Rules（違反禁止）
 - `withOpacity()` 禁止 → `withValues(alpha: x)`（Dart 3.9.2 deprecated）
-- **APIキー直書き禁止** → `lib/config/secrets.dart`（gitignore済み）
+- `flutter_map` + `dart:ui` 同時使用 → `import 'dart:ui' as ui;` で `ui.Path()` と明示
+- APIキー直書き禁止 → `lib/config/secrets.dart`（gitignore済み）
 - 非同期後のcontext使用前に `if (mounted)` を確認
 - ダイアログの `TextEditingController` → `.then((_) => ctrl.dispose())`
-- JSON パース: `(json['x'] as Map?)?['y'] as List? ?? []`
+- JSONパース: `(json['x'] as Map?)?['y'] as List? ?? []`
 - `MapController` は `dispose()` で必ず破棄
-- `flutter_map` + `dart:ui` 同時使用 → `import 'dart:ui' as ui;` で `ui.Path()` と明示
+- `Share.share()` on iOS は `sharePositionOrigin` 必須
+- 地図リンクは緯度経度必須: `maps.apple.com/?ll={lat},{lng}&q={name}`
 
-## ボトムシートルール
+## Bottom Sheet Rules
 - `autofocus: false` を必ず設定（trueにするとキーボードがリストを隠す）
 - 固定高さのシートはキーボード高さを引く: `height: size.height * 0.82 - viewInsets.bottom`
-- モーダル内でナビゲーションが重複しないよう `_isNavigating` フラグを使う:
-  ```dart
-  bool _isNavigating = false;
-  Future<void> _openSheet() async {
-    if (_isNavigating) return;
-    _isNavigating = true;
-    await showModalBottomSheet(...);
-    if (mounted) _isNavigating = false;
-  }
-  ```
+- モーダル内のナビゲーション重複防止に `_isNavigating` フラグを使う
 
-## 大規模書き換えルール（必須）
-1. **書き換え前**: 旧コードが呼ぶ関数・プロバイダーを列挙し、新コードで引き継ぐか明示
-2. **書き換え後**: `flutter analyze` だけでは不十分。スコアリング・判定ロジックは目視で仕様と照合
-3. コアロジックを持つ画面を書き換えた場合、`MidpointService.scoreRestaurants` が正しく呼ばれているか確認
-
-## アーキテクチャ
-
-### データフロー（核心）
+## Architecture
 ```
 Participant[] → SearchNotifier.calculate()
   → MidpointService（中間点・重心・スコアリング）
   → HotpepperService（APIキーあり時）/ Overpass（フォールバック）
   → SearchState.hotpepperRestaurants → 結果画面表示
 ```
-**スコア**: 予約可否25% + 重心距離30% + 距離公平性30% + 評価15%
-**重要**: 結果画面は必ず `MidpointService.scoreRestaurants` を使うこと。単純ソートで代替禁止。
+スコア: 予約可否25% + 重心距離30% + 距離公平性30% + 評価15%
+結果画面は必ず `MidpointService.scoreRestaurants` を使う。単純ソートで代替禁止。
 
-### 主要プロバイダー
-- `search_provider.dart` — `SearchNotifier` / `SearchState`（中核）
-- `history_provider.dart` / `visit_log_provider.dart` — SharedPreferences永続化
-- `favorites_provider.dart` — お気に入り駅（上限3件）
-
-### 主要画面
-| 画面 | 概要 |
-|---|---|
-| `home_screen.dart` | FlutterMap + DraggableSheet + まんちゃんマスコット |
-| `search_screen.dart` | 参加者入力（GPS/駅/地図タップ）+ フィルタ |
-| `results_screen.dart` | 最大5タブ（集合候補駅ごと）、各タブにジャンルフィルター+レストランリスト |
-| `restaurant_detail_screen.dart` | 詳細 + 地図 + Hotpepper予約（SliverAppBar）|
-| `map_input_screen.dart` | 地図タップで出発地指定 |
-| `history_screen.dart` | 検索履歴 / 飲食記録（2タブ）|
-| `settings_screen.dart` | プロフィール / お気に入り駅 / API設定 |
-
-### kTransitMatrix の制限
-- 35×35のみ（kStationsは59駅）
-- 集合候補は0〜34の35駅に限定（仕様）
+- `kTransitMatrix` は35×35のみ（集合候補は0〜34の35駅に限定）
 - 35以上のインデックスはHaversineフォールバック（安全）
 
-## UIデザインルール
-- **絵文字をUIアイコンとして使用禁止** — Material Icons のみ
-- **リストアイテムのleadingに絵文字・アイコン禁止** — テキストのみ
-- **削除操作はそのデータが見える画面に置く**（設定画面に置かない）
+## Riverpod Patterns
+- `ref.watch` → `build()` 内のみ
+- `ref.read` → コールバック・イベントハンドラ内のみ
+- `ref.listen` → 副作用（SnackBar・ナビゲーション）
+
+## TDD Rules（必須）
+1. **Red**: 失敗するテストを `test/` に先に書く
+2. **Green**: テストが通る最小限の実装をする
+3. **Refactor**: コードを整理する（テストは引き続きパス）
+
+## Quality Bar
+- `flutter analyze` 0 issues / `flutter test` 全パス
+- エラー処理・空データ・ローディング状態を考慮
+- `flutter analyze` が通っても**ロジックの正しさは別**。目視確認必須
+- `secrets.dart` が Git に含まれていない
+
+## Workflow
+1. 要件整理（product-manager）
+2. 方針確認（architect-lead）
+3. 実装（feature-implementer）
+4. レビュー（qa-reviewer）
+5. 改善（refactor-optimizer）
+6. 最終報告
+
+## Reporting Format
+```
+## Summary
+## Changed files
+## Why this approach
+## Validation（flutter analyze / flutter test 結果）
+## Risks / Follow-ups
+```
+
+## UI Design Rules
+- 絵文字をUIアイコンとして使用禁止 — Material Icons のみ
+- リストアイテムの leading に絵文字・アイコン禁止 — テキストのみ
+- 削除操作はそのデータが見える画面に置く（設定画面に置かない）
+- Divider禁止 — SizedBox 8-10px で区切る
 - カード: `white, borderRadius 12, BoxShadow(black 6%, blur 8, offset(0,2))`
 - 背景: `Color(0xFFF7F7F7)` / Primary: `#FF6B81`（コーラルピンク）
-- 新機能追加前に「どの画面→どの操作→どの結果」のフローを確認してから実装
+- データ収集・分析の説明はUIに出さない
+- 初めて使うユーザーへのガイダンスを入力画面の先頭に入れる
 
-## 批判役チェックリスト（実装前に必ず確認）
-1. E2Eフロー — 「画面→操作→結果」を辿れるか？繋がらない機能は実装しない
-2. 削除操作 — データが見える画面にのみ置く
-3. 全画面一貫性 — 1箇所変えたら他画面も確認
-4. 書き換え時 — 旧コードの依存関係を列挙し、新コードで引き継ぐか確認
+## Pre-Implementation Checklist
+1. E2Eフロー — 「画面→操作→結果」を辿れるか
+2. 大規模書き換え時 — 旧コードの依存関係を列挙し新コードで引き継ぐか確認
+3. 1箇所変えたら他画面も確認
 
-## コードベース全体監査（「改善点は？」と聞かれたら必ず実行）
+## Constraints
+- APIキー・secrets/.env を直接読み書きしない
+- 指示なしで大規模リファクタをしない
+- 指示なしで依存関係を追加しない
+- `// ignore` でエラーを隠さない
+- debugPrint は本番で `kReleaseMode` 分岐か `developer.log` を使う
 
-**CLIは指示されたことしかやらない。「改善して」と言われてもflutter analyzeだけで終わりにするな。**
-必ずExploreエージェントを起動してコードを実際に読んで問題を見つけてから実装すること。
+## Versioning
+- Semantic Versioning: `MAJOR.MINOR.PATCH+BUILD`
+- `pubspec.yaml` の `version:` フィールドで一元管理
 
-監査チェックリスト（Exploreエージェントに渡すこと）：
-- `Future.delayed` の不必要な人工遅延（スプラッシュ・ボタン等）
-- `await` で画面遷移をブロックしていないか（先に遷移 → スケルトン表示が原則）
-- ソート・フィルタが `MidpointService.scoreRestaurants` を正しく使っているか
-- 各APIサービスのタイムアウト値が適切か（フォールバックは長め）
-- `flutter analyze` が通っても**ロジックの正しさは別**。目視確認必須
+## Environment
+```bash
+flutter run --dart-define=HOTPEPPER_KEY=xxx --dart-define=ENV=dev
+flutter build ios --dart-define=HOTPEPPER_KEY=yyy --dart-define=ENV=prod
+```
 
-## App Store リリース前チェックリスト
-- [ ] `flutter analyze` 0 issues
-- [ ] `flutter test` 全パス
-- [ ] `secrets.dart` が Git に含まれていない
-- [ ] `pubspec.yaml` のビルド番号インクリメント済み
-- [ ] `ios/Runner/Info.plist` の Google Maps キーを本番用に変更
-- [ ] `settings_screen.dart` の App ID を実際のものに変更
-- [ ] `support@mannaka.app` が受信できること
-- [ ] TestFlight で実機動作確認
-
-## スラッシュコマンド（インストール済み）
-- `/feature-dev` — 機能ブリーフから実装まで自動化（コミュニティ89k+ installs）
-- `/commit` — 差分解析から適切なコミットメッセージを生成
-- `/review-pr` — PRの差分をレビューしてフィードバック
-- `/simplify` — 変更コードのリファクタ・品質改善
-
-## Riverpod パターン（コミュニティベストプラクティス）
-- `ref.watch` → `build()` 内のみ（再ビルドをトリガー）
-- `ref.read` → コールバック・イベントハンドラ内のみ（1回読み取り）
-- `ref.listen` → 状態変化に応じた副作用（SnackBar・ナビゲーションなど）
-- 新しいNotifierでは `ref.watch(provider.notifier)` ではなく `ref.read(provider.notifier)` でメソッド呼び出し
-
-## 技術スタック
+## Tech Stack
 - Flutter + Dart 3.9.2 / flutter_riverpod ^2.6.1
 - flutter_map ^8.1.1 + latlong2 ^0.9.1
 - share_plus ^10.1.2 / shared_preferences ^2.5.2
 - geolocator ^13.0.1 / url_launcher ^6.3.0 / http ^1.2.2
-- Hotpepper API / Foursquare API v3 / Overpass API（フォールバック順）
+- Hotpepper API / Foursquare API v3 / Overpass API

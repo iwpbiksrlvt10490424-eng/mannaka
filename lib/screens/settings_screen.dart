@@ -9,24 +9,19 @@ import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../theme/app_theme.dart';
 import '../providers/favorites_provider.dart';
+import '../providers/profile_provider.dart';
+import '../providers/nav_provider.dart';
 import '../data/station_data.dart';
 import '../widgets/station_search_sheet.dart';
 import 'support_screen.dart';
 import 'policy_screen.dart';
 
-// ─── プロフィールプロバイダー ─────────────────────────────────────────────────
-final nicknameProvider = StateProvider<String>((ref) => '');
-final homeStationProvider = StateProvider<int?>((ref) => null);
-final ageGroupProvider = StateProvider<String?>((ref) => null);
-final genderProvider = StateProvider<String?>((ref) => null);
-final profileImagePathProvider = StateProvider<String?>((ref) => null);
 
-const _kAgeGroups = [
-  '18〜19歳', '20〜24歳', '25〜29歳', '30〜34歳',
-  '35〜39歳', '40〜44歳', '45〜49歳', '50〜54歳',
-  '55〜59歳', '60歳以上',
+final _kAgeGroups = <String>[
+  '18歳以下',
+  for (int a = 18; a <= 59; a++) '$a歳',
+  '60歳以上',
 ];
-const _kGenders = ['女性', '男性', 'その他', '回答しない'];
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -51,14 +46,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final name = prefs.getString('user_nickname') ?? '';
     final homeStation = prefs.getInt('home_station');
     final ageGroup = prefs.getString('age_group');
-    final gender = prefs.getString('gender');
     final imagePath = prefs.getString('profile_image_path');
     if (mounted) {
       _nameCtrl.text = name;
       ref.read(nicknameProvider.notifier).state = name;
       ref.read(homeStationProvider.notifier).state = homeStation;
       ref.read(ageGroupProvider.notifier).state = ageGroup;
-      ref.read(genderProvider.notifier).state = gender;
       ref.read(profileImagePathProvider.notifier).state = imagePath;
       setState(() {});
     }
@@ -71,9 +64,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _pickProfileImage() async {
+    if (_isNavigating) return;
+    _isNavigating = true;
     HapticFeedback.lightImpact();
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
+      useRootNavigator: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => Container(
         decoration: const BoxDecoration(
@@ -110,6 +106,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ),
       ),
     );
+    if (mounted) _isNavigating = false;
     if (source == null) return;
     final picked = await _picker.pickImage(
       source: source,
@@ -135,7 +132,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Widget build(BuildContext context) {
     final homeStationIdx = ref.watch(homeStationProvider);
     final ageGroup = ref.watch(ageGroupProvider);
-    final gender = ref.watch(genderProvider);
     final imagePath = ref.watch(profileImagePathProvider);
     final favorites = ref.watch(favoritesProvider);
 
@@ -284,17 +280,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                   ),
                                 ),
                               ),
-                              if (ageGroup != null || gender != null) ...[
+                              if (ageGroup != null) ...[
                                 const SizedBox(height: 6),
-                                Wrap(
-                                  spacing: 6,
-                                  children: [
-                                    if (ageGroup != null)
-                                      _MiniChip(ageGroup),
-                                    if (gender != null && gender != '回答しない')
-                                      _MiniChip(gender),
-                                  ],
-                                ),
+                                _MiniChip(ageGroup),
                               ],
                             ],
                           ),
@@ -314,13 +302,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       label: '年代',
                       subtitle: ageGroup ?? '任意・未設定',
                       onTap: () => _pickAgeGroup(context, ref),
-                    ),
-                    _NavItem(
-                      label: '性別',
-                      subtitle: (gender != null && gender != '回答しない')
-                          ? gender
-                          : '任意・未設定',
-                      onTap: () => _pickGender(context, ref),
                     ),
                   ],
                 ),
@@ -477,8 +458,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 _SettingsGroup(
                   children: [
                     _NavItem(
-                      icon: Icons.my_location_rounded,
+                      icon: Icons.gps_fixed_rounded,
                       label: '現在地を使う',
+                      subtitle: 'オンにすると起動時に現在地から最寄り駅を自動設定します',
                       color: AppColors.primary,
                       trailing: FutureBuilder<LocationPermission>(
                         future: Geolocator.checkPermission(),
@@ -509,20 +491,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         await Geolocator.openAppSettings();
                       },
                     ),
-                    _NavItem(
-                      icon: Icons.location_on_rounded,
-                      label: '位置情報の設定',
-                      color: const Color(0xFF3B82F6),
-                      subtitle: 'タップしてアプリ設定を開く',
-                      onTap: () => Geolocator.openAppSettings(),
-                    ),
-                    _NavItem(
-                      icon: Icons.notifications_rounded,
-                      label: 'プッシュ通知の設定',
-                      color: const Color(0xFFF59E0B),
-                      subtitle: 'タップしてアプリ設定を開く',
-                      onTap: () => Geolocator.openAppSettings(),
-                    ),
                   ],
                 ),
 
@@ -533,7 +501,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 _SettingsGroup(
                   children: [
                     _NavItem(
-                      icon: Icons.chat_bubble_rounded,
+                      customLeading: const _LineLogoIcon(),
                       label: 'LINEで送る',
                       color: const Color(0xFF06C755),
                       subtitle: 'LINEでシェアする',
@@ -552,7 +520,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       },
                     ),
                     _NavItem(
-                      icon: Icons.ios_share_rounded,
+                      icon: Icons.share_rounded,
                       label: 'アプリを紹介する',
                       color: const Color(0xFF3B82F6),
                       subtitle: 'LINEやSNSでシェア',
@@ -581,7 +549,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 _SettingsGroup(
                   children: [
                     _NavItem(
-                      icon: Icons.mail_outline_rounded,
+                      icon: Icons.email_outlined,
                       label: 'お問い合わせ',
                       color: const Color(0xFF3B82F6),
                       subtitle: 'メールでお送りします',
@@ -593,7 +561,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ),
                     ),
                     _NavItem(
-                      icon: Icons.bug_report_outlined,
+                      icon: Icons.feedback_outlined,
                       label: 'バグ・改善要望の報告',
                       color: const Color(0xFFEF4444),
                       subtitle: '不具合を見つけたらこちら',
@@ -605,7 +573,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ),
                     ),
                     _NavItem(
-                      icon: Icons.star_outline_rounded,
+                      icon: Icons.star_rounded,
                       label: 'App Storeでレビューを書く',
                       color: const Color(0xFFF59E0B),
                       subtitle: '応援していただけると励みになります',
@@ -621,7 +589,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       },
                     ),
                     _NavItem(
-                      icon: Icons.help_outline_rounded,
+                      icon: Icons.quiz_outlined,
                       label: 'よくある質問',
                       color: const Color(0xFF10B981),
                       subtitle: 'FAQ・詳細サポート',
@@ -640,7 +608,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 _SettingsGroup(
                   children: [
                     _NavItem(
-                      icon: Icons.privacy_tip_outlined,
+                      icon: Icons.shield_outlined,
                       label: 'プライバシーポリシー',
                       color: const Color(0xFF6B7280),
                       onTap: () => Navigator.push(
@@ -649,7 +617,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ),
                     ),
                     _NavItem(
-                      icon: Icons.description_outlined,
+                      icon: Icons.article_outlined,
                       label: '利用規約',
                       color: const Color(0xFF6B7280),
                       onTap: () => Navigator.push(
@@ -697,9 +665,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             const SizedBox(height: 16),
             const Text('年代を選択（任意）',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-            const SizedBox(height: 4),
-            Text('選択した年代はランキングの集計などに使われます',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
             const SizedBox(height: 8),
             Expanded(
               child: ListView(
@@ -738,58 +703,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (mounted) _isNavigating = false;
   }
 
-  Future<void> _pickGender(BuildContext context, WidgetRef ref) async {
+
+  Future<void> _pickHomeStation(BuildContext context, WidgetRef ref) async {
     if (_isNavigating) return;
     _isNavigating = true;
     HapticFeedback.lightImpact();
-    final result = await showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        decoration: const BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 8),
-            Container(
-              width: 40, height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.divider,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text('性別を選択（任意）',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-            const SizedBox(height: 8),
-            ..._kGenders.map((g) => ListTile(
-              title: Text(g, style: const TextStyle(fontSize: 16)),
-              trailing: ref.watch(genderProvider) == g
-                  ? const Icon(Icons.check_rounded, color: AppColors.primary)
-                  : null,
-              onTap: () => Navigator.pop(ctx, g),
-            )),
-            SizedBox(height: MediaQuery.of(ctx).padding.bottom + 16),
-          ],
-        ),
-      ),
-    );
-    if (mounted) _isNavigating = false;
-    if (result == null) return;
-    ref.read(genderProvider.notifier).state = result;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('gender', result);
-  }
-
-  Future<void> _pickHomeStation(BuildContext context, WidgetRef ref) async {
-    HapticFeedback.lightImpact();
     final currentHome = ref.read(homeStationProvider);
     final favorites = ref.read(favoritesProvider);
-    final result = await showModalBottomSheet<int>(
+    final result = await showModalBottomSheet<SelectedStation>(
       context: context,
+      useRootNavigator: true,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (_) => StationSearchSheet(
@@ -797,10 +720,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         favorites: favorites,
       ),
     );
-    if (result != null) {
-      ref.read(homeStationProvider.notifier).state = result;
+    if (mounted) _isNavigating = false;
+    if (result != null && result.kIndex != null) {
+      final idx = result.kIndex!;
+      ref.read(homeStationProvider.notifier).state = idx;
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt('home_station', result);
+      await prefs.setInt('home_station', idx);
+      // ホーム画面へ遷移して変更を確認できるようにする
+      ref.read(navIndexProvider.notifier).state = 0;
     }
   }
 
@@ -1113,6 +1040,7 @@ class _NavItem extends StatelessWidget {
     this.color = AppColors.primary,
     this.subtitle,
     this.trailing,
+    this.customLeading,
   });
   final IconData? icon;
   final String label;
@@ -1120,6 +1048,7 @@ class _NavItem extends StatelessWidget {
   final VoidCallback onTap;
   final String? subtitle;
   final Widget? trailing;
+  final Widget? customLeading;
 
   @override
   Widget build(BuildContext context) {
@@ -1133,7 +1062,10 @@ class _NavItem extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(
           children: [
-            if (icon != null) ...[
+            if (customLeading != null) ...[
+              customLeading!,
+              const SizedBox(width: 14),
+            ] else if (icon != null) ...[
               Container(
                 width: 36,
                 height: 36,
@@ -1167,6 +1099,50 @@ class _NavItem extends StatelessWidget {
       ),
     );
   }
+}
+
+// ─── LINEロゴアイコン ──────────────────────────────────────────────────────────
+class _LineLogoIcon extends StatelessWidget {
+  const _LineLogoIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(
+        color: const Color(0xFF06C755),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: CustomPaint(painter: _LineBubblePainter()),
+    );
+  }
+}
+
+class _LineBubblePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = Colors.white;
+    // 吹き出し本体
+    final bubbleRect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(size.width * 0.14, size.height * 0.16,
+          size.width * 0.72, size.height * 0.50),
+      const Radius.circular(5),
+    );
+    canvas.drawRRect(bubbleRect, paint);
+    // 吹き出しの尻尾
+    final path = Path();
+    final tx = size.width * 0.30;
+    final ty = size.height * 0.65;
+    path.moveTo(tx, ty);
+    path.lineTo(tx - size.width * 0.10, ty + size.height * 0.18);
+    path.lineTo(tx + size.width * 0.14, ty);
+    path.close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(_) => false;
 }
 
 // ─── 情報行 ───────────────────────────────────────────────────────────────────

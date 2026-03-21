@@ -101,25 +101,34 @@ class SearchScreen extends ConsumerWidget {
       body: ListView(
         padding: EdgeInsets.zero,
         children: [
-          const SizedBox(height: 4),
+          // ─── 使い方ガイド ─────────────────────────────────────
+          Builder(builder: (_) {
+            final located = state.participants.where((p) => p.hasLocation).length;
+            final hasCondition = state.groupRelation != null ||
+                state.restaurantCategory != null ||
+                state.occasion != Occasion.none ||
+                state.timeSlot != TimeSlot.all;
+            // activeStep は 1〜3 の進捗。step n は activeStep >= n のとき光る。
+            // → ②が点灯するとき①も残ったまま、③が点灯するとき①②も残る。
+            final activeStep = hasCondition ? 3 : (located >= 2 ? 2 : 1);
+            return Container(
+              color: AppColors.primary,
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
+              child: Row(
+                children: [
+                  _StepBadge('1', '出発地を入力', isActive: activeStep >= 1),
+                  const _StepArrow(),
+                  _StepBadge('2', '条件を設定', isActive: activeStep >= 2),
+                  const _StepArrow(),
+                  _StepBadge('3', '探す', isActive: activeStep >= 3),
+                ],
+              ),
+            );
+          }),
 
-          // ─── STEP 1 ───────────────────────────────────────────
-          const _StepHeader(step: 1, title: '出発地を入力'),
-
-          // ─── よく使う駅 ───────────────────────────────────────
-          _FavoriteStationsRow(
-            favorites: ref.watch(favoritesProvider),
-            onTap: (idx) {
-              // 常に先頭の参加者（自分）にのみ反映する
-              final target = state.participants.firstOrNull;
-              if (target != null) {
-                notifier.setStation(target.id, idx, kStations[idx]);
-              }
-            },
-          ),
+          const SizedBox(height: 8),
 
           // ─── 参加者 ──────────────────────────────────────────
-          _SectionLabel(label: 'みんなの出発地'),
           Container(
             color: AppColors.surface,
             child: Column(
@@ -259,115 +268,62 @@ class SearchScreen extends ConsumerWidget {
             ),
           ),
 
-          // ─── STEP 2 ───────────────────────────────────────────
-          const _StepHeader(step: 2, title: '条件を設定'),
-
-          // ─── 日時選択 ─────────────────────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-            child: _DateTimeChip(
-              state: state,
-              onTap: () => _showTimeSlotSheet(context, ref),
-            ),
-          ),
-
-          // ─── 今日は誰と行く ───────────────────────────────────
-          _SectionLabel(label: '今日は誰と行く'),
-          _GroupRelationChips(
-            selected: state.groupRelation,
-            onSelect: (r) {
-              HapticFeedback.selectionClick();
-              notifier.setGroupRelation(
-                state.groupRelation == r ? null : r,
-              );
-            },
-          ),
-
           const SizedBox(height: 12),
-          // ─── 今日のシーン ─────────────────────────────────────
-          _SectionLabel(label: '今日のシーン'),
+
+          // ─── 日程・時間帯 ─────────────────────────────────────
           Container(
             color: AppColors.surface,
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: 1, child: ColoredBox(color: Color(0xFFEEEEEE))),
                 Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      ...[
-                        (Occasion.none, 'なし'),
-                        (Occasion.girlsNight, '女子会'),
-                        (Occasion.birthday, '誕生日'),
-                        (Occasion.lunch, 'ランチ'),
-                        (Occasion.mixer, '合コン'),
-                        (Occasion.welcome, '歓迎会'),
-                        (Occasion.date, 'デート'),
-                      ].map((item) {
-                        final (occ, label) = item;
-                        final selected = state.occasion == occ;
-                        return GestureDetector(
-                          onTap: () {
-                            HapticFeedback.lightImpact();
-                            notifier.setOccasion(occ);
-                          },
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 150),
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: selected
-                                  ? const Color(0xFFF7F5F0)
-                                  : AppColors.background,
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(
-                                color: selected
-                                    ? AppColors.primary
-                                    : AppColors.divider,
-                                width: selected ? 1.5 : 1,
-                              ),
-                            ),
-                            child: Text(
-                              label,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: selected
-                                    ? FontWeight.w600
-                                    : FontWeight.w400,
-                                color: selected
-                                    ? AppColors.primary
-                                    : AppColors.textSecondary,
-                              ),
-                            ),
-                          ),
-                        );
-                      }),
-                    ],
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                  child: Text(
+                    '日程・時間帯',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey.shade500,
+                      letterSpacing: 0.5,
+                    ),
                   ),
                 ),
-                const SizedBox(height: 1, child: ColoredBox(color: Color(0xFFEEEEEE))),
+                _DateTimeChip(
+                  state: state,
+                  onTap: () => _showTimeSlotSheet(context, ref),
+                ),
               ],
             ),
           ),
 
+          // ─── ご飯ジャンル ─────────────────────────────────────
+          _FoodCategoryChips(
+            selected: state.restaurantCategory,
+            onSelect: (cat) => notifier.setRestaurantCategory(
+                cat == state.restaurantCategory ? null : cat),
+          ),
+
+          const SizedBox(height: 4),
+
+          // ─── 誰と行く？ ───────────────────────────────────────
+          _GroupRelationChips(
+            selected: state.groupRelation,
+            onSelect: (relation) =>
+                notifier.setGroupRelation(relation),
+          ),
+
           // ─── 女子会モード ─────────────────────────────────────
-          const SizedBox(height: 12),
-          _SectionLabel(label: '女子会モード'),
           _GirlsNightToggle(
             active: state.occasion == Occasion.girlsNight,
             onToggle: () {
-              HapticFeedback.lightImpact();
-              notifier.setOccasion(
-                state.occasion == Occasion.girlsNight
-                    ? Occasion.none
-                    : Occasion.girlsNight,
-              );
+              final next = state.occasion == Occasion.girlsNight
+                  ? Occasion.none
+                  : Occasion.girlsNight;
+              notifier.setOccasion(next);
             },
           ),
 
-          const SizedBox(height: 100),
+          const SizedBox(height: 80),
         ],
       ),
       bottomNavigationBar: _SearchButton(state: state, notifier: notifier),
@@ -500,557 +456,6 @@ class SearchScreen extends ConsumerWidget {
             .setStationWithCoords(participantId, result.name, result.lat, result.lng);
       }
     }
-  }
-}
-
-// ─── ステップヘッダー ─────────────────────────────────────────────────────────
-
-class _StepHeader extends StatelessWidget {
-  const _StepHeader({required this.step, required this.title});
-  final int step;
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
-      child: Row(
-        children: [
-          Container(
-            width: 22,
-            height: 22,
-            decoration: const BoxDecoration(
-              color: AppColors.primary,
-              shape: BoxShape.circle,
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              '$step',
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                color: Colors.white,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── よく使う駅チップ行 ────────────────────────────────────────────────────────
-
-class _FavoriteStationsRow extends StatelessWidget {
-  const _FavoriteStationsRow({
-    required this.favorites,
-    required this.onTap,
-  });
-  final List<FavoriteStation> favorites;
-  final void Function(int stationIndex) onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    if (favorites.isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.star_rounded, size: 13, color: AppColors.primary),
-              const SizedBox(width: 5),
-              const Text(
-                'よく使う駅',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textSecondary,
-                  letterSpacing: 0.3,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 6,
-            children: favorites.map((f) => GestureDetector(
-              onTap: () {
-                HapticFeedback.lightImpact();
-                onTap(f.stationIndex);
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppColors.divider),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.train_rounded, size: 13, color: AppColors.primary),
-                    const SizedBox(width: 5),
-                    Text(
-                      f.stationName,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            )).toList(),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── セクションラベル ─────────────────────────────────────────────────────────
-
-class _SectionLabel extends StatelessWidget {
-  const _SectionLabel({required this.label});
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-      child: Text(
-        label,
-        style: const TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          color: AppColors.textSecondary,
-          letterSpacing: 0.5,
-        ),
-      ),
-    );
-  }
-}
-
-// ─── 日時選択チップ ────────────────────────────────────────────────────────────
-
-class _DateTimeChip extends StatelessWidget {
-  const _DateTimeChip({required this.state, required this.onTap});
-  final SearchState state;
-  final VoidCallback onTap;
-
-  String get _dateLabel {
-    final date = state.selectedDate;
-    if (date == null) return '今日';
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final tomorrow = today.add(const Duration(days: 1));
-    final d = DateTime(date.year, date.month, date.day);
-    if (d == today) return '今日';
-    if (d == tomorrow) return '明日';
-    return '${date.month}/${date.day}';
-  }
-
-  String get _slotLabel {
-    if (state.timeSlot == TimeSlot.all) return 'ディナー';
-    return state.timeSlot.chipLabel;
-  }
-
-  bool get _isDefault =>
-      state.timeSlot == TimeSlot.all && state.selectedDate == null;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: _isDefault ? AppColors.surface : AppColors.primaryLight,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: _isDefault ? AppColors.divider : AppColors.primary,
-            width: _isDefault ? 1 : 1.5,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.calendar_today_rounded,
-              size: 16,
-              color: _isDefault ? AppColors.textSecondary : AppColors.primary,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              '$_dateLabel・$_slotLabel',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: _isDefault ? AppColors.textSecondary : AppColors.primary,
-              ),
-            ),
-            const SizedBox(width: 6),
-            Icon(
-              Icons.expand_more_rounded,
-              size: 18,
-              color: _isDefault ? AppColors.textTertiary : AppColors.primary,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─── 女子会モードトグル ────────────────────────────────────────────────────────
-
-class _GirlsNightToggle extends StatelessWidget {
-  const _GirlsNightToggle({required this.active, required this.onToggle});
-  final bool active;
-  final VoidCallback onToggle;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: AppColors.surface,
-      child: Column(
-        children: [
-          const SizedBox(height: 1, child: ColoredBox(color: Color(0xFFEEEEEE))),
-          GestureDetector(
-            onTap: onToggle,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              color: active
-                  ? AppColors.primary.withValues(alpha: 0.05)
-                  : AppColors.surface,
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.people_alt_rounded,
-                    size: 22,
-                    color: active ? AppColors.primary : AppColors.textSecondary,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '女子会モード',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: active
-                                ? AppColors.primary
-                                : AppColors.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '個室・女性人気を優先',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: active
-                                ? AppColors.primary.withValues(alpha: 0.7)
-                                : AppColors.textTertiary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    width: 44,
-                    height: 26,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(13),
-                      color: active ? AppColors.primary : const Color(0xFFDDDDDD),
-                    ),
-                    child: AnimatedAlign(
-                      duration: const Duration(milliseconds: 200),
-                      alignment: active
-                          ? Alignment.centerRight
-                          : Alignment.centerLeft,
-                      child: Container(
-                        margin: const EdgeInsets.all(3),
-                        width: 20,
-                        height: 20,
-                        decoration: const BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 1, child: ColoredBox(color: Color(0xFFEEEEEE))),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── 日時選択ボトムシート ──────────────────────────────────────────────────────
-
-class _TimeSlotSheet extends StatefulWidget {
-  const _TimeSlotSheet({
-    required this.currentSlot,
-    required this.currentDate,
-    required this.onSlotSelected,
-    required this.onDateSelected,
-  });
-  final TimeSlot currentSlot;
-  final DateTime? currentDate;
-  final void Function(TimeSlot) onSlotSelected;
-  final void Function(DateTime?) onDateSelected;
-
-  @override
-  State<_TimeSlotSheet> createState() => _TimeSlotSheetState();
-}
-
-class _TimeSlotSheetState extends State<_TimeSlotSheet> {
-  late TimeSlot _slot;
-  late DateTime? _date;
-
-  @override
-  void initState() {
-    super.initState();
-    _slot = widget.currentSlot;
-    _date = widget.currentDate;
-  }
-
-  String _dateKey(DateTime d) => '${d.year}-${d.month}-${d.day}';
-
-  bool _isSameDay(DateTime? a, DateTime? b) {
-    if (a == null || b == null) return false;
-    return a.year == b.year && a.month == b.month && a.day == b.day;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final tomorrow = today.add(const Duration(days: 1));
-    final daysUntilSat = (6 - today.weekday) % 7;
-    final thisSat =
-        today.add(Duration(days: daysUntilSat == 0 ? 7 : daysUntilSat));
-    final thisSun = thisSat.add(const Duration(days: 1));
-
-    final dateOptions = [
-      (today, '今日'),
-      (tomorrow, '明日'),
-      (thisSat, '今週土曜'),
-      (thisSun, '今週日曜'),
-    ];
-
-    final timeOptions = [
-      (TimeSlot.lunch, 'ランチ', '11〜14時'),
-      (TimeSlot.cafe, 'カフェ', '14〜17時'),
-      (TimeSlot.dinner, 'ディナー', '17〜22時'),
-      (TimeSlot.drinking, '飲み', '18〜23時'),
-    ];
-
-    return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Container(
-              margin: const EdgeInsets.symmetric(vertical: 12),
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: const Color(0xFFDDDDDD),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(20, 4, 20, 16),
-            child: Text(
-              '日時を選択',
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
-              ),
-            ),
-          ),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(20, 0, 20, 10),
-            child: Text(
-              '日付',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textSecondary,
-                letterSpacing: 0.5,
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: dateOptions.map((opt) {
-                final (date, label) = opt;
-                final isToday = _dateKey(date) == _dateKey(today);
-                final isSelected = isToday
-                    ? (_date == null || _isSameDay(_date, today))
-                    : _isSameDay(_date, date);
-                return GestureDetector(
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    setState(() {
-                      _date = isToday ? null : date;
-                    });
-                    widget.onDateSelected(isToday ? null : date);
-                  },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? AppColors.primaryLight
-                          : AppColors.background,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color:
-                            isSelected ? AppColors.primary : AppColors.divider,
-                        width: isSelected ? 1.5 : 1,
-                      ),
-                    ),
-                    child: Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight:
-                            isSelected ? FontWeight.w600 : FontWeight.w400,
-                        color: isSelected
-                            ? AppColors.primary
-                            : AppColors.textSecondary,
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-          const SizedBox(height: 20),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(20, 0, 20, 10),
-            child: Text(
-              '時間帯',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textSecondary,
-                letterSpacing: 0.5,
-              ),
-            ),
-          ),
-          ...timeOptions.map((opt) {
-            final (slot, label, hours) = opt;
-            final selected = _slot == slot;
-            return GestureDetector(
-              onTap: () {
-                HapticFeedback.lightImpact();
-                setState(() => _slot = slot);
-                widget.onSlotSelected(slot);
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                decoration: BoxDecoration(
-                  color:
-                      selected ? AppColors.primaryLight : AppColors.surface,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: selected ? AppColors.primary : AppColors.divider,
-                    width: selected ? 1.5 : 1,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        label,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight:
-                              selected ? FontWeight.w600 : FontWeight.w500,
-                          color: selected
-                              ? AppColors.primary
-                              : AppColors.textPrimary,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      hours,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: selected
-                            ? AppColors.primary.withValues(alpha: 0.7)
-                            : AppColors.textTertiary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }),
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: () => Navigator.pop(context),
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-                child: const Text(
-                  '決定',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
 
@@ -1669,6 +1074,258 @@ class _SavedGroupsSheet extends ConsumerWidget {
   }
 }
 
+
+// ─── 日時選択チップ ────────────────────────────────────────────────────────────
+
+class _DateTimeChip extends StatelessWidget {
+  const _DateTimeChip({required this.state, required this.onTap});
+  final SearchState state;
+  final VoidCallback onTap;
+
+  String get _dateLabel {
+    final date = state.selectedDate;
+    if (date == null) return '今日';
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final tomorrow = today.add(const Duration(days: 1));
+    final d = DateTime(date.year, date.month, date.day);
+    if (d == today) return '今日';
+    if (d == tomorrow) return '明日';
+    return '${date.month}/${date.day}';
+  }
+
+  String get _slotLabel {
+    if (state.timeSlot == TimeSlot.all) return 'ディナー';
+    return state.timeSlot.chipLabel;
+  }
+
+  bool get _isDefault =>
+      state.timeSlot == TimeSlot.all && state.selectedDate == null;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        color: _isDefault ? AppColors.surface : AppColors.primaryLight,
+        child: Column(
+          children: [
+            const SizedBox(height: 1, child: ColoredBox(color: Color(0xFFEEEEEE))),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.calendar_today_rounded,
+                    size: 18,
+                    color: _isDefault ? AppColors.textSecondary : AppColors.primary,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '$_dateLabel・$_slotLabel',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: _isDefault ? AppColors.textPrimary : AppColors.primary,
+                          ),
+                        ),
+                        if (_isDefault)
+                          const Text(
+                            'タップして日程・時間帯を変更',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: AppColors.textTertiary,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    Icons.expand_more_rounded,
+                    size: 20,
+                    color: _isDefault ? AppColors.textTertiary : AppColors.primary,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 1, child: ColoredBox(color: Color(0xFFEEEEEE))),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── 女子会モードトグル ────────────────────────────────────────────────────────
+
+class _GirlsNightToggle extends StatelessWidget {
+  const _GirlsNightToggle({required this.active, required this.onToggle});
+  final bool active;
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppColors.surface,
+      child: Column(
+        children: [
+          const SizedBox(height: 1, child: ColoredBox(color: Color(0xFFEEEEEE))),
+          GestureDetector(
+            onTap: onToggle,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              color: active
+                  ? AppColors.primary.withValues(alpha: 0.05)
+                  : AppColors.surface,
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.people_alt_rounded,
+                    size: 22,
+                    color: active ? AppColors.primary : AppColors.textSecondary,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '女子会モード',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: active
+                                ? AppColors.primary
+                                : AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '個室・女性人気を優先',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: active
+                                ? AppColors.primary.withValues(alpha: 0.7)
+                                : AppColors.textTertiary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    width: 44,
+                    height: 26,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(13),
+                      color: active ? AppColors.primary : const Color(0xFFDDDDDD),
+                    ),
+                    child: AnimatedAlign(
+                      duration: const Duration(milliseconds: 200),
+                      alignment: active
+                          ? Alignment.centerRight
+                          : Alignment.centerLeft,
+                      child: Container(
+                        margin: const EdgeInsets.all(3),
+                        width: 20,
+                        height: 20,
+                        decoration: const BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 1, child: ColoredBox(color: Color(0xFFEEEEEE))),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── ご飯ジャンルチップ ────────────────────────────────────────────────────────
+
+class _FoodCategoryChips extends StatelessWidget {
+  const _FoodCategoryChips({required this.selected, required this.onSelect});
+  final String? selected;
+  final ValueChanged<String> onSelect;
+
+  static const _options = [
+    ('和食', '和食'),
+    ('ラーメン', 'ラーメン'),
+    ('焼肉', '焼肉'),
+    ('イタリアン', 'イタリアン'),
+    ('カフェ', 'カフェ'),
+    ('居酒屋', '居酒屋'),
+    ('中華', '中華'),
+    ('フレンチ', 'フレンチ'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppColors.surface,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 1, child: ColoredBox(color: Color(0xFFEEEEEE))),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _options.map((opt) {
+                final (key, label) = opt;
+                final isSelected = selected == key;
+                return GestureDetector(
+                  onTap: () => onSelect(key),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? const Color(0xFFF7F5F0)
+                          : AppColors.background,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: isSelected ? AppColors.primary : AppColors.divider,
+                        width: isSelected ? 1.5 : 1,
+                      ),
+                    ),
+                    child: Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: isSelected
+                            ? FontWeight.w600
+                            : FontWeight.w400,
+                        color: isSelected
+                            ? AppColors.primary
+                            : AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 1, child: ColoredBox(color: Color(0xFFEEEEEE))),
+        ],
+      ),
+    );
+  }
+}
+
 // ─── 誰と行く？チップ ──────────────────────────────────────────────────────────
 
 class _GroupRelationChips extends StatelessWidget {
@@ -1737,6 +1394,262 @@ class _GroupRelationChips extends StatelessWidget {
           const SizedBox(height: 1, child: ColoredBox(color: Color(0xFFEEEEEE))),
         ],
       ),
+    );
+  }
+}
+
+// ─── 日時選択ボトムシート ──────────────────────────────────────────────────────
+
+class _TimeSlotSheet extends StatefulWidget {
+  const _TimeSlotSheet({
+    required this.currentSlot,
+    required this.currentDate,
+    required this.onSlotSelected,
+    required this.onDateSelected,
+  });
+  final TimeSlot currentSlot;
+  final DateTime? currentDate;
+  final void Function(TimeSlot) onSlotSelected;
+  final void Function(DateTime?) onDateSelected;
+
+  @override
+  State<_TimeSlotSheet> createState() => _TimeSlotSheetState();
+}
+
+class _TimeSlotSheetState extends State<_TimeSlotSheet> {
+  late TimeSlot _slot;
+  late DateTime? _date;
+
+  @override
+  void initState() {
+    super.initState();
+    _slot = widget.currentSlot;
+    _date = widget.currentDate;
+  }
+
+  bool _isSameDay(DateTime? a, DateTime? b) {
+    if (a == null || b == null) return false;
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final dates = List.generate(7, (i) => today.add(Duration(days: i)));
+    final size = MediaQuery.of(context).size;
+
+    return Container(
+      height: size.height * 0.55,
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        children: [
+          const SizedBox(height: 8),
+          Container(
+            width: 40, height: 4,
+            decoration: BoxDecoration(
+              color: AppColors.divider,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text('日程・時間帯を選択',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 16),
+          // 日付選択
+          SizedBox(
+            height: 64,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: dates.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (_, i) {
+                final d = dates[i];
+                final isSelected = _isSameDay(_date, d) ||
+                    (_date == null && i == 0);
+                final label = i == 0
+                    ? '今日'
+                    : i == 1
+                        ? '明日'
+                        : '${d.month}/${d.day}';
+                return GestureDetector(
+                  onTap: () => setState(() => _date = i == 0 ? null : d),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    width: 56,
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? AppColors.primary
+                          : AppColors.background,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isSelected
+                            ? AppColors.primary
+                            : AppColors.divider,
+                      ),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: isSelected ? Colors.white : AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 16),
+          // 時間帯選択
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              children: TimeSlot.values.map((slot) {
+                final isSelected = _slot == slot;
+                return GestureDetector(
+                  onTap: () => setState(() => _slot = slot),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? AppColors.primaryLight
+                          : AppColors.background,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isSelected
+                            ? AppColors.primary
+                            : AppColors.divider,
+                        width: isSelected ? 1.5 : 1,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            slot.label,
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: isSelected
+                                  ? FontWeight.w700
+                                  : FontWeight.w400,
+                              color: isSelected
+                                  ? AppColors.primary
+                                  : AppColors.textPrimary,
+                            ),
+                          ),
+                        ),
+                        if (isSelected)
+                          const Icon(Icons.check_rounded,
+                              color: AppColors.primary, size: 18),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+                16, 0, 16, MediaQuery.of(context).padding.bottom + 16),
+            child: SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  widget.onSlotSelected(_slot);
+                  widget.onDateSelected(_date);
+                  Navigator.pop(context);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: const Text('決定',
+                    style: TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w700)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── ステップバッジ ────────────────────────────────────────────────────────────
+
+class _StepBadge extends StatelessWidget {
+  const _StepBadge(this.step, this.label, {this.isActive = false});
+  final String step;
+  final String label;
+  final bool isActive;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 250),
+        opacity: isActive ? 1.0 : 0.45,
+        child: Column(
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              width: isActive ? 30 : 24,
+              height: isActive ? 30 : 24,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                boxShadow: isActive
+                    ? [BoxShadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 2))]
+                    : [],
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                step,
+                style: TextStyle(
+                  fontSize: isActive ? 14 : 12,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.primary,
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: isActive ? 12 : 11,
+                fontWeight: isActive ? FontWeight.w700 : FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StepArrow extends StatelessWidget {
+  const _StepArrow();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.only(bottom: 16),
+      child: Icon(Icons.chevron_right_rounded, color: Colors.white70, size: 20),
     );
   }
 }

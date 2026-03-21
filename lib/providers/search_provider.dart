@@ -634,7 +634,7 @@ class SearchNotifier extends Notifier<SearchState> {
     );
   }
 
-  void setParticipantsFromHistory(List<String> names) {
+  Future<void> setParticipantsFromHistory(List<String> names) async {
     final participants = names.asMap().entries.map((e) =>
       Participant(id: '${e.key + 1}', name: e.value),
     ).toList();
@@ -643,6 +643,15 @@ class SearchNotifier extends Notifier<SearchState> {
       hasCalculated: false,
       clearCentroid: true,
     );
+    // 自分（先頭参加者）にホーム駅を再適用（location なしで再作成されるため）
+    final prefs = await SharedPreferences.getInstance();
+    final homeIdx = prefs.getInt('home_station');
+    if (homeIdx == null || homeIdx >= kStations.length) return;
+    if (state.participants.isEmpty) return;
+    final first = state.participants.first;
+    if (first.stationIndex == null) {
+      setStation(first.id, homeIdx, kStations[homeIdx]);
+    }
   }
 }
 

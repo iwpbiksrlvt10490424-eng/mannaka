@@ -419,7 +419,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             child: Align(
                               alignment: Alignment.centerLeft,
                               child: Text(
-                                'どんな集まり',
+                                '集まりの種類を選んでください',
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w500,

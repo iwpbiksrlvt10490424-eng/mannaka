@@ -30,11 +30,19 @@ claude --dangerously-skip-permissions
 - `flutter_map` + `dart:ui` 同時使用 → `import 'dart:ui' as ui;` で `ui.Path()` と明示
 - APIキー直書き禁止 → `lib/config/secrets.dart`（gitignore済み）
 - 非同期後のcontext使用前に `if (mounted)` を確認
-- ダイアログの `TextEditingController` → `.then((_) => ctrl.dispose())`
+- **ダイアログの `TextEditingController` は `StatefulWidget` 化して `dispose()` で破棄** — `.then((_) => ctrl.dispose())` はクローズアニメーション中に呼ばれてクラッシュする
 - JSONパース: `(json['x'] as Map?)?['y'] as List? ?? []`
 - `MapController` は `dispose()` で必ず破棄
 - `Share.share()` on iOS は `sharePositionOrigin` 必須
 - 地図リンクは緯度経度必須: `maps.apple.com/?ll={lat},{lng}&q={name}`
+- **`ref.listen` を `build()` に書かない** → 副作用は `initState` で `ref.listenManual` を直接登録する
+
+## 駅座標の扱い（重要）
+- `StationSearchSheet` が返す `kIndex` は null のことがある（`kAllTokyoStations` の駅が `kStations` に未収録の場合）
+- **ピン/座標には必ず `kStationLatLng[kIndex]` を使う**（kIndex がある場合）。`kAllTokyoStations` の lat/lng は Google Maps と微妙にズレる
+- kIndex が null の場合: `LocationService.nearestStationIndex(lat, lng)` でフォールバック
+- Google Maps と完全一致させたい場合: `GeocodingService.getStationLatLng(name)` を使う（`lib/services/geocoding_service.dart`）
+- **`setParticipantsFromHistory` 呼び出し後は home station を再適用すること** — location なしで participants を再作成するため、`located = 0` になる。prefs から home_station を読んで `setStation` を呼ぶ
 
 ## Bottom Sheet Rules
 - `autofocus: false` を必ず設定（trueにするとキーボードがリストを隠す）

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/search_provider.dart';
 import '../providers/history_provider.dart';
+import '../providers/nav_provider.dart';
 import '../models/meeting_point.dart';
 import '../models/restaurant.dart';
 import '../models/scored_restaurant.dart';
@@ -23,6 +24,7 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
     with TickerProviderStateMixin {
   TabController? _tab;
   int _tabCount = 0;
+  bool _isSaved = false;
 
   void _rebuildTab(
       int count, List<MeetingPoint> results, SearchNotifier notifier) {
@@ -104,23 +106,20 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
               },
             ),
             IconButton(
-              icon: const Icon(Icons.bookmark_border, size: 22),
+              icon: Icon(
+                _isSaved ? Icons.bookmark_rounded : Icons.bookmark_border,
+                size: 22,
+                color: _isSaved ? AppColors.primary : null,
+              ),
               onPressed: () {
                 HapticFeedback.lightImpact();
                 ref.read(historyProvider.notifier).add(
                       state.participants.map((p) => p.name).toList(),
                       state.selectedMeetingPoint!,
                     );
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: const Text('履歴に保存しました'),
-                    backgroundColor: AppColors.primary,
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10)),
-                    margin: const EdgeInsets.all(16),
-                  ),
-                );
+                setState(() => _isSaved = true);
+                // Navigate to history tab (index 2)
+                ref.read(navIndexProvider.notifier).state = 2;
               },
             ),
           ],
@@ -230,7 +229,7 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
 
 // ─── 集合候補タブ ─────────────────────────────────────────────────────────────
 
-class _MeetingPointTab extends StatefulWidget {
+class _MeetingPointTab extends ConsumerStatefulWidget {
   const _MeetingPointTab({
     super.key,
     required this.point,
@@ -242,11 +241,12 @@ class _MeetingPointTab extends StatefulWidget {
   final SearchNotifier notifier;
 
   @override
-  State<_MeetingPointTab> createState() => _MeetingPointTabState();
+  ConsumerState<_MeetingPointTab> createState() => _MeetingPointTabState();
 }
 
-class _MeetingPointTabState extends State<_MeetingPointTab> {
+class _MeetingPointTabState extends ConsumerState<_MeetingPointTab> {
   String? _selectedCategory;
+  bool _autoSaved = false;
 
   // Score cache — invalidated when base list or participants change
   List<ScoredRestaurant>? _cachedScored;
@@ -410,29 +410,33 @@ class _MeetingPointTabState extends State<_MeetingPointTab> {
                           itemCount: restaurants.length,
                           itemBuilder: (ctx, i) {
                             final r = restaurants[i];
+                            void openDetail() {
+                              if (!_autoSaved) {
+                                _autoSaved = true;
+                                ref.read(historyProvider.notifier).add(
+                                  widget.state.participants
+                                      .map((p) => p.name)
+                                      .toList(),
+                                  widget.point,
+                                );
+                              }
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      RestaurantDetailScreen(restaurant: r),
+                                ),
+                              );
+                            }
+
                             return i == 0
                                 ? _HeroCard(
                                     restaurant: r,
-                                    onTap: () =>
-                                        Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (_) =>
-                                            RestaurantDetailScreen(
-                                                restaurant: r),
-                                      ),
-                                    ),
+                                    onTap: openDetail,
                                   )
                                 : _CompactCard(
                                     restaurant: r,
                                     rank: i + 1,
-                                    onTap: () =>
-                                        Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (_) =>
-                                            RestaurantDetailScreen(
-                                                restaurant: r),
-                                      ),
-                                    ),
+                                    onTap: openDetail,
                                   );
                           },
                         ),

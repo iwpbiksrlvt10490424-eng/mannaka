@@ -104,13 +104,17 @@ class FoursquareService {
 
     final photos = e['photos'] as List<dynamic>?;
     String? imageUrl;
+    final List<String> imageUrls = [];
     if (photos != null && photos.isNotEmpty) {
-      final first = photos.first as Map<String, dynamic>;
-      final prefix = first['prefix'] as String?;
-      final suffix = first['suffix'] as String?;
-      if (prefix != null && suffix != null) {
-        imageUrl = '${prefix}300x300$suffix';
+      for (final p in photos) {
+        final photo = p as Map<String, dynamic>;
+        final prefix = photo['prefix'] as String?;
+        final suffix = photo['suffix'] as String?;
+        if (prefix != null && suffix != null) {
+          imageUrls.add('${prefix}600x600$suffix');
+        }
       }
+      if (imageUrls.isNotEmpty) imageUrl = imageUrls.first;
     }
 
     return Restaurant(
@@ -136,6 +140,7 @@ class FoursquareService {
       occasionTags: const [],
       hotpepperUrl: '',
       imageUrl: imageUrl,
+      imageUrls: imageUrls,
     );
   }
 

@@ -1,8 +1,11 @@
+import 'dart:convert';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gmap;
+import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 import '../config/api_config.dart';
 import '../data/station_data.dart';
@@ -82,10 +85,59 @@ class _RestaurantDetailScreenState extends ConsumerState<RestaurantDetailScreen>
   /// Hotpepper を開いた後にアプリへ戻ってきたら LINE 共有シートを出す
   bool _waitingForReturn = false;
 
+  /// Foursquare /photos エンドポイントから追加取得した写真URL
+  List<String> _extraPhotos = [];
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _fetchFoursquarePhotos();
+  }
+
+  Future<void> _fetchFoursquarePhotos() async {
+    final r = widget.restaurant;
+    if (!r.id.startsWith('fsq_')) return;
+
+    final fsqId = r.id.replaceFirst('fsq_', '');
+    final apiKey = ApiConfig.foursquareApiKey;
+    if (apiKey.isEmpty || apiKey.startsWith('YOUR_')) return;
+
+    try {
+      final uri = Uri.parse(
+          'https://api.foursquare.com/v3/places/$fsqId/photos?limit=10');
+      final response = await http.get(uri, headers: {
+        'Authorization': apiKey,
+        'Accept': 'application/json',
+      }).timeout(const Duration(seconds: 5));
+
+      if (response.statusCode != 200) return;
+
+      final data = jsonDecode(utf8.decode(response.bodyBytes)) as List<dynamic>;
+      final existingUrls = {
+        ...r.imageUrls,
+        if (r.imageUrl != null) r.imageUrl!,
+      };
+
+      final fetched = <String>[];
+      for (final item in data) {
+        final photo = item as Map<String, dynamic>;
+        final prefix = photo['prefix'] as String?;
+        final suffix = photo['suffix'] as String?;
+        if (prefix != null && suffix != null) {
+          final url = '${prefix}600x600$suffix';
+          if (!existingUrls.contains(url)) {
+            fetched.add(url);
+          }
+        }
+      }
+
+      if (fetched.isNotEmpty && mounted) {
+        setState(() => _extraPhotos = fetched);
+      }
+    } catch (_) {
+      // サイレントフェイル — 既存写真で表示継続
+    }
   }
 
   @override
@@ -165,9 +217,13 @@ class _RestaurantDetailScreenState extends ConsumerState<RestaurantDetailScreen>
   @override
   Widget build(BuildContext context) {
     final r = widget.restaurant;
-    final photos = r.imageUrls.isNotEmpty
+    final basePhotos = r.imageUrls.isNotEmpty
         ? r.imageUrls
         : (r.imageUrl != null ? [r.imageUrl!] : <String>[]);
+    final photos = [
+      ...basePhotos,
+      ..._extraPhotos.where((u) => !basePhotos.contains(u)),
+    ];
 
     return Scaffold(
       backgroundColor: AppColors.background,

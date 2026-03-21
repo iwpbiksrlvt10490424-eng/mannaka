@@ -253,9 +253,6 @@ class _SearchHistoryTab extends ConsumerWidget {
                             fontWeight: FontWeight.w600,
                             color: AppColors.primary),
                       ),
-                      Text(entry.meetingPoint.fairnessLabel,
-                          style: TextStyle(
-                              fontSize: 11, color: Colors.grey.shade500)),
                     ],
                   ),
                 ],

@@ -301,7 +301,26 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             ),
           ),
 
-          const SizedBox(height: 12),
+          // ─── ステップ区切り ───────────────────────────────────────────
+          const SizedBox(height: 16),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                Expanded(child: Divider(thickness: 1, color: Color(0xFFE0E0E0))),
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 10),
+                  child: Text('好みを絞り込む（任意）',
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFFBBBBBB))),
+                ),
+                Expanded(child: Divider(thickness: 1, color: Color(0xFFE0E0E0))),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
 
           // ─── 好みを選ぼう（ステップ2：駅が2人分入力されるまでロック） ────
           IgnorePointer(
@@ -338,15 +357,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   ),
 
                   // ─── ご飯ジャンル ─────────────────────────────────────
+                  const SizedBox(height: 8),
                   _FoodCategoryChips(
                     selected: state.restaurantCategory,
                     onSelect: (cat) => notifier.setRestaurantCategory(
                         cat == state.restaurantCategory ? null : cat),
                   ),
 
-                  const SizedBox(height: 4),
-
                   // ─── 誰と行く？ ───────────────────────────────────────
+                  const SizedBox(height: 8),
                   _GroupRelationChips(
                     selected: state.groupRelation,
                     onSelect: (relation) =>
@@ -354,6 +373,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   ),
 
                   // ─── 女子会モード ─────────────────────────────────────
+                  const SizedBox(height: 8),
                   _GirlsNightToggle(
                     active: state.occasion == Occasion.girlsNight,
                     onToggle: () {
@@ -835,7 +855,7 @@ class _ParticipantRowState extends State<_ParticipantRow> {
                       HapticFeedback.lightImpact();
                       widget.onRemove();
                     },
-                    child: const Icon(Icons.remove_circle,
+                    child: const Icon(Icons.close,
                         size: 20, color: AppColors.textTertiary),
                   ),
                 ),
@@ -1338,8 +1358,8 @@ class _FoodCategoryChips extends StatelessWidget {
                         horizontal: 14, vertical: 8),
                     decoration: BoxDecoration(
                       color: isSelected
-                          ? const Color(0xFFF7F5F0)
-                          : AppColors.background,
+                          ? AppColors.primaryLight
+                          : Colors.white,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
                         color: isSelected ? AppColors.primary : AppColors.divider,

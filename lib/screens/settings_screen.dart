@@ -459,8 +459,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   children: [
                     _NavItem(
                       icon: Icons.gps_fixed_rounded,
-                      label: '現在地から最寄り駅を自動設定',
-                      subtitle: '起動時にGPSで最寄り駅を自動入力します',
+                      label: '位置情報の設定',
                       color: AppColors.primary,
                       trailing: FutureBuilder<LocationPermission>(
                         future: Geolocator.checkPermission(),
@@ -501,7 +500,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 _SettingsGroup(
                   children: [
                     _NavItem(
-                      customLeading: const _LineLogoIcon(),
+                      icon: Icons.send_rounded,
                       label: 'LINEで紹介する',
                       color: const Color(0xFF06C755),
                       subtitle: '友達にまんなかを教えよう',
@@ -552,7 +551,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       icon: Icons.email_outlined,
                       label: 'お問い合わせ',
                       color: const Color(0xFF3B82F6),
-                      subtitle: 'お気軽にどうぞ',
                       onTap: () => launchUrl(
                         Uri.parse(
                           'mailto:support@mannaka.app?subject=%E3%81%BE%E3%82%93%E3%81%AA%E3%81%8B%20%E3%81%8A%E5%95%8F%E3%81%84%E5%90%88%E3%82%8F%E3%81%9B',
@@ -564,7 +562,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       icon: Icons.feedback_outlined,
                       label: 'バグ・改善要望を送る',
                       color: const Color(0xFFEF4444),
-                      subtitle: '気になることがあれば教えてください',
                       onTap: () => launchUrl(
                         Uri.parse(
                           'mailto:support@mannaka.app?subject=%E4%B8%8D%E5%85%B7%E5%90%88%E3%83%BB%E6%94%B9%E5%96%84%E8%A6%81%E6%9C%9B',
@@ -576,7 +573,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       icon: Icons.star_rounded,
                       label: 'レビューを書いて応援する',
                       color: const Color(0xFFF59E0B),
-                      subtitle: 'ひと言でも、とても嬉しいです 🙏',
                       onTap: () {
                         // TODO: App Store公開後に実際のApp IDに変更する
                         // 例: https://apps.apple.com/jp/app/id1234567890
@@ -592,7 +588,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       icon: Icons.quiz_outlined,
                       label: '使い方・よくある質問',
                       color: const Color(0xFF10B981),
-                      subtitle: '困ったときはこちら',
                       onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(builder: (_) => const SupportScreen()),
@@ -1040,7 +1035,6 @@ class _NavItem extends StatelessWidget {
     this.color = AppColors.primary,
     this.subtitle,
     this.trailing,
-    this.customLeading,
   });
   final IconData? icon;
   final String label;
@@ -1048,7 +1042,6 @@ class _NavItem extends StatelessWidget {
   final VoidCallback onTap;
   final String? subtitle;
   final Widget? trailing;
-  final Widget? customLeading;
 
   @override
   Widget build(BuildContext context) {
@@ -1062,10 +1055,7 @@ class _NavItem extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(
           children: [
-            if (customLeading != null) ...[
-              customLeading!,
-              const SizedBox(width: 14),
-            ] else if (icon != null) ...[
+            if (icon != null) ...[
               Container(
                 width: 36,
                 height: 36,
@@ -1099,50 +1089,6 @@ class _NavItem extends StatelessWidget {
       ),
     );
   }
-}
-
-// ─── LINEロゴアイコン ──────────────────────────────────────────────────────────
-class _LineLogoIcon extends StatelessWidget {
-  const _LineLogoIcon();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 36,
-      height: 36,
-      decoration: BoxDecoration(
-        color: const Color(0xFF06C755),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: CustomPaint(painter: _LineBubblePainter()),
-    );
-  }
-}
-
-class _LineBubblePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = Colors.white;
-    // 吹き出し本体
-    final bubbleRect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(size.width * 0.14, size.height * 0.16,
-          size.width * 0.72, size.height * 0.50),
-      const Radius.circular(5),
-    );
-    canvas.drawRRect(bubbleRect, paint);
-    // 吹き出しの尻尾
-    final path = Path();
-    final tx = size.width * 0.30;
-    final ty = size.height * 0.65;
-    path.moveTo(tx, ty);
-    path.lineTo(tx - size.width * 0.10, ty + size.height * 0.18);
-    path.lineTo(tx + size.width * 0.14, ty);
-    path.close();
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(_) => false;
 }
 
 // ─── 情報行 ───────────────────────────────────────────────────────────────────

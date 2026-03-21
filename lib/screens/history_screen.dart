@@ -70,7 +70,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen>
                     const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
                 tabs: const [
                   Tab(text: '検索履歴'),
-                  Tab(text: '訪問履歴'),
+                  Tab(text: '行ったお店'),
                 ],
               ),
               Container(height: 1, color: Colors.white.withValues(alpha: 0.2)),
@@ -119,8 +119,8 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen>
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('訪問履歴を消去'),
-        content: const Text('訪問履歴をすべて消します。この操作は元に戻せません。'),
+        title: const Text('行ったお店を消去'),
+        content: const Text('行ったお店をすべて消します。この操作は元に戻せません。'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx),
@@ -271,7 +271,7 @@ class _SearchHistoryTab extends ConsumerWidget {
       '${dt.year}/${dt.month.toString().padLeft(2, '0')}/${dt.day.toString().padLeft(2, '0')}';
 }
 
-// ─── 訪問履歴タブ ─────────────────────────────────────────────────────────────
+// ─── 行ったお店タブ ─────────────────────────────────────────────────────────────
 
 class _VisitedTab extends ConsumerWidget {
   const _VisitedTab({required this.visited});
@@ -295,7 +295,7 @@ class _VisitedTab extends ConsumerWidget {
                   size: 44, color: Colors.green.shade400),
             ),
             const SizedBox(height: 24),
-            const Text('まだ訪問履歴がないみたい',
+            const Text('まだ行ったお店がないみたい',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             Text('LINEでシェアしたお店が、ここに残るよ',
@@ -371,7 +371,7 @@ class _VisitedCard extends StatelessWidget {
                           color: Colors.green.shade50,
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        child: Text('訪問済み',
+                        child: Text('行った',
                             style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w600,

@@ -65,7 +65,7 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
         toolbarHeight: 56,
         elevation: 0,
         title: const Text(
-          'どのお店で会おう',
+          'Aimaのお店',
           style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
         ),
         actions: [
@@ -353,7 +353,6 @@ class _MeetingPointTabState extends State<_MeetingPointTab> {
                   ],
                 ),
               ),
-              _FairnessChip(score: point.fairnessScore),
             ],
           ),
         ),
@@ -462,32 +461,6 @@ class _MeetingPointTabState extends State<_MeetingPointTab> {
   }
 }
 
-// ─── フェアネスチップ ──────────────────────────────────────────────────────────
-
-class _FairnessChip extends StatelessWidget {
-  const _FairnessChip({required this.score});
-  final double score;
-
-  @override
-  Widget build(BuildContext context) {
-    final (label, color) = score >= 0.85
-        ? ('みんな均等', AppColors.success)
-        : score >= 0.65
-            ? ('ほぼ公平', const Color(0xFF2563EB))
-            : ('少し差あり', AppColors.warning);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
-      child: Text(label,
-          style: TextStyle(
-              fontSize: 11, fontWeight: FontWeight.w600, color: color)),
-    );
-  }
-}
 
 // ─── ヒーローカード（1位） ────────────────────────────────────────────────────
 
@@ -609,16 +582,20 @@ class _HeroCard extends StatelessWidget {
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
                               color: AppColors.textPrimary)),
-                      if (r.rating > 0) ...[
+                      if (r.rating >= 4.0) ...[
                         const SizedBox(width: 10),
-                        Icon(Icons.star_rounded,
-                            color: AppColors.star, size: 14),
-                        const SizedBox(width: 2),
-                        Text(r.ratingStr,
-                            style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.textPrimary)),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(5),
+                          ),
+                          child: const Text('おすすめ',
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.primary)),
+                        ),
                       ],
                     ],
                   ),
@@ -749,18 +726,18 @@ class _CompactCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      if (r.rating > 0)
-                        Row(
-                          children: [
-                            Icon(Icons.star_rounded,
-                                color: AppColors.star, size: 13),
-                            const SizedBox(width: 2),
-                            Text(r.ratingStr,
-                                style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.textPrimary)),
-                          ],
+                      if (r.rating >= 4.0)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(5),
+                          ),
+                          child: const Text('おすすめ',
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.primary)),
                         ),
                     ],
                   ),
@@ -812,9 +789,9 @@ class _SmallBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
+        color: color.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(5),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
       ),
       child: Text(label,
           style: TextStyle(

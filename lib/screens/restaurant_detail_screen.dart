@@ -911,7 +911,7 @@ class _InfoCard extends StatelessWidget {
           _buildRow(Icons.restaurant_menu_rounded, 'カテゴリ',
               restaurant.category),
           _buildRow(
-              Icons.attach_money_rounded,
+              Icons.receipt_long_rounded,
               '予算',
               restaurant.priceLabel.isNotEmpty
                   ? restaurant.priceLabel

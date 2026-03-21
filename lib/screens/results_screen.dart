@@ -64,7 +64,7 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
         toolbarHeight: 56,
         elevation: 0,
         title: const Text(
-          '集合場所を選ぼう',
+          'どのお店で会う？',
           style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
         ),
         actions: [
@@ -84,7 +84,7 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Text(
-                    'LINE\nで共有',
+                    'LINE\nでシェア',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                         fontSize: 10,
@@ -193,7 +193,7 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
                           notifier.calculate();
                         }
                       },
-                      child: Text('再試行',
+                      child: Text('もう一度試す',
                           style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w700,
@@ -363,7 +363,7 @@ class _MeetingPointTabState extends State<_MeetingPointTab> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                 children: [
-                  _filterChip('全て', _selectedCategory == null,
+                  _filterChip('すべて', _selectedCategory == null,
                       () => setState(() => _selectedCategory = null)),
                   ...categories.map((c) => _filterChip(
                         c,
@@ -430,7 +430,7 @@ class _MeetingPointTabState extends State<_MeetingPointTab> {
                                   children: [
                                     CircularProgressIndicator(),
                                     SizedBox(height: 12),
-                                    Text('お店を取得中...',
+                                    Text('みんなに合うお店を探してます...',
                                         style: TextStyle(fontSize: 14)),
                                   ],
                                 ),
@@ -454,10 +454,10 @@ class _FairnessChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (label, color) = score >= 0.85
-        ? ('最公平', AppColors.success)
+        ? ('みんな均等', AppColors.success)
         : score >= 0.65
-            ? ('フェア', const Color(0xFF2563EB))
-            : ('要確認', AppColors.warning);
+            ? ('ほぼ公平', const Color(0xFF2563EB))
+            : ('少し差あり', AppColors.warning);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
@@ -620,7 +620,7 @@ class _HeroCard extends StatelessWidget {
                             borderRadius: BorderRadius.circular(12)),
                       ),
                       child: const Text(
-                        'このお店の詳細を見る',
+                        '詳しく見る',
                         style: TextStyle(
                             fontSize: 14, fontWeight: FontWeight.w700),
                       ),
@@ -921,13 +921,13 @@ class _EmptyState extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          const Text('条件に合うお店がありません',
+          const Text('このエリアでは見つかりませんでした',
               style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
                   color: AppColors.textPrimary)),
           const SizedBox(height: 6),
-          const Text('ジャンルを変えてみてください',
+          const Text('ジャンルを広げるか、出発駅を変えてみてください',
               style:
                   TextStyle(fontSize: 13, color: AppColors.textSecondary)),
           const SizedBox(height: 20),
@@ -941,7 +941,7 @@ class _EmptyState extends StatelessWidget {
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10)),
             ),
-            child: const Text('ジャンルをリセット',
+            child: const Text('ジャンルを絞り込み解除',
                 style: TextStyle(fontWeight: FontWeight.w600)),
           ),
         ],

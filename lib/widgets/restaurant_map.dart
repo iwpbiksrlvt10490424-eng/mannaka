@@ -742,7 +742,7 @@ class _SelectedCard extends StatelessWidget {
                         padding:
                             const EdgeInsets.symmetric(vertical: 10),
                       ),
-                      child: const Text('ここに決定！',
+                      child: const Text('ここで集合！',
                           style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w700)),

@@ -34,7 +34,7 @@ class SearchScreen extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-              'お店を探す',
+              '集合場所を探す',
               style: TextStyle(
                 fontSize: 17,
                 fontWeight: FontWeight.w800,
@@ -67,7 +67,7 @@ class SearchScreen extends ConsumerWidget {
               showDialog(
                 context: context,
                 builder: (_) => AlertDialog(
-                  title: const Text('リセットしますか？'),
+                  title: const Text('最初からやり直しますか？'),
                   content: const Text('入力した出発地がすべて消えます。'),
                   actions: [
                     TextButton(
@@ -80,7 +80,7 @@ class SearchScreen extends ConsumerWidget {
                         notifier.reset();
                       },
                       child: const Text(
-                        'リセット',
+                        'やり直す',
                         style: TextStyle(color: Colors.red),
                       ),
                     ),
@@ -116,9 +116,9 @@ class SearchScreen extends ConsumerWidget {
               padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
               child: Row(
                 children: [
-                  _StepBadge('1', '出発地を入力', isActive: activeStep >= 1),
+                  _StepBadge('1', 'みんなの駅を入れて', isActive: activeStep >= 1),
                   const _StepArrow(),
-                  _StepBadge('2', '条件を設定', isActive: activeStep >= 2),
+                  _StepBadge('2', '好みを選ぼう', isActive: activeStep >= 2),
                   const _StepArrow(),
                   _StepBadge('3', '探す', isActive: activeStep >= 3),
                 ],
@@ -161,7 +161,7 @@ class SearchScreen extends ConsumerWidget {
                   const SizedBox(height: 1, child: ColoredBox(color: Color(0xFFEEEEEE))),
                   Semantics(
                     button: true,
-                    label: 'もう一人追加',
+                    label: '友達を追加',
                     child: InkWell(
                       onTap: () {
                         HapticFeedback.lightImpact();
@@ -176,7 +176,7 @@ class SearchScreen extends ConsumerWidget {
                                 size: 20, color: AppColors.primary),
                             SizedBox(width: 10),
                             Text(
-                              'もう一人追加',
+                              '友達を追加',
                               style: TextStyle(
                                 fontSize: 15,
                                 color: AppColors.primary,
@@ -219,7 +219,7 @@ class SearchScreen extends ConsumerWidget {
                               size: 18, color: AppColors.primary),
                           SizedBox(width: 6),
                           Text(
-                            'グループ保存',
+                            'このメンバーで保存',
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
@@ -252,7 +252,7 @@ class SearchScreen extends ConsumerWidget {
                               size: 18, color: AppColors.textSecondary),
                           SizedBox(width: 6),
                           Text(
-                            '保存済みグループ',
+                            '保存済みを使う',
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w500,
@@ -358,7 +358,7 @@ class SearchScreen extends ConsumerWidget {
               controller: controller,
               autofocus: true,
               decoration: const InputDecoration(
-                hintText: '例: 女子会メンバー',
+                hintText: '例: 金曜の飲み仲間 / 大学の友達',
                 labelText: 'グループ名',
               ),
             ),
@@ -533,7 +533,7 @@ class _ParticipantRowState extends State<_ParticipantRow> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('リンクの作成に失敗しました。もう一度お試しください。'),
+            content: Text('共有リンクの作成に失敗しました。ネット接続を確認してもう一度お試しください'),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -583,7 +583,7 @@ class _ParticipantRowState extends State<_ParticipantRow> {
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('位置情報を取得できませんでした'),
+            content: Text('現在地を取得できませんでした。設定から位置情報を許可してください'),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -592,7 +592,7 @@ class _ParticipantRowState extends State<_ParticipantRow> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('位置情報の取得がタイムアウトしました。もう一度お試しください'),
+            content: Text('少し時間がかかっています。もう一度タップしてみてください'),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -601,7 +601,7 @@ class _ParticipantRowState extends State<_ParticipantRow> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('位置情報を取得できませんでした'),
+            content: Text('現在地を取得できませんでした。設定から位置情報を許可してください'),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -638,7 +638,7 @@ class _ParticipantRowState extends State<_ParticipantRow> {
                     border: InputBorder.none,
                     enabledBorder: InputBorder.none,
                     focusedBorder: InputBorder.none,
-                    hintText: '名前',
+                    hintText: '例: あや',
                     hintStyle: TextStyle(
                         color: AppColors.textTertiary, fontSize: 15),
                   ),
@@ -860,8 +860,8 @@ class _SearchButton extends ConsumerWidget {
                     )
                   : Text(
                       state.occasion != Occasion.none
-                          ? '${state.occasion.label}のお店を探す'
-                          : '検索する',
+                          ? '${state.occasion.label}のお店を見つける'
+                          : 'ちょうどいいお店を探す',
                       style: const TextStyle(
                           fontSize: 16, fontWeight: FontWeight.w700),
                       maxLines: 1,
@@ -925,7 +925,7 @@ class _SavedGroupsSheet extends ConsumerWidget {
                               size: 48, color: AppColors.textTertiary),
                           SizedBox(height: 12),
                           Text(
-                            '保存済みグループはありません',
+                            'まだ保存したグループがありません',
                             style: TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w500,
@@ -934,7 +934,7 @@ class _SavedGroupsSheet extends ConsumerWidget {
                           ),
                           SizedBox(height: 4),
                           Text(
-                            '参加者を入力して「グループ保存」で\n保存できます',
+                            'よく集まるメンバーを保存しておくと\n次回からすぐ使えます',
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 13,
@@ -1135,7 +1135,7 @@ class _DateTimeChip extends StatelessWidget {
                         ),
                         if (_isDefault)
                           const Text(
-                            'タップして日程・時間帯を変更',
+                            '日程や時間帯を選ぶと、営業時間で絞り込めます',
                             style: TextStyle(
                               fontSize: 11,
                               color: AppColors.textTertiary,
@@ -1195,7 +1195,7 @@ class _GirlsNightToggle extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '女子会モード',
+                          '女子会モード 🌸',
                           style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w700,
@@ -1206,7 +1206,7 @@ class _GirlsNightToggle extends StatelessWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '個室・女性人気を優先',
+                          '個室・女性に人気のお店を優先して表示',
                           style: TextStyle(
                             fontSize: 12,
                             color: active

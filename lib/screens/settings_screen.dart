@@ -88,7 +88,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            const Text('プロフィール画像を選択',
+            const Text('プロフィール画像を変更',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
             const SizedBox(height: 8),
             ListTile(
@@ -146,7 +146,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             surfaceTintColor: Colors.transparent,
             scrolledUnderElevation: 0,
             title: const Text(
-              'マイページ',
+              'プロフィール',
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 17,
@@ -264,7 +264,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                 child: Text(
                                   homeStationIdx != null
                                       ? '${kStations[homeStationIdx]}駅'
-                                      : 'ホーム駅を設定',
+                                      : 'よく出発する駅',
                                   style: TextStyle(
                                     fontSize: 13,
                                     color: homeStationIdx != null
@@ -323,14 +323,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 _DefaultConditionTile(
                   icon: Icons.people_outline_rounded,
-                  label: 'いつもの人数',
+                  label: 'デフォルト人数',
                   prefKey: 'default_group_size',
                   options: const ['2人', '3〜4人', '5人以上'],
                 ),
                 const SizedBox(height: 1, child: ColoredBox(color: Color(0xFFEEEEEE))),
                 _DefaultConditionTile(
                   icon: Icons.schedule_rounded,
-                  label: 'よく行く時間帯',
+                  label: 'デフォルト時間帯',
                   prefKey: 'default_time_slot',
                   options: const ['ランチ', 'カフェ', 'ディナー', '飲み'],
                 ),
@@ -338,7 +338,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 const SizedBox(height: 24),
 
                 // ─── お気に入りの駅 ────────────────────────────────────
-                _SectionLabel('お気に入りの駅'),
+                _SectionLabel('よく使う駅'),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Container(
@@ -423,7 +423,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             size: 20,
                           ),
                           title: Text(
-                            favorites.length >= 3 ? '上限に達しました' : '駅を追加する',
+                            favorites.length >= 3 ? '3件登録済み（上限）' : '駅を追加',
                             style: TextStyle(
                               fontSize: 15,
                               color: favorites.length >= 3
@@ -459,8 +459,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   children: [
                     _NavItem(
                       icon: Icons.gps_fixed_rounded,
-                      label: '現在地を使う',
-                      subtitle: 'オンにすると起動時に現在地から最寄り駅を自動設定します',
+                      label: '現在地から最寄り駅を自動設定',
+                      subtitle: '起動時にGPSで最寄り駅を自動入力します',
                       color: AppColors.primary,
                       trailing: FutureBuilder<LocationPermission>(
                         future: Geolocator.checkPermission(),
@@ -502,9 +502,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   children: [
                     _NavItem(
                       customLeading: const _LineLogoIcon(),
-                      label: 'LINEで送る',
+                      label: 'LINEで紹介する',
                       color: const Color(0xFF06C755),
-                      subtitle: 'LINEでシェアする',
+                      subtitle: '友達にまんなかを教えよう',
                       onTap: () async {
                         const text =
                             'まんなか — みんなが行きやすいお店を一緒に探せるアプリ！\nhttps://apps.apple.com/app/id0000000000';
@@ -521,9 +521,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                     _NavItem(
                       icon: Icons.share_rounded,
-                      label: 'アプリを紹介する',
+                      label: '友達に教える',
                       color: const Color(0xFF3B82F6),
-                      subtitle: 'LINEやSNSでシェア',
+                      subtitle: 'シェアして一緒に使おう',
                       onTap: () async {
                         await Share.share(
                           '【まんなか】グループの集合場所が一発で決まるアプリ！\n'
@@ -552,7 +552,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       icon: Icons.email_outlined,
                       label: 'お問い合わせ',
                       color: const Color(0xFF3B82F6),
-                      subtitle: 'メールでお送りします',
+                      subtitle: 'お気軽にどうぞ',
                       onTap: () => launchUrl(
                         Uri.parse(
                           'mailto:support@mannaka.app?subject=%E3%81%BE%E3%82%93%E3%81%AA%E3%81%8B%20%E3%81%8A%E5%95%8F%E3%81%84%E5%90%88%E3%82%8F%E3%81%9B',
@@ -562,9 +562,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                     _NavItem(
                       icon: Icons.feedback_outlined,
-                      label: 'バグ・改善要望の報告',
+                      label: 'バグ・改善要望を送る',
                       color: const Color(0xFFEF4444),
-                      subtitle: '不具合を見つけたらこちら',
+                      subtitle: '気になることがあれば教えてください',
                       onTap: () => launchUrl(
                         Uri.parse(
                           'mailto:support@mannaka.app?subject=%E4%B8%8D%E5%85%B7%E5%90%88%E3%83%BB%E6%94%B9%E5%96%84%E8%A6%81%E6%9C%9B',
@@ -574,9 +574,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                     _NavItem(
                       icon: Icons.star_rounded,
-                      label: 'App Storeでレビューを書く',
+                      label: 'レビューを書いて応援する',
                       color: const Color(0xFFF59E0B),
-                      subtitle: '応援していただけると励みになります',
+                      subtitle: 'ひと言でも、とても嬉しいです 🙏',
                       onTap: () {
                         // TODO: App Store公開後に実際のApp IDに変更する
                         // 例: https://apps.apple.com/jp/app/id1234567890
@@ -590,9 +590,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                     _NavItem(
                       icon: Icons.quiz_outlined,
-                      label: 'よくある質問',
+                      label: '使い方・よくある質問',
                       color: const Color(0xFF10B981),
-                      subtitle: 'FAQ・詳細サポート',
+                      subtitle: '困ったときはこちら',
                       onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(builder: (_) => const SupportScreen()),
@@ -663,7 +663,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            const Text('年代を選択（任意）',
+            const Text('年代（任意）',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
             const SizedBox(height: 8),
             Expanded(

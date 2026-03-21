@@ -360,7 +360,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 const SizedBox(height: 10),
                                 // ─── メインCTA ─────────────────────
                                 Semantics(
-                                  label: '出発地を入力する',
+                                  label: 'お店を探す',
                                   button: true,
                                   child: GestureDetector(
                                     onTap: () {
@@ -384,7 +384,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                             size: 20),
                                         SizedBox(width: 8),
                                         Text(
-                                          '出発地を入力する',
+                                          'お店を探す',
                                           style: TextStyle(
                                             color: Colors.white,
                                             fontSize: 15,
@@ -409,7 +409,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             child: Align(
                               alignment: Alignment.centerLeft,
                               child: Text(
-                                'シーンで絞り込む',
+                                'どんな集まり？',
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w500,
@@ -825,8 +825,8 @@ class _MascotSheet extends ConsumerWidget {
   final NavigateCallback? onNavigate;
 
   static const _tips = [
-    '今日はみんなで\nどこに集まる？',
-    '出発駅を入力すれば\n30秒で決まるよ！',
+    '今日、みんなどこ行く？',
+    '駅を入れるだけで、\nぴったりなお店が見つかる。',
     '予約できるお店を\n優先的に表示してるよ',
     'よく使う駅を\n登録しておくと便利！',
   ];

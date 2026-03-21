@@ -39,7 +39,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen>
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('履歴',
+        title: const Text('あしあと',
             style: TextStyle(fontWeight: FontWeight.w800, color: Colors.white)),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
@@ -85,8 +85,8 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen>
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('履歴を削除'),
-        content: const Text('すべての履歴を削除しますか？'),
+        title: const Text('検索履歴を消去'),
+        content: const Text('これまでの検索をすべて消します。よろしいですか？'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx),
@@ -111,8 +111,8 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen>
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('予約済みを削除'),
-        content: const Text('すべての予約済み記録を削除しますか？'),
+        title: const Text('シェア済みのお店を消去'),
+        content: const Text('シェア済みのお店をすべて消します。よろしいですか？'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx),
@@ -159,11 +159,11 @@ class _SearchHistoryTab extends ConsumerWidget {
                   size: 44, color: AppColors.primary),
             ),
             const SizedBox(height: 24),
-            const Text('まだ記録がありません',
+            const Text('まだ検索したことがないみたい',
                 style:
                     TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
-            Text('お店を探すと、ここに記録されます',
+            Text('お店を探すと、ここに残るよ',
                 style:
                     TextStyle(fontSize: 14, color: Colors.grey.shade500)),
           ],
@@ -289,11 +289,11 @@ class _ReservedTab extends ConsumerWidget {
                   size: 44, color: Color(0xFF06C755)),
             ),
             const SizedBox(height: 24),
-            const Text('予約済みのお店がありません',
+            const Text('まだシェアしたお店がないみたい',
                 style:
                     TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
-            Text('お店をLINEでシェアすると、ここに保存されます',
+            Text('LINEで集合場所を送ると、ここに残るよ',
                 style:
                     TextStyle(fontSize: 14, color: Colors.grey.shade500)),
           ],
@@ -368,7 +368,7 @@ class _ReservedCard extends StatelessWidget {
                           color: const Color(0xFF06C755).withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        child: const Text('LINEでシェア済み',
+                        child: const Text('シェア済み ✓',
                             style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w600,

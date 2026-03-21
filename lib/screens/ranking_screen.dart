@@ -118,7 +118,7 @@ class _RankingContent extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '「まんなか指数」とは？',
+                  '「まんなか指数」について',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
@@ -511,7 +511,7 @@ class _ShareCard extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            '集合場所に一番選ばれたエリアは？',
+            '集合場所に一番選ばれたエリア',
             style: TextStyle(
               fontSize: 12,
               color: Colors.white.withValues(alpha: 0.6),

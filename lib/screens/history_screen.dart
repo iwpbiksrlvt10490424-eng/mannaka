@@ -86,7 +86,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen>
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('検索履歴を消去'),
-        content: const Text('これまでの検索をすべて消します。よろしいですか？'),
+        content: const Text('これまでの検索をすべて消します。この操作は元に戻せません。'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx),
@@ -112,7 +112,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen>
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('シェア済みのお店を消去'),
-        content: const Text('シェア済みのお店をすべて消します。よろしいですか？'),
+        content: const Text('シェア済みのお店をすべて消します。この操作は元に戻せません。'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx),

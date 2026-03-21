@@ -64,7 +64,7 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
         toolbarHeight: 56,
         elevation: 0,
         title: const Text(
-          'どのお店で会う？',
+          'どのお店で会おう',
           style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
         ),
         actions: [

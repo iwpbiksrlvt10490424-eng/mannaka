@@ -88,6 +88,7 @@ Participant[] → SearchNotifier.calculate()
 ```
 
 ## UI Design Rules
+- **UIテキストに「？」（全角・半角問わず）使用禁止** — 疑問形は断言・体言止め・命令形に言い換える
 - 絵文字をUIアイコンとして使用禁止 — Material Icons のみ
 - リストアイテムの leading に絵文字・アイコン禁止 — テキストのみ
 - 削除操作はそのデータが見える画面に置く（設定画面に置かない）

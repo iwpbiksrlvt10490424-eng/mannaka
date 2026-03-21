@@ -59,7 +59,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
             ),
             const SizedBox(height: 16),
             const Text(
-              'また友達と集まりませんか？',
+              'また友達と集まりませんか',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
               textAlign: TextAlign.center,
             ),

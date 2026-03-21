@@ -409,7 +409,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             child: Align(
                               alignment: Alignment.centerLeft,
                               child: Text(
-                                'どんな集まり？',
+                                'どんな集まり',
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w500,
@@ -825,7 +825,7 @@ class _MascotSheet extends ConsumerWidget {
   final NavigateCallback? onNavigate;
 
   static const _tips = [
-    '今日、みんなどこ行く？',
+    '今日、みんなどこ行く',
     '駅を入れるだけで、\nぴったりなお店が見つかる。',
     '予約できるお店を\n優先的に表示してるよ',
     'よく使う駅を\n登録しておくと便利！',

@@ -53,7 +53,7 @@ class _VotingScreenState extends State<VotingScreen> {
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('お店を決定', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
-        content: Text('「$restaurantName」に決定しますか？\n全員に通知されます。'),
+        content: Text('「$restaurantName」に決定します。\n全員に通知されます。'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -315,7 +315,7 @@ class _VotingScreenState extends State<VotingScreen> {
                     children: [
                       Text(
                         _selectedForDecision != null
-                            ? '「${_getNameById(candidates, _selectedForDecision!)}」を決定しますか？'
+                            ? '「${_getNameById(candidates, _selectedForDecision!)}」を集合場所に決定します。'
                             : 'お店を選択してください',
                         style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                         textAlign: TextAlign.center,

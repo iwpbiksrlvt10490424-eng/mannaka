@@ -67,7 +67,7 @@ class SearchScreen extends ConsumerWidget {
               showDialog(
                 context: context,
                 builder: (_) => AlertDialog(
-                  title: const Text('最初からやり直しますか？'),
+                  title: const Text('最初からやり直す'),
                   content: const Text('入力した出発地がすべて消えます。'),
                   actions: [
                     TextButton(

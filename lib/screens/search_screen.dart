@@ -892,14 +892,21 @@ class _SearchButton extends ConsumerWidget {
                       child: CircularProgressIndicator(
                           color: Colors.white, strokeWidth: 2),
                     )
-                  : Text(
-                      state.occasion != Occasion.none
-                          ? '${state.occasion.label}のお店を見つける'
-                          : 'Aimaを探す',
-                      style: const TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.w700),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                  : Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.people_alt_rounded, size: 20),
+                        const SizedBox(width: 8),
+                        Text(
+                          state.occasion != Occasion.none
+                              ? '${state.occasion.label}のお店を見つける'
+                              : 'Aimaを探す',
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w700),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ),
             ),
           ),

@@ -1,8 +1,8 @@
-import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../models/meeting_point.dart';
+import 'auth_provider.dart';
 
 class HistoryEntry {
   const HistoryEntry({
@@ -27,15 +27,14 @@ class HistoryEntry {
   factory HistoryEntry.fromJson(Map<String, dynamic> j) => HistoryEntry(
         id: j['id'] as String,
         createdAt: DateTime.parse(j['createdAt'] as String),
-        participantNames: List<String>.from(j['participantNames'] as List),
+        participantNames:
+            List<String>.from(j['participantNames'] as List),
         meetingPoint:
             MeetingPoint.fromJson(j['meetingPoint'] as Map<String, dynamic>),
       );
 }
 
 class HistoryNotifier extends Notifier<List<HistoryEntry>> {
-  static const _key = 'history_v1';
-
   @override
   List<HistoryEntry> build() {
     _load();
@@ -44,42 +43,50 @@ class HistoryNotifier extends Notifier<List<HistoryEntry>> {
 
   Future<void> _load() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getStringList(_key) ?? [];
-      state = raw
-          .map((s) => HistoryEntry.fromJson(
-              jsonDecode(s) as Map<String, dynamic>))
+      final uid = await ensureUid();
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users/$uid/search_history')
+          .orderBy('createdAt', descending: true)
+          .limit(100)
+          .get();
+      state = snapshot.docs
+          .map((d) => HistoryEntry.fromJson(d.data()))
           .toList();
     } catch (e) {
-      debugPrint('HistoryNotifier: _load failed - ${e.runtimeType}');
-      state = [];
+      debugPrint('HistoryNotifier: _load failed - $e');
     }
   }
 
-  Future<void> _save() async {
+  Future<void> add(List<String> names, MeetingPoint point) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setStringList(
-          _key, state.map((e) => jsonEncode(e.toJson())).toList());
+      final uid = await ensureUid();
+      final entry = HistoryEntry(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        createdAt: DateTime.now(),
+        participantNames: names,
+        meetingPoint: point,
+      );
+      await FirebaseFirestore.instance
+          .collection('users/$uid/search_history')
+          .doc(entry.id)
+          .set(entry.toJson());
+      state = [entry, ...state];
     } catch (e) {
-      debugPrint('HistoryNotifier: _save failed - ${e.runtimeType}');
+      debugPrint('HistoryNotifier: add failed - $e');
     }
   }
 
-  void add(List<String> names, MeetingPoint point) {
-    final entry = HistoryEntry(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      createdAt: DateTime.now(),
-      participantNames: names,
-      meetingPoint: point,
-    );
-    state = [entry, ...state];
-    _save();
-  }
-
-  void remove(String id) {
-    state = state.where((e) => e.id != id).toList();
-    _save();
+  Future<void> remove(String id) async {
+    try {
+      final uid = await ensureUid();
+      await FirebaseFirestore.instance
+          .collection('users/$uid/search_history')
+          .doc(id)
+          .delete();
+      state = state.where((e) => e.id != id).toList();
+    } catch (e) {
+      debugPrint('HistoryNotifier: remove failed - $e');
+    }
   }
 }
 

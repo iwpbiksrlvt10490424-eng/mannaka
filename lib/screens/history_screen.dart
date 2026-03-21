@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../models/reserved_restaurant.dart';
+import '../models/visited_restaurant.dart';
 import '../providers/history_provider.dart';
-import '../providers/reserved_restaurants_provider.dart';
+import '../providers/visited_restaurants_provider.dart';
 import '../theme/app_theme.dart';
 
 class HistoryScreen extends ConsumerStatefulWidget {
@@ -34,7 +34,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen>
   @override
   Widget build(BuildContext context) {
     final history = ref.watch(historyProvider);
-    final reserved = ref.watch(reservedRestaurantsProvider);
+    final visited = ref.watch(visitedRestaurantsProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -51,9 +51,9 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen>
               onPressed: () => _confirmClearHistory(context, ref, history),
               child: const Text('クリア', style: TextStyle(color: Colors.white70)),
             ),
-          if (_tab.index == 1 && reserved.isNotEmpty)
+          if (_tab.index == 1 && visited.isNotEmpty)
             TextButton(
-              onPressed: () => _confirmClearReserved(context, ref, reserved),
+              onPressed: () => _confirmClearVisited(context, ref, visited),
               child: const Text('クリア', style: TextStyle(color: Colors.white70)),
             ),
         ],
@@ -70,7 +70,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen>
                     const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
                 tabs: const [
                   Tab(text: '検索履歴'),
-                  Tab(text: '予約済み'),
+                  Tab(text: '訪問履歴'),
                 ],
               ),
               Container(height: 1, color: Colors.white.withValues(alpha: 0.2)),
@@ -82,7 +82,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen>
         controller: _tab,
         children: [
           _SearchHistoryTab(history: history),
-          _ReservedTab(reserved: reserved),
+          _VisitedTab(visited: visited),
         ],
       ),
     );
@@ -114,23 +114,21 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen>
     );
   }
 
-  void _confirmClearReserved(
-      BuildContext context, WidgetRef ref, List reserved) {
+  void _confirmClearVisited(
+      BuildContext context, WidgetRef ref, List<VisitedRestaurant> visited) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('シェア済みのお店を消去'),
-        content: const Text('シェア済みのお店をすべて消します。この操作は元に戻せません。'),
+        title: const Text('訪問履歴を消去'),
+        content: const Text('訪問履歴をすべて消します。この操作は元に戻せません。'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx),
               child: const Text('キャンセル')),
           TextButton(
             onPressed: () {
-              for (final e in reserved) {
-                ref
-                    .read(reservedRestaurantsProvider.notifier)
-                    .remove((e as ReservedRestaurant).id);
+              for (final e in visited) {
+                ref.read(visitedRestaurantsProvider.notifier).remove(e.id);
               }
               if (ctx.mounted) Navigator.pop(ctx);
             },
@@ -273,15 +271,15 @@ class _SearchHistoryTab extends ConsumerWidget {
       '${dt.year}/${dt.month.toString().padLeft(2, '0')}/${dt.day.toString().padLeft(2, '0')}';
 }
 
-// ─── 予約済みタブ ─────────────────────────────────────────────────────────────
+// ─── 訪問履歴タブ ─────────────────────────────────────────────────────────────
 
-class _ReservedTab extends ConsumerWidget {
-  const _ReservedTab({required this.reserved});
-  final List<ReservedRestaurant> reserved;
+class _VisitedTab extends ConsumerWidget {
+  const _VisitedTab({required this.visited});
+  final List<VisitedRestaurant> visited;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (reserved.isEmpty) {
+    if (visited.isEmpty) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -290,20 +288,18 @@ class _ReservedTab extends ConsumerWidget {
               width: 88,
               height: 88,
               decoration: BoxDecoration(
-                color: const Color(0xFF06C755).withValues(alpha: 0.1),
+                color: Colors.green.shade50,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.bookmark_rounded,
-                  size: 44, color: Color(0xFF06C755)),
+              child: Icon(Icons.restaurant_rounded,
+                  size: 44, color: Colors.green.shade400),
             ),
             const SizedBox(height: 24),
-            const Text('まだシェアしたお店がないみたい',
-                style:
-                    TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+            const Text('まだ訪問履歴がないみたい',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
-            Text('LINEで集合場所を送ると、ここに残るよ',
-                style:
-                    TextStyle(fontSize: 14, color: Colors.grey.shade500)),
+            Text('LINEでシェアしたお店が、ここに残るよ',
+                style: TextStyle(fontSize: 14, color: Colors.grey.shade500)),
           ],
         ),
       );
@@ -311,9 +307,9 @@ class _ReservedTab extends ConsumerWidget {
 
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: reserved.length,
+      itemCount: visited.length,
       itemBuilder: (ctx, i) {
-        final entry = reserved[i];
+        final entry = visited[i];
         return Dismissible(
           key: ValueKey(entry.id),
           direction: DismissDirection.endToStart,
@@ -328,18 +324,18 @@ class _ReservedTab extends ConsumerWidget {
           ),
           onDismissed: (_) {
             HapticFeedback.lightImpact();
-            ref.read(reservedRestaurantsProvider.notifier).remove(entry.id);
+            ref.read(visitedRestaurantsProvider.notifier).remove(entry.id);
           },
-          child: _ReservedCard(entry: entry),
+          child: _VisitedCard(entry: entry),
         );
       },
     );
   }
 }
 
-class _ReservedCard extends StatelessWidget {
-  const _ReservedCard({required this.entry});
-  final ReservedRestaurant entry;
+class _VisitedCard extends StatelessWidget {
+  const _VisitedCard({required this.entry});
+  final VisitedRestaurant entry;
 
   @override
   Widget build(BuildContext context) {
@@ -368,19 +364,18 @@ class _ReservedCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // 予約済みバッジ
                       Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF06C755).withValues(alpha: 0.1),
+                          color: Colors.green.shade50,
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        child: const Text('シェア済み ✓',
+                        child: Text('訪問済み',
                             style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w600,
-                                color: Color(0xFF06C755))),
+                                color: Colors.green.shade600)),
                       ),
                       const SizedBox(height: 6),
                       Text(
@@ -398,12 +393,18 @@ class _ReservedCard extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  _formatDate(entry.reservedAt),
-                  style: TextStyle(
-                      fontSize: 11, color: Colors.grey.shade400),
+                  _formatDate(entry.visitedAt),
+                  style:
+                      TextStyle(fontSize: 11, color: Colors.grey.shade400),
                 ),
               ],
             ),
+            if (entry.groupNames.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(entry.groupNames.join('、'),
+                  style:
+                      TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+            ],
             if (entry.nearestStation.isNotEmpty) ...[
               const SizedBox(height: 8),
               Row(
@@ -417,79 +418,30 @@ class _ReservedCard extends StatelessWidget {
                 ],
               ),
             ],
-            if (entry.address.isNotEmpty) ...[
-              const SizedBox(height: 2),
-              Row(
-                children: [
-                  Icon(Icons.location_on_rounded,
-                      size: 13, color: Colors.grey.shade500),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(entry.address,
-                        style: TextStyle(
-                            fontSize: 12, color: Colors.grey.shade600),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis),
-                  ),
-                ],
+            if (entry.lat != null && entry.lng != null) ...[
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  final uri = Uri.parse(
+                      'https://maps.google.com/maps?daddr=${entry.lat},${entry.lng}');
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(uri,
+                        mode: LaunchMode.externalApplication);
+                  }
+                },
+                icon: const Icon(Icons.directions_rounded, size: 14),
+                label: const Text('道順', style: TextStyle(fontSize: 12)),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF1A73E8),
+                  side: const BorderSide(color: Color(0xFF1A73E8), width: 1),
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
               ),
             ],
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                if (entry.lat != null && entry.lng != null)
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () async {
-                        final uri = Uri.parse(
-                            'https://maps.google.com/maps?daddr=${entry.lat},${entry.lng}');
-                        if (await canLaunchUrl(uri)) {
-                          await launchUrl(uri,
-                              mode: LaunchMode.externalApplication);
-                        }
-                      },
-                      icon: const Icon(Icons.directions_rounded, size: 14),
-                      label: const Text('道順',
-                          style: TextStyle(fontSize: 12)),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFF1A73E8),
-                        side: const BorderSide(
-                            color: Color(0xFF1A73E8), width: 1),
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8)),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                    ),
-                  ),
-                if (entry.lat != null &&
-                    entry.lng != null &&
-                    entry.hotpepperUrl != null)
-                  const SizedBox(width: 8),
-                if (entry.hotpepperUrl != null)
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => launchUrl(
-                          Uri.parse(entry.hotpepperUrl!),
-                          mode: LaunchMode.externalApplication),
-                      icon: const Icon(Icons.open_in_new_rounded, size: 14),
-                      label: const Text('予約ページ',
-                          style: TextStyle(fontSize: 12)),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.primary,
-                        side:
-                            BorderSide(color: AppColors.primary, width: 1),
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8)),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
           ],
         ),
       ),

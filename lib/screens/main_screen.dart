@@ -8,6 +8,7 @@ import '../theme/app_theme.dart';
 import 'home_screen.dart';
 import 'search_screen.dart';
 import 'history_screen.dart';
+import 'reserved_screen.dart';
 import 'settings_screen.dart';
 
 class MainScreen extends ConsumerStatefulWidget {
@@ -115,6 +116,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
       HomeScreen(onNavigate: _navigate),
       const SearchScreen(),
       const HistoryScreen(),
+      const ReservedScreen(),
       const SettingsScreen(),
     ];
 
@@ -141,6 +143,11 @@ class _MainScreenState extends ConsumerState<MainScreen> {
             icon: Icon(Icons.history_outlined),
             selectedIcon: Icon(Icons.history_rounded),
             label: '履歴',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.bookmark_outline),
+            selectedIcon: Icon(Icons.bookmark_rounded),
+            label: '予約済み',
           ),
           NavigationDestination(
             icon: Icon(Icons.person_outline_rounded),

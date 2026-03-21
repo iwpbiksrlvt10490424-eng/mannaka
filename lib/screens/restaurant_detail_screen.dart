@@ -7,7 +7,10 @@ import '../config/api_config.dart';
 import '../data/station_data.dart';
 import '../models/reserved_restaurant.dart';
 import '../models/restaurant.dart';
+import '../models/visited_restaurant.dart';
 import '../providers/reserved_restaurants_provider.dart';
+import '../providers/search_provider.dart';
+import '../providers/visited_restaurants_provider.dart';
 import '../services/hotpepper_service.dart';
 import '../theme/app_theme.dart';
 
@@ -128,6 +131,27 @@ class _RestaurantDetailScreenState extends ConsumerState<RestaurantDetailScreen>
 
   void _onShared(ReservedRestaurant entry) {
     ref.read(reservedRestaurantsProvider.notifier).add(entry);
+
+    final groupNames = ref
+        .read(searchProvider)
+        .participants
+        .map((p) => p.name)
+        .toList();
+    final visited = VisitedRestaurant(
+      id: entry.id,
+      restaurantName: entry.restaurantName,
+      category: entry.category,
+      visitedAt: entry.reservedAt,
+      groupNames: groupNames,
+      address: entry.address,
+      nearestStation: entry.nearestStation,
+      hotpepperUrl: entry.hotpepperUrl,
+      imageUrl: entry.imageUrl,
+      lat: entry.lat,
+      lng: entry.lng,
+    );
+    ref.read(visitedRestaurantsProvider.notifier).add(visited);
+
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('予約済みに保存しました'),

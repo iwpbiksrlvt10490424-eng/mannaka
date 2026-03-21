@@ -1,56 +1,56 @@
-class ReservedRestaurant {
-  const ReservedRestaurant({
+class VisitedRestaurant {
+  const VisitedRestaurant({
     required this.id,
     required this.restaurantName,
     required this.category,
-    required this.reservedAt,
+    required this.visitedAt,
+    required this.groupNames,
     this.address = '',
+    this.nearestStation = '',
     this.hotpepperUrl,
     this.imageUrl,
     this.lat,
     this.lng,
-    this.nearestStation = '',
-    this.groupNames = const [],
   });
 
   final String id;
   final String restaurantName;
   final String category;
-  final DateTime reservedAt;
+  final DateTime visitedAt;
+  final List<String> groupNames;
   final String address;
+  final String nearestStation;
   final String? hotpepperUrl;
   final String? imageUrl;
   final double? lat;
   final double? lng;
-  final String nearestStation; // 最寄り駅名（シェア用）
-  final List<String> groupNames;
 
   Map<String, dynamic> toJson() => {
         'id': id,
         'restaurantName': restaurantName,
         'category': category,
-        'reservedAt': reservedAt.toIso8601String(),
+        'visitedAt': visitedAt.toIso8601String(),
+        'groupNames': groupNames,
         'address': address,
+        'nearestStation': nearestStation,
         'hotpepperUrl': hotpepperUrl,
         'imageUrl': imageUrl,
         'lat': lat,
         'lng': lng,
-        'nearestStation': nearestStation,
-        'groupNames': groupNames,
       };
 
-  factory ReservedRestaurant.fromJson(Map<String, dynamic> j) =>
-      ReservedRestaurant(
+  factory VisitedRestaurant.fromJson(Map<String, dynamic> j) =>
+      VisitedRestaurant(
         id: j['id'] as String,
         restaurantName: j['restaurantName'] as String,
         category: j['category'] as String? ?? '',
-        reservedAt: DateTime.parse(j['reservedAt'] as String),
+        visitedAt: DateTime.parse(j['visitedAt'] as String),
+        groupNames: List<String>.from(j['groupNames'] as List? ?? []),
         address: j['address'] as String? ?? '',
+        nearestStation: j['nearestStation'] as String? ?? '',
         hotpepperUrl: j['hotpepperUrl'] as String?,
         imageUrl: j['imageUrl'] as String?,
         lat: (j['lat'] as num?)?.toDouble(),
         lng: (j['lng'] as num?)?.toDouble(),
-        nearestStation: j['nearestStation'] as String? ?? '',
-        groupNames: List<String>.from(j['groupNames'] as List? ?? []),
       );
 }

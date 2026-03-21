@@ -634,7 +634,11 @@ class SearchNotifier extends Notifier<SearchState> {
     );
   }
 
-  Future<void> setParticipantsFromHistory(List<String> names) async {
+  Future<void> setParticipantsFromHistory(
+    List<String> names, {
+    List<String?> stations = const [],
+    List<int?> stationIndices = const [],
+  }) async {
     final participants = names.asMap().entries.map((e) =>
       Participant(id: '${e.key + 1}', name: e.value),
     ).toList();
@@ -643,7 +647,21 @@ class SearchNotifier extends Notifier<SearchState> {
       hasCalculated: false,
       clearCentroid: true,
     );
-    // 自分（先頭参加者）にホーム駅を再適用（location なしで再作成されるため）
+    // 保存された駅データを復元
+    for (int i = 0; i < participants.length; i++) {
+      final kIdx = i < stationIndices.length ? stationIndices[i] : null;
+      final sName = i < stations.length ? stations[i] : null;
+      if (kIdx != null && kIdx < kStations.length) {
+        setStation(participants[i].id, kIdx, kStations[kIdx]);
+        continue;
+      }
+      // kIndex がない場合は駅名から kStations を検索してフォールバック
+      if (sName != null) {
+        final idx = kStations.indexOf(sName);
+        if (idx != -1) setStation(participants[i].id, idx, sName);
+      }
+    }
+    // 自分（先頭参加者）に駅が設定されていない場合はホーム駅を適用
     final prefs = await SharedPreferences.getInstance();
     final homeIdx = prefs.getInt('home_station');
     if (homeIdx == null || homeIdx >= kStations.length) return;

@@ -31,12 +31,19 @@ class GroupNotifier extends Notifier<List<SavedGroup>> {
         _key, state.map((e) => jsonEncode(e.toJson())).toList());
   }
 
-  Future<void> add(String name, List<String> memberNames) async {
+  Future<void> add(
+    String name,
+    List<String> memberNames, {
+    List<String?> memberStations = const [],
+    List<int?> memberStationIndices = const [],
+  }) async {
     final group = SavedGroup(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       name: name,
       memberNames: memberNames,
       createdAt: DateTime.now(),
+      memberStations: memberStations,
+      memberStationIndices: memberStationIndices,
     );
     state = [group, ...state];
     await _save();

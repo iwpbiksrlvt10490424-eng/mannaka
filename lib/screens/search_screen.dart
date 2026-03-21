@@ -278,18 +278,20 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(color: AppColors.divider),
                       ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                      child: const Column(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(Icons.groups_rounded,
                               size: 18, color: AppColors.textSecondary),
-                          SizedBox(width: 6),
+                          SizedBox(height: 4),
                           Text(
-                            '保存済みグループを使用する',
+                            '保存済みグループ\nを使用する',
+                            textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w500,
                               color: AppColors.textSecondary,
+                              height: 1.4,
                             ),
                           ),
                         ],
@@ -404,7 +406,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       builder: (ctx) => _SaveGroupDialog(
         participants: participants.map((p) => p.name).toList(),
         onSave: (name, names) async {
-          await ref.read(groupProvider.notifier).add(name, names);
+          final stations = participants.map((p) => p.stationName).toList();
+          final indices = participants.map((p) => p.stationIndex).toList();
+          await ref.read(groupProvider.notifier).add(
+            name, names,
+            memberStations: stations,
+            memberStationIndices: indices,
+          );
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -985,7 +993,11 @@ class _SavedGroupsSheet extends ConsumerWidget {
                           HapticFeedback.lightImpact();
                           ref
                               .read(searchProvider.notifier)
-                              .setParticipantsFromHistory(group.memberNames);
+                              .setParticipantsFromHistory(
+                                group.memberNames,
+                                stations: group.memberStations,
+                                stationIndices: group.memberStationIndices,
+                              );
                           Navigator.pop(context);
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(

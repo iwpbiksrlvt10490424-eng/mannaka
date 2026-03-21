@@ -176,7 +176,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     index: e.key,
                     showDivider: !isLast,
                     canRemove: state.participants.length > 1,
-                    onStationTap: () => _pickStation(p.id),
+                    onStationTap: () => _pickStation(p.id, isFirst: e.key == 0),
                     onStationClear: () => notifier.clearStation(p.id),
                     onNameChanged: (n) =>
                         notifier.updateParticipantName(p.id, n),
@@ -252,7 +252,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                               size: 18, color: AppColors.primary),
                           SizedBox(width: 6),
                           Text(
-                            'このメンバーで保存',
+                            'このメンバーを保存',
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
@@ -285,7 +285,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                               size: 18, color: AppColors.textSecondary),
                           SizedBox(width: 6),
                           Text(
-                            '保存済みを使う',
+                            '保存済みグループを使用する',
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w500,
@@ -446,9 +446,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
-  void _pickStation(String participantId) async {
+  void _pickStation(String participantId, {bool isFirst = false}) async {
     HapticFeedback.lightImpact();
-    final favorites = ref.read(favoritesProvider);
+    // よく使う駅は自分（先頭参加者）にのみ表示
+    final favorites = isFirst ? ref.read(favoritesProvider) : const <FavoriteStation>[];
     final currentStation = ref
         .read(searchProvider)
         .participants

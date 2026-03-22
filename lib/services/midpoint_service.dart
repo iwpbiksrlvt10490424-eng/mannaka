@@ -97,7 +97,7 @@ class MidpointService {
 
   static List<Restaurant> getRestaurants({
     required int stationIndex,
-    String? category,
+    Set<String>? categories,
     int? maxBudget,
     bool femaleFriendly = false,
     bool hasPrivateRoom = false,
@@ -105,8 +105,8 @@ class MidpointService {
   }) {
     var list = kRestaurants.where((r) => r.stationIndex == stationIndex).toList();
 
-    if (category != null && category.isNotEmpty) {
-      list = list.where((r) => r.category == category).toList();
+    if (categories != null && categories.isNotEmpty) {
+      list = list.where((r) => categories.contains(r.category)).toList();
     }
     if (maxBudget != null && maxBudget > 0) {
       list = list.where((r) => r.priceAvg <= maxBudget).toList();
@@ -156,27 +156,31 @@ class MidpointService {
     required double centroidLat,
     required double centroidLng,
     List<Restaurant>? baseRestaurants,
-    String? category,
+    Set<String>? categories,
     bool femaleFriendly = false,
     bool hasPrivateRoom = false,
     TimeSlot timeSlot = TimeSlot.all,
     int maxBudget = 0,
     String? occasion,
+    String? groupRelation,
   }) {
     final active = participants.where((p) => p.hasLocation).toList();
     if (active.isEmpty) return [];
 
     var restaurants = (baseRestaurants ?? kRestaurants).toList();
 
-    if (category != null && category.isNotEmpty) {
-      restaurants = restaurants.where((r) => r.category == category).toList();
+    // ハードフィルタ（ユーザーが明示的に指定した条件のみ）
+    if (categories != null && categories.isNotEmpty) {
+      restaurants = restaurants.where((r) => categories.contains(r.category)).toList();
     }
     if (maxBudget > 0) {
-      restaurants = restaurants.where((r) => r.priceAvg <= maxBudget).toList();
+      restaurants = restaurants.where((r) => r.priceAvg == 0 || r.priceAvg <= maxBudget).toList();
+    } else if (maxBudget < 0) {
+      // ¥10,000以上（センチネル値 -10000）
+      final minB = maxBudget.abs();
+      restaurants = restaurants.where((r) => r.priceAvg == 0 || r.priceAvg >= minB).toList();
     }
-    if (femaleFriendly) {
-      restaurants = restaurants.where((r) => r.isFemalePopular).toList();
-    }
+    // femaleFriendly はスコアリングで対応（シーンスコアで女子会に不向きな店を自然に下位に押し下げる）
     if (hasPrivateRoom) {
       restaurants = restaurants.where((r) => r.hasPrivateRoom).toList();
     }
@@ -186,14 +190,10 @@ class MidpointService {
       restaurants = restaurants.where((r) => r.isDinnerAvailable).toList();
     }
 
-    // 予約できるお店のみ表示
-    restaurants = restaurants.where((r) => r.isReservable).toList();
-
     if (restaurants.isEmpty) return [];
 
     // 各レストランの距離・公平性を計算
     final intermediates = restaurants.map((r) {
-      // お店自身のlat/lngがあればそれを使い、なければ駅座標にフォールバック
       final (rLat, rLng) = (r.lat != null && r.lng != null)
           ? (r.lat!, r.lng!)
           : kStationLatLng[r.stationIndex];
@@ -218,60 +218,47 @@ class MidpointService {
       );
     }).toList();
 
-    // 正規化
+    // 正規化（距離のみ使用）
     final maxDist = intermediates.map((s) => s.distFromCentroid).reduce(max);
     final minDist = intermediates.map((s) => s.distFromCentroid).reduce(min);
-    final maxStd = intermediates.map((s) => s.stdDev).reduce(max);
-    final minStd = intermediates.map((s) => s.stdDev).reduce(min);
 
     final scored = intermediates.map((s) {
       final r = s.restaurant;
+
+      // ── 距離スコア（重心からの近さ）──────────────────────────────────────
       final distScore = maxDist == minDist
           ? 1.0
           : (maxDist - s.distFromCentroid) / (maxDist - minDist);
-      final fairScore =
-          maxStd == minStd ? 1.0 : (maxStd - s.stdDev) / (maxStd - minStd);
 
-      // 信頼度スコア: 評価 × レビュー数補正（300件で満点）
-      final normalizedRating = ((r.rating - 3.0) / 2.0).clamp(0.0, 1.0);
-      final reviewBoost = (r.reviewCount / 300).clamp(0.0, 1.0);
-      final trustScore = normalizedRating * (0.5 + 0.5 * reviewBoost);
+      // ── クオリティスコア（客観的な店舗品質シグナル）─────────────────────
+      // 予約可能(Hotpepper URL あり) が最重要シグナル: 実在・人気店の証拠
+      double qualityScore = 0.0;
+      if (r.isReservable) qualityScore += 0.40;                              // 予約可
+      if (r.imageUrl != null && r.imageUrl!.isNotEmpty) qualityScore += 0.25; // 写真あり
+      if (r.course) qualityScore += 0.15;                                    // コースあり
+      if (r.freeDrink) qualityScore += 0.10;                                 // 飲み放題
+      if (r.rating >= 3.5) qualityScore += 0.10;                             // 高評価
+      qualityScore = qualityScore.clamp(0.0, 1.0);
 
-      // フォトジェニック: 写真3枚以上 or カフェ or インスタ映えタグ
-      final photogenicScore = (r.imageUrls.length >= 3 ||
-              r.category == 'カフェ' ||
-              r.tags.any((t) => t.contains('インスタ') || t.contains('映え')))
-          ? 1.0
-          : 0.0;
+      // ── シーン適合スコア（occasion選択時のみ有効）───────────────────────
+      final occasionScore = occasion != null
+          ? _computeOccasionScore(r, occasion)
+          : 0.5; // occasion未選択時はニュートラル
 
-      // シーン適合度
-      final occasionScore = r.occasionTags.isEmpty
-          ? 0.5
-          : (occasion != null &&
-                  r.occasionTags.any((t) =>
-                      t.contains(occasion) || occasion.contains(t)))
-              ? 1.0
-              : 0.3;
+      // ── 総合スコア ───────────────────────────────────────────────────────
+      // occasion未選択: クオリティ65% + 距離35%
+      // occasion選択時: シーン45% + クオリティ40% + 距離15%
+      final overall = occasion != null
+          ? 0.45 * occasionScore + 0.40 * qualityScore + 0.15 * distScore
+          : 0.65 * qualityScore + 0.35 * distScore;
 
-      // 人気×公平性を重視したスコアリング（全店予約可前提）
-      final femaleScore = r.isFemalePopular ? 1.0 : 0.0;
-      final privateScore = r.hasPrivateRoom ? 1.0 : 0.0;
-
-      final overall = 0.30 * trustScore +     // 人気度（評価×レビュー数）
-          0.25 * fairScore +                   // アクセス公平性
-          0.20 * femaleScore +                 // 女性人気
-          0.12 * distScore +                   // 重心距離
-          0.07 * privateScore +                // 個室
-          0.04 * photogenicScore +             // インスタ映え
-          0.02 * occasionScore;                // シーン適合
-
-      // キュレーションラベル（選定理由を最大2つ）
+      // ── おすすめラベル ────────────────────────────────────────────────────
       final reasons = <String>[];
-      if (r.isFemalePopular) reasons.add('女性人気');
-      if (r.hasPrivateRoom) reasons.add('個室あり');
-      if (photogenicScore > 0) reasons.add('インスタ映え');
-      if (fairScore >= 0.85) reasons.add('みんな近い');
-      if (trustScore >= 0.6 && reasons.isEmpty) reasons.add('高評価');
+      if (r.isReservable) reasons.add('予約可');
+      if (r.freeDrink) reasons.add('飲み放題');
+      if (r.course) reasons.add('コースあり');
+      if (r.hasPrivateRoom && reasons.length < 2) reasons.add('個室あり');
+      if (distScore >= 0.8 && reasons.length < 2) reasons.add('中間地点');
       final curationLabel = reasons.take(2).join(' · ');
 
       return ScoredRestaurant(
@@ -279,13 +266,109 @@ class MidpointService {
         score: overall,
         distanceKm: s.distFromCentroid,
         participantDistances: s.participantDistances,
-        fairnessScore: fairScore,
+        fairnessScore: distScore,
         curationLabel: curationLabel,
       );
     }).toList();
 
     scored.sort((a, b) => b.score.compareTo(a.score));
     return scored;
+  }
+
+  /// シーンに応じたレストランスコアをカテゴリ・属性から動的に計算する
+  /// （APIレストランに occasionTags が存在しないため、カテゴリと属性で代替）
+  static double _computeOccasionScore(Restaurant r, String occasion) {
+    switch (occasion) {
+      case '女子会':
+        double s = switch (r.category) {
+          'カフェ' => 1.0,
+          'イタリアン' || 'フレンチ' => 0.95,
+          '韓国料理' => 0.90,
+          '和食' => 0.75,
+          '洋食' => 0.70,
+          'バー' => 0.45,
+          '居酒屋' => 0.25,
+          'ラーメン' || '中華' || '焼肉' => 0.10,
+          _ => 0.50,
+        };
+        if (r.hasPrivateRoom) s = (s + 0.15).clamp(0.0, 1.0);
+        if (r.nonSmoking) s = (s + 0.10).clamp(0.0, 1.0);
+        if (r.imageUrl != null && r.imageUrl!.isNotEmpty) s = (s + 0.10).clamp(0.0, 1.0);
+        if (r.course) s = (s + 0.05).clamp(0.0, 1.0);
+        return s;
+
+      case '誕生日':
+        double s = switch (r.category) {
+          'フレンチ' || 'イタリアン' => 1.0,
+          'カフェ' => 0.85,
+          '和食' => 0.80,
+          '洋食' => 0.70,
+          '居酒屋' => 0.35,
+          'ラーメン' || '中華' => 0.15,
+          _ => 0.55,
+        };
+        if (r.hasPrivateRoom) s = (s + 0.25).clamp(0.0, 1.0);
+        if (r.course) s = (s + 0.15).clamp(0.0, 1.0);
+        if (r.imageUrl != null && r.imageUrl!.isNotEmpty) s = (s + 0.10).clamp(0.0, 1.0);
+        return s;
+
+      case 'ランチ':
+        final isLunch = r.lunchFromApi || r.isLunchAvailable;
+        double s = isLunch ? 1.0 : 0.25;
+        if (r.category == 'カフェ') s = (s + 0.15).clamp(0.0, 1.0);
+        return s;
+
+      case '合コン':
+        double s = switch (r.category) {
+          'イタリアン' || 'フレンチ' => 1.0,
+          'カフェ' => 0.80,
+          '韓国料理' => 0.80,
+          '和食' => 0.75,
+          'バー' => 0.70,
+          '居酒屋' => 0.55,
+          'ラーメン' || '中華' => 0.20,
+          _ => 0.50,
+        };
+        if (r.hasPrivateRoom) s = (s + 0.20).clamp(0.0, 1.0);
+        if (r.nonSmoking) s = (s + 0.10).clamp(0.0, 1.0);
+        return s;
+
+      case '歓迎会':
+        double s = switch (r.category) {
+          '居酒屋' => 1.0,
+          '和食' => 0.90,
+          '中華' || '洋食' => 0.70,
+          '焼肉' => 0.65,
+          'カフェ' || 'フレンチ' => 0.20,
+          _ => 0.55,
+        };
+        if (r.hasPrivateRoom) s = (s + 0.20).clamp(0.0, 1.0);
+        if (r.course && r.freeDrink) {
+          s = (s + 0.25).clamp(0.0, 1.0);
+        } else if (r.course || r.freeDrink) {
+          s = (s + 0.12).clamp(0.0, 1.0);
+        }
+        return s;
+
+      case 'デート':
+        double s = switch (r.category) {
+          'フレンチ' => 1.0,
+          'イタリアン' => 0.95,
+          'カフェ' => 0.80,
+          '和食' => 0.80,
+          'バー' => 0.60,
+          '居酒屋' => 0.25,
+          'ラーメン' || '焼肉' || '中華' => 0.10,
+          _ => 0.50,
+        };
+        if (r.hasPrivateRoom) s = (s + 0.25).clamp(0.0, 1.0);
+        if (r.nonSmoking) s = (s + 0.10).clamp(0.0, 1.0);
+        if (r.imageUrl != null && r.imageUrl!.isNotEmpty) s = (s + 0.10).clamp(0.0, 1.0);
+        return s;
+
+      default:
+        return 0.5;
+    }
   }
 
 }

@@ -64,8 +64,8 @@ void main() async {
   if (initialUri != null &&
       initialUri.scheme == 'mannaka' &&
       initialUri.host == 'restaurant') {
-    // スプラッシュ完了後に処理するため遅延
-    Future.delayed(const Duration(seconds: 2), () {
+    // スプラッシュ完了を待ってから処理（ポストフレームで即時実行）
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       _handleRestaurantDeepLink(initialUri);
     });
   }

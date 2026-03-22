@@ -55,13 +55,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
+        backgroundColor: AppColors.surface,
+        foregroundColor: AppColors.textPrimary,
         surfaceTintColor: Colors.transparent,
-        scrolledUnderElevation: 0,
+        scrolledUnderElevation: 0.5,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
-          child: Container(height: 1, color: Colors.white.withValues(alpha: 0.2)),
+          child: Container(height: 1, color: AppColors.divider),
         ),
         title: Row(
           mainAxisSize: MainAxisSize.min,
@@ -71,7 +71,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               style: TextStyle(
                 fontSize: 17,
                 fontWeight: FontWeight.w800,
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 letterSpacing: -0.3,
               ),
             ),
@@ -79,13 +79,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.25),
+                color: AppColors.primaryLight,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
                 '${state.participants.length}人',
                 style: const TextStyle(
-                  color: Colors.white,
+                  color: AppColors.primary,
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
                 ),
@@ -138,7 +138,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           Builder(builder: (_) {
             final located = state.participants.where((p) => p.hasLocation).length;
             final hasCondition = state.groupRelation != null ||
-                state.restaurantCategory != null ||
+                state.restaurantCategories.isNotEmpty ||
                 state.occasion != Occasion.none ||
                 state.timeSlot != TimeSlot.all;
             // activeStep は 1〜3 の進捗。step n は activeStep >= n のとき光る。
@@ -361,9 +361,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   // ─── ご飯ジャンル ─────────────────────────────────────
                   const SizedBox(height: 8),
                   _FoodCategoryChips(
-                    selected: state.restaurantCategory,
-                    onSelect: (cat) => notifier.setRestaurantCategory(
-                        cat == state.restaurantCategory ? null : cat),
+                    selected: state.restaurantCategories,
+                    onSelect: (cat) => notifier.toggleRestaurantCategory(cat),
                   ),
 
                   // ─── 誰と行く？ ───────────────────────────────────────
@@ -372,6 +371,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     selected: state.groupRelation,
                     onSelect: (relation) =>
                         notifier.setGroupRelation(relation),
+                  ),
+
+                  // ─── 予算 ────────────────────────────────────────────
+                  const SizedBox(height: 8),
+                  _BudgetChips(
+                    selected: state.maxBudget,
+                    onSelect: (budget) => notifier.setMaxBudget(
+                        budget == state.maxBudget ? 0 : budget),
                   ),
 
                   // ─── シーン選択 ───────────────────────────────────────
@@ -1258,12 +1265,14 @@ class _OccasionChips extends StatelessWidget {
                         horizontal: 14, vertical: 8),
                     decoration: BoxDecoration(
                       color: isSelected
-                          ? AppColors.primaryLight
+                          ? AppColors.chipSelectedBg
                           : Colors.white,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: isSelected ? AppColors.primary : AppColors.divider,
-                        width: isSelected ? 1.5 : 1,
+                        color: isSelected
+                            ? AppColors.chipSelectedBg
+                            : AppColors.divider,
+                        width: 1,
                       ),
                     ),
                     child: Text(
@@ -1274,7 +1283,7 @@ class _OccasionChips extends StatelessWidget {
                             ? FontWeight.w600
                             : FontWeight.w400,
                         color: isSelected
-                            ? AppColors.primary
+                            ? AppColors.chipSelectedText
                             : AppColors.textSecondary,
                       ),
                     ),
@@ -1294,18 +1303,19 @@ class _OccasionChips extends StatelessWidget {
 
 class _FoodCategoryChips extends StatelessWidget {
   const _FoodCategoryChips({required this.selected, required this.onSelect});
-  final String? selected;
+  final Set<String> selected;
   final ValueChanged<String> onSelect;
 
   static const _options = [
-    ('和食', '和食'),
-    ('ラーメン', 'ラーメン'),
-    ('焼肉', '焼肉'),
-    ('イタリアン', 'イタリアン'),
     ('カフェ', 'カフェ'),
-    ('居酒屋', '居酒屋'),
-    ('中華', '中華'),
+    ('イタリアン', 'イタリアン'),
     ('フレンチ', 'フレンチ'),
+    ('韓国料理', '韓国料理'),
+    ('和食', '和食'),
+    ('居酒屋', '居酒屋'),
+    ('焼肉', '焼肉'),
+    ('ラーメン', 'ラーメン'),
+    ('中華', '中華'),
   ];
 
   @override
@@ -1336,7 +1346,7 @@ class _FoodCategoryChips extends StatelessWidget {
               runSpacing: 8,
               children: _options.map((opt) {
                 final (key, label) = opt;
-                final isSelected = selected == key;
+                final isSelected = selected.contains(key);
                 return GestureDetector(
                   onTap: () => onSelect(key),
                   child: AnimatedContainer(
@@ -1345,12 +1355,14 @@ class _FoodCategoryChips extends StatelessWidget {
                         horizontal: 14, vertical: 8),
                     decoration: BoxDecoration(
                       color: isSelected
-                          ? AppColors.primaryLight
+                          ? AppColors.chipSelectedBg
                           : Colors.white,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: isSelected ? AppColors.primary : AppColors.divider,
-                        width: isSelected ? 1.5 : 1,
+                        color: isSelected
+                            ? AppColors.chipSelectedBg
+                            : AppColors.divider,
+                        width: 1,
                       ),
                     ),
                     child: Text(
@@ -1361,7 +1373,93 @@ class _FoodCategoryChips extends StatelessWidget {
                             ? FontWeight.w600
                             : FontWeight.w400,
                         color: isSelected
-                            ? AppColors.primary
+                            ? AppColors.chipSelectedText
+                            : AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 1, child: ColoredBox(color: Color(0xFFEEEEEE))),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── 予算チップ ────────────────────────────────────────────────────────────────
+
+class _BudgetChips extends StatelessWidget {
+  const _BudgetChips({required this.selected, required this.onSelect});
+  final int selected;
+  final ValueChanged<int> onSelect;
+
+  static const _options = [
+    (1500, '〜¥1,500'),
+    (3000, '〜¥3,000'),
+    (5000, '〜¥5,000'),
+    (10000, '〜¥10,000'),
+    (-10000, '¥10,000以上'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      color: AppColors.surface,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 1, child: ColoredBox(color: Color(0xFFEEEEEE))),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Text(
+              '予算（1人あたり）',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade500,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _options.map((opt) {
+                final (budget, label) = opt;
+                final isSelected = selected == budget;
+                return GestureDetector(
+                  onTap: () => onSelect(budget),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? AppColors.chipSelectedBg
+                          : Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: isSelected
+                            ? AppColors.chipSelectedBg
+                            : AppColors.divider,
+                        width: 1,
+                      ),
+                    ),
+                    child: Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: isSelected
+                            ? FontWeight.w600
+                            : FontWeight.w400,
+                        color: isSelected
+                            ? AppColors.chipSelectedText
                             : AppColors.textSecondary,
                       ),
                     ),
@@ -1586,14 +1684,14 @@ class _TimeSlotSheetState extends State<_TimeSlotSheet> {
                         horizontal: 16, vertical: 14),
                     decoration: BoxDecoration(
                       color: isSelected
-                          ? AppColors.primaryLight
+                          ? AppColors.chipSelectedBg
                           : AppColors.background,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: isSelected
-                            ? AppColors.primary
+                            ? AppColors.chipSelectedBg
                             : AppColors.divider,
-                        width: isSelected ? 1.5 : 1,
+                        width: 1,
                       ),
                     ),
                     child: Row(
@@ -1607,14 +1705,14 @@ class _TimeSlotSheetState extends State<_TimeSlotSheet> {
                                   ? FontWeight.w700
                                   : FontWeight.w400,
                               color: isSelected
-                                  ? AppColors.primary
+                                  ? AppColors.chipSelectedText
                                   : AppColors.textPrimary,
                             ),
                           ),
                         ),
                         if (isSelected)
-                          const Icon(Icons.check_rounded,
-                              color: AppColors.primary, size: 18),
+                          Icon(Icons.check_rounded,
+                              color: AppColors.chipSelectedText, size: 18),
                       ],
                     ),
                   ),

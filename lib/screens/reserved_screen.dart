@@ -24,9 +24,9 @@ class _ReservedScreenState extends ConsumerState<ReservedScreen> {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('予約済み',
-            style: TextStyle(fontWeight: FontWeight.w800, color: Colors.white)),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
+            style: TextStyle(fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+        backgroundColor: AppColors.surface,
+        foregroundColor: AppColors.textPrimary,
         surfaceTintColor: Colors.transparent,
         scrolledUnderElevation: 0,
       ),

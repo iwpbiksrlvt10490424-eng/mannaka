@@ -68,6 +68,9 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
       appBar: AppBar(
         toolbarHeight: 56,
         elevation: 0,
+        backgroundColor: AppColors.surface,
+        foregroundColor: AppColors.textPrimary,
+        centerTitle: true,
         title: const Text(
           'Aimaのお店',
           style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
@@ -230,23 +233,24 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
                             point: point,
                             state: state,
                             notifier: notifier,
-                            onFirstDetailOpen: () {
+                            onFirstDetailOpen: (restaurant) {
                               if (!_autoSaved) {
                                 _autoSaved = true;
                                 ref.read(historyProvider.notifier).add(
                                   state.participants.map((p) => p.name).toList(),
                                   point,
-                                  restaurants: state.scoredRestaurants.take(5).map((sr) =>
+                                  restaurants: [
                                     HistoryRestaurant(
-                                      name: sr.restaurant.name,
-                                      category: sr.restaurant.category,
-                                      rating: sr.restaurant.rating,
-                                      imageUrl: sr.restaurant.imageUrl,
-                                      hotpepperUrl: sr.restaurant.hotpepperUrl,
-                                      lat: sr.restaurant.lat,
-                                      lng: sr.restaurant.lng,
-                                      address: sr.restaurant.address,
-                                    )).toList(),
+                                      name: restaurant.name,
+                                      category: restaurant.category,
+                                      rating: restaurant.rating,
+                                      imageUrl: restaurant.imageUrl,
+                                      hotpepperUrl: restaurant.hotpepperUrl,
+                                      lat: restaurant.lat,
+                                      lng: restaurant.lng,
+                                      address: restaurant.address,
+                                    ),
+                                  ],
                                 );
                               }
                             },
@@ -273,7 +277,7 @@ class _MeetingPointTab extends ConsumerStatefulWidget {
   final MeetingPoint point;
   final SearchState state;
   final SearchNotifier notifier;
-  final VoidCallback onFirstDetailOpen; // セッション単位の自動保存コールバック
+  final void Function(Restaurant) onFirstDetailOpen; // 閲覧したお店のみ保存
 
   @override
   ConsumerState<_MeetingPointTab> createState() => _MeetingPointTabState();
@@ -282,62 +286,109 @@ class _MeetingPointTab extends ConsumerStatefulWidget {
 class _MeetingPointTabState extends ConsumerState<_MeetingPointTab> {
   final Set<String> _selectedCategories = {};
 
-  // Score cache — invalidated when base list or participants change
+  // Score cache — invalidated when relevant state changes
   List<ScoredRestaurant>? _cachedScored;
-  int? _cachedBaseHash;
+  int? _cachedHash;
 
-  List<ScoredRestaurant> get _scoredRestaurants {
+  List<Restaurant> _baseRestaurants() {
     final state = widget.state;
     final idx = widget.point.stationIndex;
-
-    List<Restaurant> base;
     if (state.selectedMeetingPoint?.stationIndex == idx) {
-      base = state.hotpepperRestaurants;
-    } else if (state.restaurantCache.containsKey(idx)) {
-      base = state.restaurantCache[idx]!;
-    } else {
-      return [];
+      return state.hotpepperRestaurants;
     }
+    return state.restaurantCache[idx] ?? [];
+  }
 
-    // centroid がある場合は MidpointService.scoreRestaurants で正しくスコアリング
-    if (state.hasCentroid) {
-      // Cache scored list — re-score only when base restaurants or participants change
-      final baseHash = Object.hashAll([
-        base.length,
-        ...state.participants.map((p) => '${p.id}${p.lat}${p.lng}'),
-        state.occasion.index,
-      ]);
-      if (_cachedScored == null || _cachedBaseHash != baseHash) {
+  /// 全スコアリング済みリスト（ローカルカテゴリフィルタ・ソート前）
+  List<ScoredRestaurant> get _allScored {
+    final state = widget.state;
+    final base = _baseRestaurants();
+    if (base.isEmpty) return [];
+
+    // キャッシュキー: スコアに影響するすべての要素を含める
+    final hash = Object.hashAll([
+      base.length,
+      ...state.participants.map((p) => '${p.id}${p.lat}${p.lng}'),
+      state.occasion.index,
+      state.restaurantCategories.join(','),
+      state.groupRelation ?? '',
+      state.maxBudget,
+      state.showPrivateRoom,
+    ]);
+
+    if (_cachedScored == null || _cachedHash != hash) {
+      if (state.hasCentroid) {
         _cachedScored = MidpointService.scoreRestaurants(
           participants: state.participants,
           centroidLat: state.centroidLat!,
           centroidLng: state.centroidLng!,
           baseRestaurants: base,
+          // 探すステップで選択したカテゴリをハードフィルタとして渡す
+          categories: state.restaurantCategories.isEmpty
+              ? null
+              : state.restaurantCategories,
           occasion: state.occasion != Occasion.none ? state.occasion.label : null,
+          groupRelation: state.groupRelation,
+          hasPrivateRoom: state.showPrivateRoom || state.occasion.filterPrivate,
+          maxBudget: state.maxBudget,
         );
-        _cachedBaseHash = baseHash;
+      } else {
+        // centroid なしのフォールバック
+        final filtered = base.toList()
+          ..sort((a, b) => b.rating.compareTo(a.rating));
+        _cachedScored = filtered
+            .map((r) => ScoredRestaurant(
+                  restaurant: r,
+                  score: 0,
+                  distanceKm: 0,
+                  participantDistances: {},
+                  fairnessScore: 0,
+                ))
+            .toList();
       }
-      if (_selectedCategories.isEmpty) return _cachedScored!;
-      return _cachedScored!
+      _cachedHash = hash;
+    }
+    return _cachedScored!;
+  }
+
+  /// 表示用リスト（ローカルカテゴリフィルタ + ソートオプション適用済み）
+  List<ScoredRestaurant> get _scoredRestaurants {
+    var list = _allScored;
+    // 結果画面内のカテゴリチップで絞り込み
+    if (_selectedCategories.isNotEmpty) {
+      list = list
           .where((s) => _selectedCategories.contains(s.restaurant.category))
           .toList();
     }
+    // ソートオプション適用
+    return switch (widget.state.sortOption) {
+      SortOption.recommended => list,
+      SortOption.distance =>
+        [...list]..sort((a, b) => a.distanceKm.compareTo(b.distanceKm)),
+      SortOption.rating => [...list]
+        ..sort((a, b) => b.restaurant.rating.compareTo(a.restaurant.rating)),
+      SortOption.budget => [...list]
+        ..sort((a, b) =>
+            a.restaurant.priceAvg.compareTo(b.restaurant.priceAvg)),
+    };
+  }
 
-    // centroid なしのフォールバック（通常は発生しない）
-    var filtered = base.where((r) => r.isReservable).toList();
-    if (_selectedCategories.isNotEmpty) {
-      filtered = filtered.where((r) => _selectedCategories.contains(r.category)).toList();
-    }
-    filtered.sort((a, b) => b.rating.compareTo(a.rating));
-    return filtered
-        .map((r) => ScoredRestaurant(
-              restaurant: r,
-              score: 0,
-              distanceKm: 0,
-              participantDistances: {},
-              fairnessScore: 0,
-            ))
-        .toList();
+  /// 実際に表示中のレストランから動的に生成したカテゴリリスト
+  List<String> get _availableCategories {
+    const preferredOrder = [
+      'カフェ', 'イタリアン', 'フレンチ', '韓国料理',
+      '和食', '洋食', '居酒屋', '焼肉', 'ラーメン', '中華', 'バー',
+    ];
+    final cats = _allScored.map((s) => s.restaurant.category).toSet().toList();
+    cats.sort((a, b) {
+      final ai = preferredOrder.indexOf(a);
+      final bi = preferredOrder.indexOf(b);
+      if (ai == -1 && bi == -1) return a.compareTo(b);
+      if (ai == -1) return 1;
+      if (bi == -1) return -1;
+      return ai.compareTo(bi);
+    });
+    return cats;
   }
 
   bool get _isLoading {
@@ -353,7 +404,7 @@ class _MeetingPointTabState extends ConsumerState<_MeetingPointTab> {
   Widget build(BuildContext context) {
     final point = widget.point;
     final scored = _scoredRestaurants;
-    final categories = MidpointService.getAllCategories();
+    final categories = _availableCategories;
 
     return Column(
       children: [
@@ -456,7 +507,7 @@ class _MeetingPointTabState extends ConsumerState<_MeetingPointTab> {
                           itemBuilder: (ctx, i) {
                             final s = scored[i];
                             void openDetail() {
-                              widget.onFirstDetailOpen();
+                              widget.onFirstDetailOpen(s.restaurant);
                               Navigator.of(context).push(
                                 MaterialPageRoute(
                                   builder: (_) =>
@@ -1024,18 +1075,18 @@ Widget _filterChip(String label, bool sel, VoidCallback onTap) {
       margin: const EdgeInsets.only(right: 8),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
       decoration: BoxDecoration(
-        color: sel ? AppColors.primaryLight : AppColors.background,
+        color: sel ? AppColors.chipSelectedBg : AppColors.background,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-            color: sel ? AppColors.primary : AppColors.divider,
-            width: sel ? 1.5 : 1),
+            color: sel ? AppColors.chipSelectedBg : AppColors.divider,
+            width: 1),
       ),
       child: Text(
         label,
         style: TextStyle(
             fontSize: 13,
             fontWeight: sel ? FontWeight.w600 : FontWeight.w400,
-            color: sel ? AppColors.primary : AppColors.textSecondary),
+            color: sel ? AppColors.chipSelectedText : AppColors.textSecondary),
       ),
     ),
   );

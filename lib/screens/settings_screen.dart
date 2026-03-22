@@ -157,14 +157,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         slivers: [
           SliverAppBar(
             pinned: true,
-            backgroundColor: AppColors.primary,
-            foregroundColor: Colors.white,
+            backgroundColor: AppColors.surface,
+            foregroundColor: AppColors.textPrimary,
             surfaceTintColor: Colors.transparent,
             scrolledUnderElevation: 0,
             title: const Text(
               'プロフィール',
               style: TextStyle(
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 fontSize: 17,
                 fontWeight: FontWeight.w700,
                 letterSpacing: -0.3,
@@ -325,30 +325,39 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 const SizedBox(height: 16),
 
                 // ─── よく使う条件 ─────────────────────────────────────────────────────
+                _SectionLabel('よく使う条件'),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 6),
-                  child: Text(
-                    'よく使う条件',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textSecondary,
-                      letterSpacing: 0.5,
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: AppColors.cardShadow,
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Column(
+                        children: [
+                          _DefaultConditionTile(
+                            icon: Icons.people_outline_rounded,
+                            label: 'デフォルト人数',
+                            prefKey: 'default_group_size',
+                            options: const ['2人', '3〜4人', '5人以上'],
+                          ),
+                          const Padding(
+                            padding: EdgeInsets.only(left: 16),
+                            child: SizedBox(height: 1, child: ColoredBox(color: Color(0xFFEEEEEE))),
+                          ),
+                          _DefaultConditionTile(
+                            icon: Icons.schedule_rounded,
+                            label: 'よく行くシーン',
+                            prefKey: 'default_time_slot',
+                            options: const ['ランチ', 'カフェ', 'ディナー', '飲み'],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                _DefaultConditionTile(
-                  icon: Icons.people_outline_rounded,
-                  label: 'デフォルト人数',
-                  prefKey: 'default_group_size',
-                  options: const ['2人', '3〜4人', '5人以上'],
-                ),
-                const SizedBox(height: 1, child: ColoredBox(color: Color(0xFFEEEEEE))),
-                _DefaultConditionTile(
-                  icon: Icons.schedule_rounded,
-                  label: 'よく行くシーン',
-                  prefKey: 'default_time_slot',
-                  options: const ['ランチ', 'カフェ', 'ディナー', '飲み'],
                 ),
 
                 const SizedBox(height: 24),
@@ -789,7 +798,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       final idx = result.kIndex ?? LocationService.nearestStationIndex(result.lat, result.lng);
       ref.read(favoritesProvider.notifier).add(FavoriteStation(
             stationIndex: idx,
-            stationName: kStations[idx],
+            stationName: result.name,
             emoji: kStationEmojis[idx],
           ));
     }
@@ -902,7 +911,7 @@ class _DefaultConditionTileState extends State<_DefaultConditionTile> {
     return GestureDetector(
       onTap: _showPicker,
       child: Container(
-        color: AppColors.surface,
+        color: Colors.transparent,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(
           children: [

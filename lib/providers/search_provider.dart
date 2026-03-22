@@ -120,7 +120,7 @@ class SearchState {
     this.isCalculating = false,
     this.hasCalculated = false,
     this.selectedMeetingPoint,
-    this.restaurantCategory,
+    this.restaurantCategories = const {},
     this.showFemaleFriendly = false,
     this.showPrivateRoom = false,
     this.occasion = Occasion.none,
@@ -142,7 +142,7 @@ class SearchState {
   final bool isCalculating;
   final bool hasCalculated;
   final MeetingPoint? selectedMeetingPoint;
-  final String? restaurantCategory;
+  final Set<String> restaurantCategories;
   final bool showFemaleFriendly;
   final bool showPrivateRoom;
   final Occasion occasion;
@@ -191,12 +191,13 @@ class SearchState {
       centroidLat: centroidLat!,
       centroidLng: centroidLng!,
       baseRestaurants: base,
-      category: restaurantCategory,
+      categories: restaurantCategories,
       femaleFriendly: _effectiveFemale,
       hasPrivateRoom: _effectivePrivate,
       timeSlot: _effectiveTimeSlot,
       maxBudget: maxBudget,
       occasion: occasion != Occasion.none ? occasion.label : null,
+      groupRelation: groupRelation,
     );
   }
 
@@ -223,7 +224,7 @@ class SearchState {
     if (selectedMeetingPoint == null) return [];
     return MidpointService.getRestaurants(
       stationIndex: selectedMeetingPoint!.stationIndex,
-      category: restaurantCategory,
+      categories: restaurantCategories,
       femaleFriendly: _effectiveFemale,
       hasPrivateRoom: _effectivePrivate,
       timeSlot: _effectiveTimeSlot,
@@ -237,7 +238,7 @@ class SearchState {
     bool? isCalculating,
     bool? hasCalculated,
     MeetingPoint? selectedMeetingPoint,
-    String? restaurantCategory,
+    Set<String>? restaurantCategories,
     bool? showFemaleFriendly,
     bool? showPrivateRoom,
     Occasion? occasion,
@@ -267,7 +268,7 @@ class SearchState {
       hasCalculated: hasCalculated ?? this.hasCalculated,
       selectedMeetingPoint:
           clearMeetingPoint ? null : (selectedMeetingPoint ?? this.selectedMeetingPoint),
-      restaurantCategory: clearCategory ? null : (restaurantCategory ?? this.restaurantCategory),
+      restaurantCategories: clearCategory ? const {} : (restaurantCategories ?? this.restaurantCategories),
       showFemaleFriendly: showFemaleFriendly ?? this.showFemaleFriendly,
       showPrivateRoom: showPrivateRoom ?? this.showPrivateRoom,
       occasion: occasion ?? this.occasion,
@@ -447,8 +448,13 @@ class SearchNotifier extends Notifier<SearchState> {
       if (centroid != null) {
         state = state.copyWith(loadingMessage: 'お店を検索中...');
 
-        // Check Firebase cache first
-        final cached = await RestaurantCacheService.get(centroid.$1, centroid.$2);
+        // カテゴリが1つだけ選択されていればHotpepperのジャンルコードに変換（サーバーサイド絞り込み）
+        final selectedGenre = state.restaurantCategories.length == 1
+            ? HotpepperService.categoryToGenreCode(state.restaurantCategories.first)
+            : null;
+
+        // Check Firebase cache first（ジャンルコードをキーに含める）
+        final cached = await RestaurantCacheService.get(centroid.$1, centroid.$2, genre: selectedGenre);
         if (cached != null && cached.isNotEmpty) {
           hotpepperRestaurants = cached;
         } else {
@@ -459,6 +465,7 @@ class SearchNotifier extends Notifier<SearchState> {
                   apiKey: ApiConfig.hotpepperApiKey,
                   lat: centroid.$1,
                   lng: centroid.$2,
+                  genre: selectedGenre, // ジャンルコードをAPIに渡す
                 )
               : Future.value(<Restaurant>[]);
           final foursquareFuture = foursquare.searchNearby(centroid.$1, centroid.$2);
@@ -483,7 +490,7 @@ class SearchNotifier extends Notifier<SearchState> {
 
           // Store in Firebase cache for future searches (fire and forget)
           if (hotpepperRestaurants.isNotEmpty) {
-            RestaurantCacheService.set(centroid.$1, centroid.$2, hotpepperRestaurants)
+            RestaurantCacheService.set(centroid.$1, centroid.$2, hotpepperRestaurants, genre: selectedGenre)
                 .ignore();
           }
         }
@@ -495,24 +502,28 @@ class SearchNotifier extends Notifier<SearchState> {
         cache[results.first.stationIndex] = hotpepperRestaurants;
       }
 
-      // Pre-fetch for remaining candidates in parallel (max 3 additional)
+      // Pre-fetch for remaining candidates in parallel (max 3 additional, 8s timeout)
       final remaining = results.skip(1).take(3).toList();
       final foursquare = ref.read(foursquareServiceProvider);
       final hasHotpepper = ApiConfig.hotpepperApiKey.isNotEmpty;
       final prefetchFutures = remaining.map((point) async {
         final latLng = kStationLatLng[point.stationIndex];
         List<Restaurant> restaurants = [];
-        if (hasHotpepper) {
-          restaurants = await HotpepperService.searchNearCentroid(
-            apiKey: ApiConfig.hotpepperApiKey,
-            lat: latLng.$1,
-            lng: latLng.$2,
-          );
-        }
-        if (restaurants.isEmpty) {
-          restaurants = await foursquare.searchNearby(
-            latLng.$1, latLng.$2, limit: 30,
-          );
+        try {
+          if (hasHotpepper) {
+            restaurants = await HotpepperService.searchNearCentroid(
+              apiKey: ApiConfig.hotpepperApiKey,
+              lat: latLng.$1,
+              lng: latLng.$2,
+            ).timeout(const Duration(seconds: 8));
+          }
+          if (restaurants.isEmpty) {
+            restaurants = await foursquare.searchNearby(
+              latLng.$1, latLng.$2, limit: 30,
+            ).timeout(const Duration(seconds: 8));
+          }
+        } catch (e) {
+          debugPrint('prefetch: ${point.stationName} failed - $e');
         }
         cache[point.stationIndex] = restaurants;
       });
@@ -623,10 +634,17 @@ class SearchNotifier extends Notifier<SearchState> {
     }
   }
 
-  void setRestaurantCategory(String? category) {
+  void toggleRestaurantCategory(String category) {
+    final current = Set<String>.from(state.restaurantCategories);
+    if (current.contains(category)) {
+      current.remove(category);
+    } else {
+      current.add(category);
+    }
+    // カテゴリ変更時はFirebaseキャッシュを無効化するため検索結果もクリア
     state = state.copyWith(
-      restaurantCategory: category,
-      clearCategory: category == null,
+      restaurantCategories: current,
+      restaurantCache: const {},
     );
   }
 

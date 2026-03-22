@@ -28,6 +28,10 @@ abstract final class AppColors {
   // アクセント背景
   static const Color accentBg = Color(0xFFF7F5F0);
 
+  // 選択状態用（ウォームベージュ＋ブラウン — 食べログ・Retty系の食アプリ定番）
+  static const Color chipSelectedBg = Color(0xFFFEF5F2);
+  static const Color chipSelectedText = Color(0xFF6B4423);
+
   // テキスト
   static const Color textPrimary = Color(0xFF111827);
   static const Color textSecondary = Color(0xFF6B7280);
@@ -45,12 +49,12 @@ abstract final class AppColors {
   // カードの標準シャドウ
   static List<BoxShadow> get cardShadow => [
         BoxShadow(
-          color: Colors.black.withValues(alpha: 0.06),
+          color: Colors.black.withValues(alpha: 0.05),
           blurRadius: 12,
           offset: const Offset(0, 2),
         ),
         BoxShadow(
-          color: Colors.black.withValues(alpha: 0.03),
+          color: Colors.black.withValues(alpha: 0.02),
           blurRadius: 3,
           offset: const Offset(0, 0),
         ),
@@ -65,16 +69,28 @@ abstract final class AppColors {
         ),
       ];
 
-  /// カテゴリ別背景色（暖かみのある統一トーン）
+  /// カテゴリ別背景色（ジャンルごとに意味ある色分け）
   static Color getCategoryBg(String category) => switch (category) {
+        'カフェ' => const Color(0xFFF5EDE5),
+        'イタリアン' || 'フレンチ' || '洋食' => const Color(0xFFFEF0EE),
+        '和食' => const Color(0xFFEFF4EC),
+        '居酒屋' => const Color(0xFFFEF3E2),
+        '焼肉' || '韓国料理' => const Color(0xFFFEEEEC),
+        'ラーメン' || '中華' => const Color(0xFFFFF0E6),
         'バー' => const Color(0xFF1E293B),
-        _ => const Color(0xFFF7F5F0),
+        _ => const Color(0xFFF5F3EF),
       };
 
-  /// カテゴリ別アクセント色（暖かみのある統一トーン）
+  /// カテゴリ別アクセント色（背景色に合わせた落ち着いたトーン）
   static Color getCategoryColor(String category) => switch (category) {
+        'カフェ' => const Color(0xFF7A5C4A),
+        'イタリアン' || 'フレンチ' || '洋食' => const Color(0xFF9E4B4B),
+        '和食' => const Color(0xFF4A7A57),
+        '居酒屋' => const Color(0xFF8A5E1A),
+        '焼肉' || '韓国料理' => const Color(0xFFA84040),
+        'ラーメン' || '中華' => const Color(0xFFAD5820),
         'バー' => const Color(0xFF64748B),
-        _ => const Color(0xFF6B6560),
+        _ => const Color(0xFF6E6560),
       };
 }
 

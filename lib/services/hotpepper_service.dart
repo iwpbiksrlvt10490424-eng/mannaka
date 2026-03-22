@@ -10,24 +10,46 @@ class HotpepperService {
   static const String _base =
       'https://webservice.recruit.co.jp/hotpepper/gourmet/v1/';
 
+  /// カテゴリ名 → Hotpepper ジャンルコードのマッピング
+  static const Map<String, String> _categoryToGenre = {
+    '居酒屋': 'G001',
+    'バー': 'G002',
+    '和食': 'G004',
+    '洋食': 'G005',
+    'イタリアン': 'G006',
+    '中華': 'G007',
+    '焼肉': 'G008',
+    '韓国料理': 'G009',
+    'ラーメン': 'G013',
+    'カフェ': 'G016',
+    'フレンチ': 'G036',
+  };
+
+  /// カテゴリ名からHotpepperジャンルコードを返す（未対応なら null）
+  static String? categoryToGenreCode(String category) =>
+      _categoryToGenre[category];
+
   static Future<List<Restaurant>> searchNearCentroid({
     required String apiKey,
     required double lat,
     required double lng,
-    int range = 3,
-    int count = 30,
+    int range = 5,    // 5 = 3km（1:300m 2:500m 3:1km 4:2km 5:3km）
+    int count = 100,  // 最大100件取得
+    String? genre,    // Hotpepperジャンルコード（指定するとサーバーサイド絞り込み）
   }) async {
-    final uri = Uri.parse(_base).replace(queryParameters: {
+    final params = <String, String>{
       'key': apiKey,
       'lat': lat.toString(),
       'lng': lng.toString(),
       'range': range.toString(),
       'count': count.toString(),
       'format': 'json',
-    });
+      if (genre != null) 'genre': genre,
+    };
+    final uri = Uri.parse(_base).replace(queryParameters: params);
 
     try {
-      final res = await http.get(uri).timeout(const Duration(seconds: 5));
+      final res = await http.get(uri).timeout(const Duration(seconds: 10));
       if (res.statusCode != 200) {
         debugPrint('[HotpepperService] HTTP ${res.statusCode}: ${res.body.substring(0, min(200, res.body.length))}');
         return [];
@@ -120,7 +142,8 @@ class HotpepperService {
       address: s['address']?.toString() ?? '',
       openHours: s['open']?.toString() ?? '',
       isReservable: hotpepperUrl.isNotEmpty,
-      isFemalePopular: category == 'カフェ' || category == 'イタリアン',
+      isFemalePopular: category == 'カフェ' || category == 'イタリアン' ||
+          category == 'フレンチ' || nonSmoking,
       hasPrivateRoom: privateRoom,
       lat: shopLat,
       lng: shopLng,
@@ -148,9 +171,11 @@ class HotpepperService {
         'G006' => 'イタリアン',
         'G007' => '中華',
         'G008' => '焼肉',
+        'G009' => '韓国料理',
         'G013' => 'ラーメン',
         'G016' => 'カフェ',
         'G025' => '和食',
+        'G036' => 'フレンチ',
         _ => name.length > 6 ? name.substring(0, 6) : name,
       };
 
@@ -162,9 +187,11 @@ class HotpepperService {
         'G006' => '🍝',
         'G007' => '🥟',
         'G008' => '🥩',
+        'G009' => '🥘',
         'G013' => '🍜',
         'G016' => '☕',
         'G025' => '🍣',
+        'G036' => '🥂',
         _ => '🍴',
       };
 }

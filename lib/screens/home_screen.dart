@@ -30,7 +30,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   gmap.GoogleMapController? _mapController;
   // 生のGPS座標は保持しない。最寄駅に変換した座標のみを使用（プライバシー保護）
   gmap.LatLng? _nearestStationLatLng;
-  int? _nearestStationIdx;
   ProviderSubscription<HomeStationData?>? _homeStationSub;
 
   double _lastSize = 0;
@@ -44,7 +43,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final stationLoc = gmap.LatLng(sLat, sLng);
     if (mounted) {
       setState(() {
-        _nearestStationIdx = idx;
         _nearestStationLatLng = stationLoc;
       });
       if (saveAsHome) _saveAsHomeStation(idx, sLat, sLng);
@@ -83,6 +81,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // Phase 1: キャッシュ位置を即座に取得 → 最寄駅に変換
     try {
       final last = await Geolocator.getLastKnownPosition();
+      if (!mounted) return;
       if (last != null) {
         _updateToNearestStation(last.latitude, last.longitude);
       }
@@ -178,16 +177,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     // Build Google Maps markers
     final gmapMarkers = <gmap.Marker>{};
-    // 最寄駅ピン（GPS取得後に駅座標へ変換したもの）
-    if (_nearestStationLatLng != null && _nearestStationIdx != null) {
-      gmapMarkers.add(gmap.Marker(
-        markerId: const gmap.MarkerId('current_location'),
-        position: _nearestStationLatLng!,
-        infoWindow: gmap.InfoWindow(title: kStations[_nearestStationIdx!]),
-        icon: gmap.BitmapDescriptor.defaultMarkerWithHue(
-            gmap.BitmapDescriptor.hueAzure),
-      ));
-    }
     // ホーム駅ピン（実際に選択した駅の座標を使用）
     final effectiveHomeMarker = homeStationData != null
         ? gmap.Marker(
@@ -200,18 +189,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         : null;
     if (effectiveHomeMarker != null) gmapMarkers.add(effectiveHomeMarker);
     if (hasResult) {
-      // Participant origin markers (blue circle with initial)
-      // Note: Google Maps doesn't support custom Flutter widgets as markers natively;
-      // we use standard markers with InfoWindow for participants.
-      for (final p in searchState.participants.where((p) => p.hasLocation)) {
-        gmapMarkers.add(gmap.Marker(
-          markerId: gmap.MarkerId('participant_${p.name}'),
-          position: gmap.LatLng(p.lat!, p.lng!),
-          infoWindow: gmap.InfoWindow(title: p.name.isNotEmpty ? p.name : '参加者'),
-          icon: gmap.BitmapDescriptor.defaultMarkerWithHue(
-              gmap.BitmapDescriptor.hueAzure),
-        ));
-      }
       // Centroid marker
       gmapMarkers.add(gmap.Marker(
         markerId: const gmap.MarkerId('centroid'),
@@ -348,48 +325,44 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         offset: Offset(0, -4)),
                   ],
                 ),
-                child: Column(
-                  children: [
-                    // ドラッグハンドル（スクロール外に固定）
-                    const SizedBox(height: 10),
-                    Container(
-                      width: 36,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade300,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                    // タイトル（固定 — スクロールに連動しない）
-                    const Padding(
-                      padding: EdgeInsets.fromLTRB(20, 10, 20, 0),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          '集まりやすいお店、見つけよう',
-                          style: TextStyle(
-                            fontSize: 19,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.textPrimary,
-                            letterSpacing: -0.5,
-                          ),
-                        ),
-                      ),
-                    ),
-                    Expanded(child: CustomScrollView(
+                child: CustomScrollView(
                   controller: scrollCtrl,
                   physics: const ClampingScrollPhysics(),
                   slivers: [
                     SliverToBoxAdapter(
                       child: Column(
                         children: [
+                          // ドラッグハンドル
+                          const SizedBox(height: 10),
+                          Container(
+                            width: 36,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade300,
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                          // タイトル
+                          const Padding(
+                            padding: EdgeInsets.fromLTRB(20, 10, 20, 0),
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                '集まりやすいお店、見つけよう',
+                                style: TextStyle(
+                                  fontSize: 19,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.textPrimary,
+                                  letterSpacing: -0.5,
+                                ),
+                              ),
+                            ),
+                          ),
                           const SizedBox(height: 6),
                           Padding(
-                            padding: const EdgeInsets.fromLTRB(
-                                20, 0, 20, 0),
+                            padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
                             child: Column(
-                              crossAxisAlignment:
-                                  CrossAxisAlignment.start,
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 const SizedBox(height: 4),
                                 // ─── メインCTA ─────────────────────
@@ -404,42 +377,37 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                     child: Container(
                                       width: double.infinity,
                                       height: 56,
-                                    decoration: BoxDecoration(
-                                      color: AppColors.primary,
-                                      borderRadius:
-                                          BorderRadius.circular(16),
-                                    ),
-                                    child: const Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Icon(Icons.people_alt_rounded,
-                                            color: Colors.white,
-                                            size: 20),
-                                        SizedBox(width: 8),
-                                        Text(
-                                          'Aimaを探す',
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.w700,
-                                            letterSpacing: -0.3,
+                                      decoration: BoxDecoration(
+                                        color: AppColors.primary,
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                      child: const Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(Icons.people_alt_rounded,
+                                              color: Colors.white, size: 20),
+                                          SizedBox(width: 8),
+                                          Text(
+                                            'Aimaを探す',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w700,
+                                              letterSpacing: -0.3,
+                                            ),
                                           ),
-                                        ),
-                                      ],
+                                        ],
+                                      ),
                                     ),
                                   ),
-                                ),
                                 ),
                               ],
                             ),
                           ),
-
                           // ─── シーンで絞り込む ──────────────
                           const SizedBox(height: 12),
                           const Padding(
-                            padding: EdgeInsets.symmetric(
-                                horizontal: 20),
+                            padding: EdgeInsets.symmetric(horizontal: 20),
                             child: Align(
                               alignment: Alignment.centerLeft,
                               child: Text(
@@ -453,18 +421,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             ),
                           ),
                           const SizedBox(height: 8),
-                          _OccasionGrid(
-                              onNavigate: widget.onNavigate),
-                          const SizedBox(height: 6),
+                          _OccasionGrid(onNavigate: widget.onNavigate),
+                          const SizedBox(height: 46),
                         ],
                       ),
                     ),
-
-
-                    const SliverToBoxAdapter(
-                        child: SizedBox(height: 40)),
-                  ],
-                )),
                   ],
                 ),
               );
@@ -524,7 +485,7 @@ class _OccasionGrid extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: AppColors.primary, width: 1),
+          border: Border.all(color: const Color(0xFFD1D5DB), width: 1),
         ),
         alignment: Alignment.center,
         child: Text(
@@ -532,7 +493,7 @@ class _OccasionGrid extends StatelessWidget {
           style: const TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: AppColors.primary,
+            color: AppColors.textPrimary,
             letterSpacing: -0.1,
           ),
         ),

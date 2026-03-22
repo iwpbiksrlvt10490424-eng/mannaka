@@ -41,21 +41,21 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen>
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('履歴',
-            style: TextStyle(fontWeight: FontWeight.w800, color: Colors.white)),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
+            style: TextStyle(fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+        backgroundColor: AppColors.surface,
+        foregroundColor: AppColors.textPrimary,
         surfaceTintColor: Colors.transparent,
         scrolledUnderElevation: 0,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(49),
           child: Column(
             children: [
-              Container(height: 1, color: Colors.white.withValues(alpha: 0.2)),
+              Container(height: 1, color: AppColors.divider),
               TabBar(
                 controller: _tab,
-                indicatorColor: Colors.white,
-                labelColor: Colors.white,
-                unselectedLabelColor: Colors.white60,
+                indicatorColor: AppColors.primary,
+                labelColor: AppColors.primary,
+                unselectedLabelColor: AppColors.textTertiary,
                 labelStyle:
                     const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
                 tabs: const [
@@ -286,24 +286,7 @@ class _VisitedTab extends ConsumerWidget {
       itemCount: visited.length,
       itemBuilder: (ctx, i) {
         final entry = visited[i];
-        return Dismissible(
-          key: ValueKey(entry.id),
-          direction: DismissDirection.endToStart,
-          background: Container(
-            alignment: Alignment.centerRight,
-            padding: const EdgeInsets.only(right: 20),
-            decoration: BoxDecoration(
-              color: Colors.red.shade100,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: const Icon(Icons.delete_rounded, color: Colors.red),
-          ),
-          onDismissed: (_) {
-            HapticFeedback.lightImpact();
-            ref.read(visitedRestaurantsProvider.notifier).remove(entry.id);
-          },
-          child: _VisitedCard(entry: entry),
-        );
+        return _VisitedCard(entry: entry);
       },
     );
   }

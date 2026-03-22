@@ -570,7 +570,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       color: const Color(0xFF3B82F6),
                       onTap: () => launchUrl(
                         Uri.parse(
-                          'mailto:support@mannaka.app?subject=%E3%81%BE%E3%82%93%E3%81%AA%E3%81%8B%20%E3%81%8A%E5%95%8F%E3%81%84%E5%90%88%E3%82%8F%E3%81%9B',
+                          'mailto:support@mannaka.app?subject=Aima%20%E3%81%8A%E5%95%8F%E3%81%84%E5%90%88%E3%82%8F%E3%81%9B',
                         ),
                         mode: LaunchMode.externalApplication,
                       ),

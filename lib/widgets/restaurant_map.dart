@@ -64,7 +64,7 @@ class _RestaurantMapState extends State<RestaurantMap>
           children: [
             TileLayer(
               urlTemplate: tileUrl,
-              userAgentPackageName: 'jp.mannaka.mannaka',
+              userAgentPackageName: 'jp.aima.aima',
               maxZoom: 19,
             ),
             // 参加者ピン（青丸アイコン）

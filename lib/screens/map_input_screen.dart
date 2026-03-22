@@ -72,7 +72,7 @@ class _MapInputScreenState extends State<MapInputScreen> {
             children: [
               TileLayer(
                 urlTemplate: tileUrl,
-                userAgentPackageName: 'jp.mannaka.mannaka',
+                userAgentPackageName: 'jp.aima.aima',
                 maxZoom: 19,
               ),
               if (_pinSet)

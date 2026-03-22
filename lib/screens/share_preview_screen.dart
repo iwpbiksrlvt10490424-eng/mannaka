@@ -106,7 +106,7 @@ class _SharePreviewScreenState extends ConsumerState<SharePreviewScreen> {
       if (byteData == null) return;
       final bytes = byteData.buffer.asUint8List();
       final tempDir = await getTemporaryDirectory();
-      final file = File('${tempDir.path}/mannaka_share.png');
+      final file = File('${tempDir.path}/aima_share.png');
       await file.writeAsBytes(bytes);
 
       if (!mounted) return;

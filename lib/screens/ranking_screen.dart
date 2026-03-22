@@ -401,7 +401,7 @@ class _ShareCardButtonState extends State<_ShareCardButton> {
       final xFile = XFile.fromData(
         pngBytes,
         mimeType: 'image/png',
-        name: 'mannaka_ranking.png',
+        name: 'aima_ranking.png',
       );
 
       await Share.shareXFiles(

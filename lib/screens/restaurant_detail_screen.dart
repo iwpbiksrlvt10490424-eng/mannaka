@@ -273,6 +273,7 @@ class _RestaurantDetailScreenState extends ConsumerState<RestaurantDetailScreen>
       _waitingForReturn = true;
       await launchUrl(Uri.parse(r.hotpepperUrl!),
           mode: LaunchMode.externalApplication);
+      if (!mounted) return;
     } else {
       // デモ: URLがない場合は直接共有シートを出す
       _showLineShare();

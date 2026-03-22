@@ -70,7 +70,7 @@ void main() async {
     });
   }
 
-  runApp(const ProviderScope(child: MannakApp()));
+  runApp(const ProviderScope(child: AimaApp()));
 }
 
 /// `mannaka://restaurant?name=...&lat=...&lng=...&address=...&category=...&url=...`

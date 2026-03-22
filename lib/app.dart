@@ -6,8 +6,8 @@ import 'screens/onboarding_screen.dart';
 import 'screens/main_screen.dart';
 import 'main.dart' show navigatorKey;
 
-class MannakApp extends StatelessWidget {
-  const MannakApp({super.key});
+class AimaApp extends StatelessWidget {
+  const AimaApp({super.key});
 
   @override
   Widget build(BuildContext context) {

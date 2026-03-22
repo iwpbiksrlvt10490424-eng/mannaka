@@ -11,10 +11,8 @@ import '../config/api_config.dart';
 import '../data/station_data.dart';
 import '../models/reserved_restaurant.dart';
 import '../models/restaurant.dart';
-import '../models/visited_restaurant.dart';
 import '../providers/reserved_restaurants_provider.dart';
 import '../providers/search_provider.dart';
-import '../providers/visited_restaurants_provider.dart';
 import '../services/hotpepper_service.dart';
 import '../theme/app_theme.dart';
 
@@ -28,31 +26,6 @@ bool isReservationUrlAllowed(String url) {
   return uri != null && uri.scheme == 'https';
 }
 
-/// mannaka:// ディープリンクを生成する。
-/// 受け取った側がアプリをインストール済みであればお店の詳細画面に直接遷移する。
-String _buildDeepLink(Restaurant r, String station) {
-  final params = <String, String>{
-    if (r.id.isNotEmpty) 'id': r.id,
-    'name': r.name,
-    if (r.lat != null) 'lat': r.lat!.toStringAsFixed(6),
-    if (r.lng != null) 'lng': r.lng!.toStringAsFixed(6),
-    if (r.address.isNotEmpty) 'address': r.address,
-    if (r.category.isNotEmpty) 'category': r.category,
-    if (r.hotpepperUrl != null) 'url': r.hotpepperUrl!,
-    if (r.openHours.isNotEmpty) 'hours': r.openHours,
-    if (r.accessInfo.isNotEmpty) 'access': r.accessInfo,
-    if (r.stationName.isNotEmpty) 'station': r.stationName,
-    if (station.isNotEmpty) 'station': station,
-    if (r.closeDay.isNotEmpty) 'closeDay': r.closeDay,
-    if (r.priceLabel.isNotEmpty) 'price': r.priceLabel,
-    if (r.rating > 0) 'rating': r.rating.toStringAsFixed(1),
-  };
-  final query = params.entries
-      .map((e) =>
-          '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value)}')
-      .join('&');
-  return 'mannaka://restaurant?$query';
-}
 
 /// レストランの緯度経度から最寄り kStation 名を取得（シェア用）
 String _nearestStationName(double lat, double lng) {
@@ -233,9 +206,64 @@ class _RestaurantDetailScreenState extends ConsumerState<RestaurantDetailScreen>
     if (state == AppLifecycleState.resumed && _waitingForReturn) {
       _waitingForReturn = false;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _showLineShare();
+        if (mounted) _showReservationConfirmDialog();
       });
     }
+  }
+
+  void _showReservationConfirmDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('予約できましたか？',
+            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17)),
+        content: Text(
+          '予約が完了したらLINEでみんなに\n集合場所を教えましょう。',
+          style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('戻る', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              final r = widget.restaurant;
+              final station = r.lat != null && r.lng != null
+                  ? _nearestStationName(r.lat!, r.lng!)
+                  : '';
+              final entry = ReservedRestaurant(
+                id: '${r.id}_${DateTime.now().millisecondsSinceEpoch}',
+                restaurantName: r.name,
+                category: r.category,
+                reservedAt: DateTime.now(),
+                address: r.address,
+                hotpepperUrl: r.hotpepperUrl,
+                imageUrl: r.imageUrl,
+                lat: r.lat,
+                lng: r.lng,
+                nearestStation: station,
+              );
+              _onShared(entry);
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) _showLineShare();
+              });
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('予約した！LINEでシェア',
+                style: TextStyle(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
   }
 
   void _onReservePressed() async {
@@ -265,28 +293,28 @@ class _RestaurantDetailScreenState extends ConsumerState<RestaurantDetailScreen>
   }
 
   void _onShared(ReservedRestaurant entry) {
-    ref.read(reservedRestaurantsProvider.notifier).add(entry);
-
+    // 参加者名をグループ名として一緒に保存
     final groupNames = ref
         .read(searchProvider)
         .participants
         .map((p) => p.name)
         .toList();
-    final visited = VisitedRestaurant(
+    final entryWithGroup = ReservedRestaurant(
       id: entry.id,
       restaurantName: entry.restaurantName,
       category: entry.category,
-      visitedAt: entry.reservedAt,
-      groupNames: groupNames,
+      reservedAt: entry.reservedAt,
       address: entry.address,
-      nearestStation: entry.nearestStation,
       hotpepperUrl: entry.hotpepperUrl,
       imageUrl: entry.imageUrl,
       lat: entry.lat,
       lng: entry.lng,
+      nearestStation: entry.nearestStation,
+      groupNames: groupNames,
     );
-    ref.read(visitedRestaurantsProvider.notifier).add(visited);
-
+    ref.read(reservedRestaurantsProvider.notifier).add(entryWithGroup);
+    // 「行ったお店」への自動追加は廃止。
+    // 予約済み画面の「決定！行った」ボタンで明示的に追加する。
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('予約済みに保存しました'),
@@ -545,18 +573,25 @@ class _PhotoCarouselState extends State<_PhotoCarousel> {
 }
 
 Widget _heroFallback(Restaurant r) => Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppColors.getCategoryBg(r.category),
-            AppColors.getCategoryBg(r.category).withValues(alpha: 0.65)
+      color: const Color(0xFFEEEEEE),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.no_photography_outlined, size: 40, color: Colors.grey.shade400),
+            const SizedBox(height: 8),
+            Text(
+              'NO IMAGE',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade500,
+                letterSpacing: 1,
+              ),
+            ),
           ],
         ),
       ),
-      child: const Center(
-          child: Icon(Icons.restaurant, size: 64, color: Colors.white70)),
     );
 
 // ─── ルート検索ボタン ─────────────────────────────────────────────────────────
@@ -677,31 +712,28 @@ class _LineShareSheet extends StatelessWidget {
     final station =
         r.lat != null && r.lng != null ? _nearestStationName(r.lat!, r.lng!) : '';
 
-    // mannaka:// ディープリンク（アプリインストール済みの人はここからお店詳細へ直接遷移）
-    final deepLink = _buildDeepLink(r, station);
-
-    // Googleマップ目的地リンク（受け取った側が自分の現在地からルート確認）
+    // Google マップの地点URL（LINEチャットでマップカードとして表示される）
     // 送信者の位置情報は含まない
     final mapsUrl = r.lat != null && r.lng != null
-        ? 'https://maps.google.com/maps?daddr=${r.lat},${r.lng}'
+        ? 'https://maps.google.com/maps?q=${r.lat},${r.lng}'
         : '';
 
     final lines = <String>[
-      '【集合場所が決まりました！】',
+      '集合場所が決まったよ 🎉',
+      '',
       '🍽 ${r.name}',
       if (r.address.isNotEmpty) '📍 ${r.address}',
-      if (station.isNotEmpty) '🚉 最寄り駅: $station駅',
-      if (mapsUrl.isNotEmpty) '\n📍 道順はこちら\n$mapsUrl',
-      '\n📲 Aimaアプリで開く\n$deepLink',
-      '\n「Aima」で見つけたよ！',
+      if (station.isNotEmpty) '🚉 $station駅近く',
+      if (r.distanceMinutes > 0) '🚶 徒歩${r.distanceMinutes}分',
+      if (mapsUrl.isNotEmpty) ...[
+        '',
+        '▼ Googleマップで確認',
+        mapsUrl,
+      ],
     ];
     final text = lines.join('\n');
     final encoded = Uri.encodeComponent(text);
     final lineUri = Uri.parse('https://line.me/R/share?text=$encoded');
-
-    // 予約済みとして保存
-    final entry = _buildEntry(r, station);
-    onShared(entry);
 
     if (await canLaunchUrl(lineUri)) {
       await launchUrl(lineUri, mode: LaunchMode.externalApplication);
@@ -779,7 +811,7 @@ class _LineShareSheet extends StatelessWidget {
               style:
                   TextStyle(fontSize: 13, color: Colors.grey.shade600)),
           const SizedBox(height: 16),
-          // プレビュー
+          // プレビュー（LINEチャットのメッセージイメージ）
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
@@ -791,13 +823,12 @@ class _LineShareSheet extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('【集合場所が決まりました！】',
-                    style: TextStyle(
-                        fontSize: 13, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 4),
+                const Text('集合場所が決まったよ 🎉',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
                 Text('🍽 ${r.name}',
                     style: const TextStyle(
-                        fontSize: 14, fontWeight: FontWeight.w700)),
+                        fontSize: 13, fontWeight: FontWeight.w600)),
                 if (r.address.isNotEmpty) ...[
                   const SizedBox(height: 2),
                   Text('📍 ${r.address}',
@@ -806,33 +837,68 @@ class _LineShareSheet extends StatelessWidget {
                 ],
                 if (station.isNotEmpty) ...[
                   const SizedBox(height: 2),
-                  Text('🚉 最寄り駅: $station駅',
+                  Text('🚉 $station駅近く',
                       style: TextStyle(
                           fontSize: 12, color: Colors.grey.shade700)),
                 ],
-                const SizedBox(height: 6),
-                Text('📍 道順はこちら（Googleマップ）',
-                    style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.blue.shade600,
-                        decoration: TextDecoration.underline,
-                        decorationColor: Colors.blue.shade600)),
-                const SizedBox(height: 2),
-                Text('📲 Aimaアプリで開く（インストール済みの方）',
-                    style: TextStyle(
-                        fontSize: 12, color: Colors.grey.shade500)),
-                const SizedBox(height: 4),
-                Text('「Aima」で見つけたよ！',
-                    style: TextStyle(
-                        fontSize: 12, color: Colors.grey.shade400)),
+                if (r.distanceMinutes > 0) ...[
+                  const SizedBox(height: 2),
+                  Text('🚶 徒歩${r.distanceMinutes}分',
+                      style: TextStyle(
+                          fontSize: 12, color: Colors.grey.shade700)),
+                ],
+                if (r.lat != null && r.lng != null) ...[
+                  const SizedBox(height: 8),
+                  const Text('▼ Googleマップで確認',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 2),
+                  // Google Mapsカードプレビュー
+                  Container(
+                    height: 72,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE8F4F8),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.blue.shade100),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 72,
+                          height: 72,
+                          decoration: BoxDecoration(
+                            color: Colors.blue.shade100,
+                            borderRadius: const BorderRadius.horizontal(
+                                left: Radius.circular(8)),
+                          ),
+                          child: Icon(Icons.map_rounded,
+                              size: 32, color: Colors.blue.shade700),
+                        ),
+                        const SizedBox(width: 10),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(r.name,
+                                style: const TextStyle(
+                                    fontSize: 12, fontWeight: FontWeight.w600),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis),
+                            const SizedBox(height: 2),
+                            Text('maps.google.com',
+                                style: TextStyle(
+                                    fontSize: 10, color: Colors.grey.shade500)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
-            '※ 受け取った方が自分の現在地からGoogleマップで道順を確認できます。\n'
-            '※ Aimaアプリをお持ちの方はアプリ内でお店の詳細を確認できます。\n'
-            '　 あなたの現在地は共有されません。',
+            '※ あなたの現在地は共有されません',
             style: TextStyle(fontSize: 11, color: Colors.grey.shade400),
           ),
           const SizedBox(height: 16),
@@ -870,7 +936,7 @@ class _LineShareSheet extends StatelessWidget {
             width: double.infinity,
             child: TextButton(
               onPressed: () => _saveOnly(context),
-              child: const Text('LINEで送らず記録だけする',
+              child: const Text('予約した（記録する）',
                   style: TextStyle(fontSize: 13, color: Colors.grey)),
             ),
           ),
@@ -976,8 +1042,8 @@ class _GMapCardState extends State<_GMapCard> {
           ),
           // 「Googleマップで開く」オーバーレイボタン
           Positioned(
-            bottom: 10,
-            right: 10,
+            top: 10,
+            left: 10,
             child: GestureDetector(
               onTap: _openGoogleMaps,
               child: Container(

@@ -17,6 +17,7 @@ import '../data/restaurant_data.dart';
 import '../services/notification_service.dart';
 import '../services/analytics_service.dart';
 import '../services/restaurant_cache_service.dart';
+import '../services/location_service.dart';
 
 enum Occasion {
   none,
@@ -398,17 +399,7 @@ class SearchNotifier extends Notifier<SearchState> {
   }
 
   int _nearestStation(double lat, double lng) {
-    int best = 0;
-    double bestDist = double.infinity;
-    for (int i = 0; i < kStationLatLng.length; i++) {
-      final (sLat, sLng) = kStationLatLng[i];
-      final d = (sLat - lat) * (sLat - lat) + (sLng - lng) * (sLng - lng);
-      if (d < bestDist) {
-        bestDist = d;
-        best = i;
-      }
-    }
-    return best;
+    return LocationService.nearestStationIndex(lat, lng);
   }
 
   void clearStation(String id) {

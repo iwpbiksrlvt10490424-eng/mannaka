@@ -25,7 +25,11 @@ String _sanitizeVoterName(String raw) {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  try {
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  } catch (e) {
+    debugPrint('Firebase初期化エラー: $e');
+  }
 
   // Deep link handler
   final appLinks = AppLinks();

@@ -31,7 +31,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     // アニメーション完了後、少し表示してからナビゲート
     _ctrl.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
-        Future.delayed(const Duration(milliseconds: 700), _navigate);
+        Future.delayed(const Duration(milliseconds: 200), _navigate);
       }
     });
     _ctrl.forward();

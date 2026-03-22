@@ -3,7 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/reserved_restaurant.dart';
+import '../models/visited_restaurant.dart';
 import '../providers/reserved_restaurants_provider.dart';
+import '../providers/visited_restaurants_provider.dart';
 import '../theme/app_theme.dart';
 
 class ReservedScreen extends ConsumerStatefulWidget {
@@ -121,12 +123,36 @@ class _ReservedScreenState extends ConsumerState<ReservedScreen> {
   }
 }
 
-class _ReservedCard extends StatelessWidget {
+class _ReservedCard extends ConsumerWidget {
   const _ReservedCard({required this.entry});
   final ReservedRestaurant entry;
 
+  void _markAsVisited(BuildContext context, WidgetRef ref) {
+    HapticFeedback.mediumImpact();
+    final visited = VisitedRestaurant(
+      id: '${entry.id}_visited_${DateTime.now().millisecondsSinceEpoch}',
+      restaurantName: entry.restaurantName,
+      category: entry.category,
+      visitedAt: DateTime.now(),
+      groupNames: entry.groupNames,
+      address: entry.address,
+      nearestStation: entry.nearestStation,
+      hotpepperUrl: entry.hotpepperUrl,
+      imageUrl: entry.imageUrl,
+      lat: entry.lat,
+      lng: entry.lng,
+    );
+    ref.read(visitedRestaurantsProvider.notifier).add(visited);
+    ref.read(reservedRestaurantsProvider.notifier).remove(entry.id);
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      content: Text('行ったお店に追加しました！'),
+      backgroundColor: Color(0xFFFF6B81),
+      behavior: SnackBarBehavior.floating,
+    ));
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -277,6 +303,24 @@ class _ReservedCard extends StatelessWidget {
                     ),
                   ),
               ],
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => _markAsVisited(context, ref),
+                icon: const Icon(Icons.check_circle_rounded, size: 16),
+                label: const Text('決定！行った',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
             ),
           ],
         ),

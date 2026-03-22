@@ -211,15 +211,18 @@ Widget _photoFallback(Color bg) {
   return Container(
     width: 80,
     height: 80,
-    decoration: BoxDecoration(
-      gradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [bg, bg.withValues(alpha: 0.65)],
+    color: const Color(0xFFEEEEEE),
+    child: Center(
+      child: Text(
+        'NO\nIMAGE',
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.w600,
+          color: Colors.grey.shade500,
+          height: 1.3,
+        ),
       ),
-    ),
-    child: const Center(
-      child: Icon(Icons.restaurant, size: 32, color: Colors.white70),
     ),
   );
 }

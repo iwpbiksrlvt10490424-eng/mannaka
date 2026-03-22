@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../providers/search_provider.dart';
 import '../providers/history_provider.dart';
 import '../providers/nav_provider.dart';
@@ -514,15 +515,13 @@ class _HeroCard extends StatelessWidget {
                 height: 160,
                 width: double.infinity,
                 child: r.imageUrl != null && r.imageUrl!.isNotEmpty
-                    ? Image.network(
-                        r.imageUrl!,
+                    ? CachedNetworkImage(
+                        imageUrl: r.imageUrl!,
                         width: double.infinity,
                         height: 160,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) =>
-                            _imageFallback(catBg, 56),
-                        loadingBuilder: (_, child, progress) =>
-                            progress == null ? child : _imageFallback(catBg, 56),
+                        errorWidget: (_, __, ___) => _imageFallback(catBg, 56),
+                        placeholder: (_, __) => _imageFallback(catBg, 56),
                       )
                     : _imageFallback(catBg, 56),
               ),
@@ -666,10 +665,18 @@ class _HeroCard extends StatelessWidget {
 }
 
 Widget _imageFallback(Color bg, double iconSize) => Container(
-      color: bg,
+      color: const Color(0xFFEEEEEE),
       child: Center(
-        child: Icon(Icons.restaurant_menu_outlined,
-            size: iconSize, color: Colors.white.withValues(alpha: 0.6)),
+        child: Text(
+          'NO\nIMAGE',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: iconSize * 0.18,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey.shade500,
+            height: 1.3,
+          ),
+        ),
       ),
     );
 
@@ -713,15 +720,13 @@ class _CompactCard extends StatelessWidget {
                 width: 80,
                 height: 80,
                 child: r.imageUrl != null && r.imageUrl!.isNotEmpty
-                    ? Image.network(
-                        r.imageUrl!,
+                    ? CachedNetworkImage(
+                        imageUrl: r.imageUrl!,
                         width: 80,
                         height: 80,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) =>
-                            _imageFallback(catBg, 32),
-                        loadingBuilder: (_, child, progress) =>
-                            progress == null ? child : _imageFallback(catBg, 32),
+                        errorWidget: (_, __, ___) => _imageFallback(catBg, 32),
+                        placeholder: (_, __) => _imageFallback(catBg, 32),
                       )
                     : _imageFallback(catBg, 32),
               ),

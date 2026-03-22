@@ -316,7 +316,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   children: [
                     _NavItem(
                       label: '年代',
-                      subtitle: ageGroup ?? '任意・未設定',
+                      subtitle: ageGroup ?? '未設定',
                       onTap: () => _pickAgeGroup(context, ref),
                     ),
                   ],
@@ -476,7 +476,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     _NavItem(
                       icon: Icons.gps_fixed_rounded,
                       label: '位置情報の設定',
-                      subtitle: '「現在地」ボタンで最寄り駅を自動選択します',
+                      subtitle: '「現在地」ボタンで最寄り駅\n自動選択します',
                       color: AppColors.primary,
                       trailing: FutureBuilder<LocationPermission>(
                         future: Geolocator.checkPermission(),

@@ -8,6 +8,8 @@
 	<string>プロフィール画像を撮影するためにカメラへのアクセスが必要です</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>集合場所を計算するために現在地を使用します。</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>集合場所を計算するために現在地を使用します。</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>

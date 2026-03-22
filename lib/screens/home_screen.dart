@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gmap;
 import 'package:geolocator/geolocator.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/search_provider.dart';
 import '../providers/ad_provider.dart';
 import '../models/ad.dart';
@@ -36,7 +37,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   /// GPS取得 → 最寄駅に変換 → 駅座標のみを保持
   /// 生の緯度経度は外部に露出しない
-  void _updateToNearestStation(double lat, double lng) {
+  /// [saveAsHome] = true のとき、ホーム駅として保存してマイページ・検索にも反映する
+  void _updateToNearestStation(double lat, double lng, {bool saveAsHome = false}) {
     final idx = LocationService.nearestStationIndex(lat, lng);
     final (sLat, sLng) = kStationLatLng[idx];
     final stationLoc = gmap.LatLng(sLat, sLng);
@@ -45,7 +47,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         _nearestStationIdx = idx;
         _nearestStationLatLng = stationLoc;
       });
+      if (saveAsHome) _saveAsHomeStation(idx, sLat, sLng);
     }
+  }
+
+  /// 最寄駅をホーム駅としてSharedPreferences・プロバイダに保存する。
+  /// ホーム駅が未設定のときのみ保存（手動設定を上書きしない）。
+  /// 参加者の駅は変更しない（_autoFillHomeStation に任せる）。
+  Future<void> _saveAsHomeStation(int idx, double lat, double lng) async {
+    final prefs = await SharedPreferences.getInstance();
+    // 既にホーム駅が設定されていれば上書きしない
+    if (prefs.getInt('home_station') != null) return;
+    await prefs.setInt('home_station', idx);
+    await prefs.setString('home_station_name', kStations[idx]);
+    await prefs.setDouble('home_station_lat', lat);
+    await prefs.setDouble('home_station_lng', lng);
+    if (!mounted) return;
+    ref.read(homeStationProvider.notifier).state = idx;
+    ref.read(homeStationDataProvider.notifier).state =
+        HomeStationData(name: kStations[idx], lat: lat, lng: lng);
   }
 
   // Phase 1: getLastKnownPosition（即座）→ 最寄駅ピン表示
@@ -68,14 +88,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       }
     } catch (_) {}
 
-    // Phase 2: バックグラウンドで精度の高い現在地を取得 → 最寄駅を再確定
+    // Phase 2: バックグラウンドで精度の高い現在地を取得 → 最寄駅を再確定 → ホーム駅として保存
     try {
       final pos = await Geolocator.getCurrentPosition(
         locationSettings:
             const LocationSettings(accuracy: LocationAccuracy.medium),
       ).timeout(const Duration(seconds: 5));
       if (!mounted) return;
-      _updateToNearestStation(pos.latitude, pos.longitude);
+      _updateToNearestStation(pos.latitude, pos.longitude, saveAsHome: true);
       // 地図が既に表示されていればカメラをアニメーションで移動
       if (_nearestStationLatLng != null) {
         _mapController?.animateCamera(

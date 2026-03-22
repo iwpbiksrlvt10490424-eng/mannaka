@@ -226,37 +226,74 @@ class _SearchHistoryTab extends ConsumerWidget {
               child: Padding(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              const Icon(Icons.location_on,
-                                  size: 13, color: AppColors.primary),
-                              const SizedBox(width: 4),
-                              Text(
-                                '${entry.meetingPoint.stationName}駅',
+                    // ヘッダー行
+                    Row(
+                      children: [
+                        const Icon(Icons.location_on,
+                            size: 13, color: AppColors.primary),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            '${entry.meetingPoint.stationName}駅エリア',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w700, fontSize: 15),
+                          ),
+                        ),
+                        Text(_formatDate(entry.createdAt),
+                            style: TextStyle(
+                                fontSize: 11, color: Colors.grey.shade400)),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.chevron_right,
+                            size: 16, color: AppColors.textTertiary),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(entry.participantNames.join('、'),
+                        style: TextStyle(
+                            fontSize: 12, color: Colors.grey.shade500)),
+                    // お店リスト
+                    if (entry.restaurants.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      ...entry.restaurants.take(3).map((r) => Padding(
+                        padding: const EdgeInsets.only(bottom: 5),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                r.name,
                                 style: const TextStyle(
-                                    fontWeight: FontWeight.w700, fontSize: 16),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textPrimary),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              r.category,
+                              style: TextStyle(
+                                  fontSize: 11, color: Colors.grey.shade500),
+                            ),
+                            if (r.rating > 0) ...[
+                              const SizedBox(width: 6),
+                              Icon(Icons.star_rounded,
+                                  size: 11, color: AppColors.star),
+                              const SizedBox(width: 2),
+                              Text(
+                                r.rating.toStringAsFixed(1),
+                                style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey.shade600),
                               ),
                             ],
-                          ),
-                          const SizedBox(height: 4),
-                          Text(entry.participantNames.join('、'),
-                              style: TextStyle(
-                                  fontSize: 13, color: Colors.grey.shade600)),
-                          const SizedBox(height: 2),
-                          Text(_formatDate(entry.createdAt),
-                              style: TextStyle(
-                                  fontSize: 12, color: Colors.grey.shade400)),
-                        ],
-                      ),
-                    ),
-                    const Icon(Icons.chevron_right,
-                        size: 18, color: AppColors.textTertiary),
+                          ],
+                        ),
+                      )),
+                    ],
                   ],
                 ),
               ),

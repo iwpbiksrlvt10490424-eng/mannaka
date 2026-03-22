@@ -118,6 +118,13 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
                 ref.read(historyProvider.notifier).add(
                       state.participants.map((p) => p.name).toList(),
                       state.selectedMeetingPoint!,
+                      restaurants: state.scoredRestaurants.take(5).map((sr) =>
+                        HistoryRestaurant(
+                          name: sr.restaurant.name,
+                          category: sr.restaurant.category,
+                          rating: sr.restaurant.rating,
+                          imageUrl: sr.restaurant.imageUrl,
+                        )).toList(),
                     );
                 setState(() => _isSaved = true);
                 // Navigate to history tab (index 2)
@@ -225,6 +232,13 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
                                 ref.read(historyProvider.notifier).add(
                                   state.participants.map((p) => p.name).toList(),
                                   point,
+                                  restaurants: state.scoredRestaurants.take(5).map((sr) =>
+                                    HistoryRestaurant(
+                                      name: sr.restaurant.name,
+                                      category: sr.restaurant.category,
+                                      rating: sr.restaurant.rating,
+                                      imageUrl: sr.restaurant.imageUrl,
+                                    )).toList(),
                                 );
                               }
                             },

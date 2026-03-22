@@ -29,14 +29,6 @@ class _ReservedScreenState extends ConsumerState<ReservedScreen> {
         foregroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
         scrolledUnderElevation: 0,
-        actions: [
-          if (reserved.isNotEmpty)
-            TextButton(
-              onPressed: () => _confirmClear(context, ref, reserved),
-              child:
-                  const Text('クリア', style: TextStyle(color: Colors.white70)),
-            ),
-        ],
       ),
       body: reserved.isEmpty ? _empty() : _list(reserved),
     );
@@ -96,31 +88,6 @@ class _ReservedScreenState extends ConsumerState<ReservedScreen> {
     );
   }
 
-  void _confirmClear(
-      BuildContext context, WidgetRef ref, List<ReservedRestaurant> reserved) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('シェア済みのお店を消去'),
-        content: const Text('シェア済みのお店をすべて消します。この操作は元に戻せません。'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('キャンセル')),
-          TextButton(
-            onPressed: () {
-              for (final e in reserved) {
-                ref.read(reservedRestaurantsProvider.notifier).remove(e.id);
-              }
-              if (ctx.mounted) Navigator.pop(ctx);
-            },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('削除'),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 class _ReservedCard extends ConsumerWidget {

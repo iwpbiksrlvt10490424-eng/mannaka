@@ -272,7 +272,7 @@ class _MeetingPointTab extends ConsumerStatefulWidget {
 }
 
 class _MeetingPointTabState extends ConsumerState<_MeetingPointTab> {
-  String? _selectedCategory;
+  final Set<String> _selectedCategories = {};
 
   // Score cache — invalidated when base list or participants change
   List<ScoredRestaurant>? _cachedScored;
@@ -309,16 +309,16 @@ class _MeetingPointTabState extends ConsumerState<_MeetingPointTab> {
         );
         _cachedBaseHash = baseHash;
       }
-      if (_selectedCategory == null) return _cachedScored!;
+      if (_selectedCategories.isEmpty) return _cachedScored!;
       return _cachedScored!
-          .where((s) => s.restaurant.category == _selectedCategory)
+          .where((s) => _selectedCategories.contains(s.restaurant.category))
           .toList();
     }
 
     // centroid なしのフォールバック（通常は発生しない）
     var filtered = base.where((r) => r.isReservable).toList();
-    if (_selectedCategory != null) {
-      filtered = filtered.where((r) => r.category == _selectedCategory).toList();
+    if (_selectedCategories.isNotEmpty) {
+      filtered = filtered.where((r) => _selectedCategories.contains(r.category)).toList();
     }
     filtered.sort((a, b) => b.rating.compareTo(a.rating));
     return filtered
@@ -412,14 +412,18 @@ class _MeetingPointTabState extends ConsumerState<_MeetingPointTab> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                 children: [
-                  _filterChip('すべて', _selectedCategory == null,
-                      () => setState(() => _selectedCategory = null)),
+                  _filterChip('すべて', _selectedCategories.isEmpty,
+                      () => setState(() => _selectedCategories.clear())),
                   ...categories.map((c) => _filterChip(
                         c,
-                        _selectedCategory == c,
-                        () => setState(() =>
-                            _selectedCategory =
-                                _selectedCategory == c ? null : c),
+                        _selectedCategories.contains(c),
+                        () => setState(() {
+                          if (_selectedCategories.contains(c)) {
+                            _selectedCategories.remove(c);
+                          } else {
+                            _selectedCategories.add(c);
+                          }
+                        }),
                       )),
                 ],
               ),
@@ -434,7 +438,7 @@ class _MeetingPointTabState extends ConsumerState<_MeetingPointTab> {
               ? const _SkeletonTab()
               : scored.isEmpty
                   ? _EmptyState(
-                      onReset: () => setState(() => _selectedCategory = null))
+                      onReset: () => setState(() => _selectedCategories.clear()))
                   : Stack(
                       children: [
                         ListView.builder(

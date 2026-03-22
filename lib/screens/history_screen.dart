@@ -46,18 +46,6 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen>
         foregroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
         scrolledUnderElevation: 0,
-        actions: [
-          if (_tab.index == 0 && history.isNotEmpty)
-            TextButton(
-              onPressed: () => _confirmClearHistory(context, ref, history),
-              child: const Text('クリア', style: TextStyle(color: Colors.white70)),
-            ),
-          if (_tab.index == 1 && visited.isNotEmpty)
-            TextButton(
-              onPressed: () => _confirmClearVisited(context, ref, visited),
-              child: const Text('クリア', style: TextStyle(color: Colors.white70)),
-            ),
-        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(49),
           child: Column(
@@ -84,58 +72,6 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen>
         children: [
           _SearchHistoryTab(history: history),
           _VisitedTab(visited: visited),
-        ],
-      ),
-    );
-  }
-
-  void _confirmClearHistory(
-      BuildContext context, WidgetRef ref, List history) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('検索履歴を消去'),
-        content: const Text('これまでの検索をすべて消します。この操作は元に戻せません。'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('キャンセル')),
-          TextButton(
-            onPressed: () {
-              for (final e in history) {
-                ref.read(historyProvider.notifier).remove(e.id);
-              }
-              if (ctx.mounted) Navigator.pop(ctx);
-            },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('削除'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _confirmClearVisited(
-      BuildContext context, WidgetRef ref, List<VisitedRestaurant> visited) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('行ったお店を消去'),
-        content: const Text('行ったお店をすべて消します。この操作は元に戻せません。'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('キャンセル')),
-          TextButton(
-            onPressed: () {
-              for (final e in visited) {
-                ref.read(visitedRestaurantsProvider.notifier).remove(e.id);
-              }
-              if (ctx.mounted) Navigator.pop(ctx);
-            },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('削除'),
-          ),
         ],
       ),
     );

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../data/station_data.dart';
 import '../data/all_stations_data.dart';
@@ -144,7 +145,13 @@ class _StationSearchSheetState extends State<StationSearchSheet> {
     final hasQuery = _query.isNotEmpty;
 
     return Container(
-      height: MediaQuery.of(context).size.height * 0.88,
+      height: math.max(
+        360.0,
+        MediaQuery.of(context).size.height
+          - MediaQuery.of(context).viewInsets.bottom
+          - MediaQuery.of(context).padding.top
+          - 20,
+      ),
       decoration: const BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),

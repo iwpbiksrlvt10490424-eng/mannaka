@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../models/restaurant.dart';
 import '../models/visited_restaurant.dart';
 import '../providers/history_provider.dart';
-import '../providers/nav_provider.dart';
-import '../providers/search_provider.dart';
 import '../providers/visited_restaurants_provider.dart';
 import '../theme/app_theme.dart';
+import 'restaurant_detail_screen.dart';
 
 class HistoryScreen extends ConsumerStatefulWidget {
   const HistoryScreen({super.key});
@@ -136,15 +136,17 @@ class _SearchHistoryTab extends ConsumerWidget {
             ref.read(historyProvider.notifier).remove(entry.id);
           },
           child: GestureDetector(
-            onTap: () async {
+            onTap: () {
               HapticFeedback.lightImpact();
-              await ref.read(searchProvider.notifier).restoreFromHistoryPoint(
-                    entry.participantNames,
-                    entry.meetingPoint,
-                  );
-              if (context.mounted) {
-                ref.read(navIndexProvider.notifier).state = 1;
-              }
+              if (entry.restaurants.isEmpty) return;
+              showModalBottomSheet(
+                context: context,
+                backgroundColor: Colors.transparent,
+                isScrollControlled: true,
+                builder: (_) => _HistoryRestaurantSheet(
+                  entry: entry,
+                ),
+              );
             },
             child: Container(
               margin: const EdgeInsets.only(bottom: 12),
@@ -245,6 +247,7 @@ class _SearchHistoryTab extends ConsumerWidget {
 }
 
 // ─── 行ったお店タブ ─────────────────────────────────────────────────────────────
+
 
 class _VisitedTab extends ConsumerWidget {
   const _VisitedTab({required this.visited});
@@ -407,4 +410,148 @@ class _VisitedCard extends StatelessWidget {
 
   String _formatDate(DateTime dt) =>
       '${dt.year}/${dt.month.toString().padLeft(2, '0')}/${dt.day.toString().padLeft(2, '0')}';
+}
+
+// ─── 検索履歴 → お店一覧シート ──────────────────────────────────────────────────
+
+class _HistoryRestaurantSheet extends StatelessWidget {
+  const _HistoryRestaurantSheet({required this.entry});
+  final HistoryEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    final r = entry;
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+          24, 16, 24, MediaQuery.of(context).padding.bottom + 16),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              const Icon(Icons.location_on, size: 14, color: AppColors.primary),
+              const SizedBox(width: 4),
+              Text(
+                '${r.meetingPoint.stationName}駅エリア',
+                style: const TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.w700),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            r.participantNames.join('、'),
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+          ),
+          const SizedBox(height: 16),
+          ...r.restaurants.map((rest) => _RestaurantRow(
+                restaurant: rest,
+                groupNames: r.participantNames,
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => RestaurantDetailScreen(
+                      restaurant: Restaurant(
+                        id: 'hist_${rest.name}',
+                        name: rest.name,
+                        stationIndex: r.meetingPoint.stationIndex,
+                        category: rest.category,
+                        rating: rest.rating,
+                        reviewCount: 0,
+                        priceLabel: '',
+                        priceAvg: 0,
+                        tags: const [],
+                        emoji: '',
+                        description: '',
+                        distanceMinutes: 0,
+                        address: rest.address,
+                        openHours: '',
+                        lat: rest.lat,
+                        lng: rest.lng,
+                        hotpepperUrl: rest.hotpepperUrl,
+                        imageUrl: rest.imageUrl,
+                      ),
+                      groupNames: r.participantNames,
+                    ),
+                  ));
+                },
+              )),
+        ],
+      ),
+    );
+  }
+}
+
+class _RestaurantRow extends StatelessWidget {
+  const _RestaurantRow({
+    required this.restaurant,
+    required this.groupNames,
+    required this.onTap,
+  });
+  final HistoryRestaurant restaurant;
+  final List<String> groupNames;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    restaurant.name,
+                    style: const TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w700),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    restaurant.category,
+                    style: TextStyle(
+                        fontSize: 12, color: Colors.grey.shade500),
+                  ),
+                ],
+              ),
+            ),
+            if (restaurant.rating > 0) ...[
+              Icon(Icons.star_rounded, size: 12, color: AppColors.star),
+              const SizedBox(width: 2),
+              Text(
+                restaurant.rating.toStringAsFixed(1),
+                style: TextStyle(
+                    fontSize: 12, color: Colors.grey.shade600),
+              ),
+              const SizedBox(width: 8),
+            ],
+            const Icon(Icons.chevron_right,
+                size: 16, color: AppColors.textTertiary),
+          ],
+        ),
+      ),
+    );
+  }
 }

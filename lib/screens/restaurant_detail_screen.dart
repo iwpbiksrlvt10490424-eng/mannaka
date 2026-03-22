@@ -45,8 +45,9 @@ String _nearestStationName(double lat, double lng) {
 // ─── メイン画面 ───────────────────────────────────────────────────────────────
 
 class RestaurantDetailScreen extends ConsumerStatefulWidget {
-  const RestaurantDetailScreen({super.key, required this.restaurant});
+  const RestaurantDetailScreen({super.key, required this.restaurant, this.groupNames});
   final Restaurant restaurant;
+  final List<String>? groupNames;
 
   @override
   ConsumerState<RestaurantDetailScreen> createState() =>
@@ -294,12 +295,13 @@ class _RestaurantDetailScreenState extends ConsumerState<RestaurantDetailScreen>
   }
 
   void _onShared(ReservedRestaurant entry) {
-    // 参加者名をグループ名として一緒に保存
-    final groupNames = ref
-        .read(searchProvider)
-        .participants
-        .map((p) => p.name)
-        .toList();
+    // 参加者名をグループ名として一緒に保存（履歴から開いた場合は渡されたgroupNamesを使う）
+    final groupNames = widget.groupNames ??
+        ref
+            .read(searchProvider)
+            .participants
+            .map((p) => p.name)
+            .toList();
     final entryWithGroup = ReservedRestaurant(
       id: entry.id,
       restaurantName: entry.restaurantName,

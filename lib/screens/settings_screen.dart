@@ -785,8 +785,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         favorites: favorites,
       ),
     );
-    if (result != null && result.kIndex != null) {
-      final idx = result.kIndex!;
+    if (result != null) {
+      final idx = result.kIndex ?? LocationService.nearestStationIndex(result.lat, result.lng);
       ref.read(favoritesProvider.notifier).add(FavoriteStation(
             stationIndex: idx,
             stationName: kStations[idx],

@@ -11,18 +11,30 @@ class HistoryRestaurant {
     required this.category,
     this.rating = 0,
     this.imageUrl,
+    this.hotpepperUrl,
+    this.lat,
+    this.lng,
+    this.address = '',
   });
 
   final String name;
   final String category;
   final double rating;
   final String? imageUrl;
+  final String? hotpepperUrl;
+  final double? lat;
+  final double? lng;
+  final String address;
 
   Map<String, dynamic> toJson() => {
         'name': name,
         'category': category,
         'rating': rating,
         if (imageUrl != null) 'imageUrl': imageUrl,
+        if (hotpepperUrl != null) 'hotpepperUrl': hotpepperUrl,
+        if (lat != null) 'lat': lat,
+        if (lng != null) 'lng': lng,
+        'address': address,
       };
 
   factory HistoryRestaurant.fromJson(Map<String, dynamic> j) =>
@@ -31,6 +43,10 @@ class HistoryRestaurant {
         category: j['category'] as String? ?? '',
         rating: (j['rating'] as num? ?? 0).toDouble(),
         imageUrl: j['imageUrl'] as String?,
+        hotpepperUrl: j['hotpepperUrl'] as String?,
+        lat: (j['lat'] as num?)?.toDouble(),
+        lng: (j['lng'] as num?)?.toDouble(),
+        address: j['address'] as String? ?? '',
       );
 }
 

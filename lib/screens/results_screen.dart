@@ -124,6 +124,10 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
                           category: sr.restaurant.category,
                           rating: sr.restaurant.rating,
                           imageUrl: sr.restaurant.imageUrl,
+                          hotpepperUrl: sr.restaurant.hotpepperUrl,
+                          lat: sr.restaurant.lat,
+                          lng: sr.restaurant.lng,
+                          address: sr.restaurant.address,
                         )).toList(),
                     );
                 setState(() => _isSaved = true);
@@ -238,6 +242,10 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
                                       category: sr.restaurant.category,
                                       rating: sr.restaurant.rating,
                                       imageUrl: sr.restaurant.imageUrl,
+                                      hotpepperUrl: sr.restaurant.hotpepperUrl,
+                                      lat: sr.restaurant.lat,
+                                      lng: sr.restaurant.lng,
+                                      address: sr.restaurant.address,
                                     )).toList(),
                                 );
                               }

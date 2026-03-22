@@ -719,12 +719,12 @@ class _LineShareSheet extends StatelessWidget {
         : '';
 
     final lines = <String>[
-      '集合場所が決まったよ 🎉',
+      '集合場所',
       '',
-      '🍽 ${r.name}',
-      if (r.address.isNotEmpty) '📍 ${r.address}',
-      if (station.isNotEmpty) '🚉 $station駅近く',
-      if (r.distanceMinutes > 0) '🚶 徒歩${r.distanceMinutes}分',
+      'お店：${r.name}',
+      if (r.address.isNotEmpty) '場所：${r.address}',
+      if (station.isNotEmpty) '最寄り駅：$station駅',
+      if (r.distanceMinutes > 0) '徒歩：${r.distanceMinutes}分',
       if (mapsUrl.isNotEmpty) ...[
         '',
         '▼ Googleマップで確認',
@@ -823,27 +823,27 @@ class _LineShareSheet extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('集合場所が決まったよ 🎉',
+                const Text('集合場所',
                     style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 8),
-                Text('🍽 ${r.name}',
+                Text('お店：${r.name}',
                     style: const TextStyle(
                         fontSize: 13, fontWeight: FontWeight.w600)),
                 if (r.address.isNotEmpty) ...[
                   const SizedBox(height: 2),
-                  Text('📍 ${r.address}',
+                  Text('場所：${r.address}',
                       style: TextStyle(
                           fontSize: 12, color: Colors.grey.shade700)),
                 ],
                 if (station.isNotEmpty) ...[
                   const SizedBox(height: 2),
-                  Text('🚉 $station駅近く',
+                  Text('最寄り駅：$station駅',
                       style: TextStyle(
                           fontSize: 12, color: Colors.grey.shade700)),
                 ],
                 if (r.distanceMinutes > 0) ...[
                   const SizedBox(height: 2),
-                  Text('🚶 徒歩${r.distanceMinutes}分',
+                  Text('徒歩：${r.distanceMinutes}分',
                       style: TextStyle(
                           fontSize: 12, color: Colors.grey.shade700)),
                 ],

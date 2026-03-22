@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/visited_restaurant.dart';
 import '../providers/history_provider.dart';
+import '../providers/nav_provider.dart';
+import '../providers/search_provider.dart';
 import '../providers/visited_restaurants_provider.dart';
 import '../theme/app_theme.dart';
 
@@ -198,64 +200,66 @@ class _SearchHistoryTab extends ConsumerWidget {
             HapticFeedback.lightImpact();
             ref.read(historyProvider.notifier).remove(entry.id);
           },
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            const Icon(Icons.location_on,
-                                size: 13, color: AppColors.primary),
-                            const SizedBox(width: 4),
-                            Text(
-                              '${entry.meetingPoint.stationName}駅',
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.w700, fontSize: 16),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Text(entry.participantNames.join('、'),
-                            style: TextStyle(
-                                fontSize: 13, color: Colors.grey.shade600)),
-                        const SizedBox(height: 2),
-                        Text(_formatDate(entry.createdAt),
-                            style: TextStyle(
-                                fontSize: 12, color: Colors.grey.shade400)),
-                      ],
-                    ),
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        '平均${entry.meetingPoint.averageMinutes.toStringAsFixed(0)}分',
-                        style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.primary),
-                      ),
-                    ],
+          child: GestureDetector(
+            onTap: () async {
+              HapticFeedback.lightImpact();
+              await ref.read(searchProvider.notifier).restoreFromHistoryPoint(
+                    entry.participantNames,
+                    entry.meetingPoint,
+                  );
+              if (context.mounted) {
+                ref.read(navIndexProvider.notifier).state = 1;
+              }
+            },
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
                   ),
                 ],
+              ),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.location_on,
+                                  size: 13, color: AppColors.primary),
+                              const SizedBox(width: 4),
+                              Text(
+                                '${entry.meetingPoint.stationName}駅',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w700, fontSize: 16),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(entry.participantNames.join('、'),
+                              style: TextStyle(
+                                  fontSize: 13, color: Colors.grey.shade600)),
+                          const SizedBox(height: 2),
+                          Text(_formatDate(entry.createdAt),
+                              style: TextStyle(
+                                  fontSize: 12, color: Colors.grey.shade400)),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right,
+                        size: 18, color: AppColors.textTertiary),
+                  ],
+                ),
               ),
             ),
           ),

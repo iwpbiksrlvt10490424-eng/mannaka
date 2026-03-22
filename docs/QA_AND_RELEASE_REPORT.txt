@@ -1,0 +1,173 @@
+Aima (まんなか) — QA・リリース前チェック記録
+作成日: 2026-03-22 / バージョン: 1.0.0+1 / コミット: 012ba52
+
+==============================================================
+1. ユーザーからの指摘・改善要望（実装済み）
+==============================================================
+
+[UI・表示系]
+1.  「デフォルト時間帯」が分かりにくい → 「よく行くシーン」に変更
+2.  位置情報設定の下に説明文がほしい → 「現在地から最寄り駅を選択します」追加
+3.  ホームの「最近の検索」セクションが不要 → 削除
+4.  スプラッシュのサブタイトルを修正してほしい → 「集合場所になるお店を、すぐ見つけよう。」
+5.  検索ボタンを「Aimaを探す」に変更 → 変更 + 人アイコン追加
+6.  結果画面のタイトルを「Aimaのお店」に変更 → 変更
+7.  星マークをやめて「おすすめ」バッジにしてほしい → 評価4.0以上に「おすすめ」バッジ表示
+8.  「みんな均等」コンテナが不要 → 削除（_FairnessChipを完全除去）
+9.  予算アイコンが分かりにくい → アイコン変更
+10. バッジ背景が薄い → alpha 0.08→0.15、border 0.2→0.4 に変更
+11. 履歴のブックマークをタップしたら色が塗られて履歴タブへ移動してほしい → 実装済み
+12. 履歴の「最もフェア」文字が不要 → 削除
+13. お店の詳細を見たら自動で検索履歴に入れてほしい → 初回詳細表示時に自動保存
+
+[スコアリング・ロジック系]
+14. 予約できないお店は表示しないでほしい → isReservable=false を完全フィルター
+15. 真ん中の場所選定の公平性を80%くらいにしてほしい → 0.4*効率+0.6*公平 → 0.2*効率+0.8*公平 に変更
+16. お店ランキングは人気×確実に予約できるところで → 新スコアリングモデルを実装
+17. お店の写真が1枚しかない → Foursquare全写真取得 + Google Places写真補完を実装
+18. 履歴の検索履歴は詳細を見たときに入るようにしてほしい → 初回詳細タップ時に自動保存
+
+[お店スコアリングモデル（最終版）]
+  人気度（評価×レビュー数） ... 30%
+  アクセス公平性           ... 25%
+  女性人気                 ... 20%
+  重心距離                 ... 12%
+  個室あり                 ...  7%
+  インスタ映え             ...  4%
+  シーン適合               ...  2%
+
+[エリア選定モデル（最終版）]
+  overallScore = 0.2 × 効率性 + 0.8 × 公平性
+
+==============================================================
+2. QAテスト結果（2026-03-22 実施）
+==============================================================
+
+テスト総数: 159件 全通過
+
+[静的解析]
+  flutter analyze → No issues found
+
+[セキュリティテスト]
+  debugPrint に生例外 $e を含まない             → PASS（history_provider 3箇所修正）
+  APIキーがソースコードに直書きされていない       → PASS（secrets.dart 隔離・gitignore済み）
+  firebase_options.dart がgitignore済み         → PASS
+  非認証ユーザーが createSession() を呼べない    → PASS
+  Foursquare APIキーがテストファイルに露出しない  → PASS
+  SnackBarに内部エラー詳細を含まない             → PASS
+
+[アクセシビリティテスト]
+  「友達を追加」InkWell に Semantics(button:true) → PASS
+  ルート検索ボタンに Tooltip                      → PASS（今回追加）
+  予約ボタンに Tooltip                            → PASS（今回追加）
+  飲食記録機能がUI上に存在する                    → PASS
+
+[スコアリングロジックテスト]
+  scoreRestaurants のスコアが 0.0〜1.0 の範囲内  → PASS
+  participantDistances のキーに参加者IDが含まれる → PASS
+  空リスト入力で空リストが返る                    → PASS
+  calcCentroid が2点の中間点を返す                → PASS
+  calcCentroid が1参加者でnullを返す              → PASS
+
+[メモリリーク・dispose チェック]
+  SplashScreen      AnimationController              → OK
+  HomeScreen        DraggableScrollable+Map+Provider → OK
+  Mascot            _blinkCtrl + _wanderCtrl         → OK
+  ResultsScreen     TabController                    → OK
+  RestaurantDetail  WidgetsBindingObserver           → OK
+  GMapCard          GoogleMapController              → OK
+  SettingsScreen    TextEditingController            → OK
+  HistoryScreen     TabController                    → OK
+  OnboardingScreen  PageController                   → OK
+  MapInputScreen    MapController                    → OK
+  → メモリリークなし
+
+[ナビゲーションチェック]
+  /splash      → SplashScreen  → OK
+  /onboarding  → OnboardingScreen → OK（splash_screen.dartから使用）
+  /main        → MainScreen    → OK（splash_screen.dartから使用）
+  → 名前付きルートの不整合なし
+
+[修正したバグ一覧]
+  history_provider の debugPrint('...$e')        HIGH  → ${e.runtimeType}に変更（3箇所）
+  参加者ID重複（削除→追加でID衝突）              MEDIUM → 最大IDから+1する方式に変更
+  _autoSaved がタブごとで5回保存される            MEDIUM → セッション単位1回のみに修正
+  AccessibilityTest のテキスト不一致              LOW   → 「もう一人追加」→「友達を追加」に更新
+  midpoint_service_test のキー期待値誤り          LOW   → 名前→IDに修正（実装に合わせる）
+  CFBundleName が「mannaka」のまま                LOW   → 「Aima」に修正
+
+==============================================================
+3. データ永続性について
+==============================================================
+
+アプリにはログイン/ログアウト機能がなく、Firebase匿名認証を使用。
+
+[データが引き継がれる場合]
+  アプリを閉じて再起動      → OK（同じUID継続）
+  iPhoneを再起動して起動    → OK（同じUID継続）
+
+[データが引き継がれない場合]
+  アプリを削除して再インストール → NG（新しい匿名UIDが発行される）
+  別のiPhoneで使用              → NG（端末が違うと別UID）
+
+[保存先]
+  ニックネーム・ホーム駅・年代・オンボーディング完了 → SharedPreferences（端末内）
+  検索履歴・訪問記録                                 → Firebase Firestore（クラウド）
+
+[認証フロー（auth_provider.dart）]
+  1. アプリ起動 → Firebase.currentUser を確認
+  2. ログイン済み → 既存UIDを使用（データ継続）
+  3. 未ログイン  → signInAnonymously() で新規匿名UID取得
+  4. Firebase無効 → SharedPreferencesにdevice_uidを保存してフォールバック
+
+==============================================================
+4. App Store リリース残タスク（コード外）
+==============================================================
+
+[ブロッカー（提出前に必須）]
+  1. プライバシーポリシーをWebに公開（Notion or GitHub Pages）
+     Apple申請にはURLが必須。in-appの画面だけでは審査通過不可。
+
+  2. App Store URLのプレースホルダーを差し替え
+     settings_screen.dart 内の id0000000000 を
+     App Store Connect で取得した実際のApp IDに変更。
+
+  3. Google Maps APIキーをバンドルIDに制限
+     Google Cloud Console → 対象APIキー → アプリ制限
+     → バンドルID: jp.mannaka.mannaka を設定。
+
+  4. TestFlight 実機確認
+     GPS取得・Hotpepper検索・シェア機能を実機でテスト。
+
+[App Store Connect での作業]
+  アプリ説明文（日本語・4000字）
+  スクリーンショット（6.9インチ必須、6.7インチ推奨）
+  サブタイトル（30字以内）例: みんなが行きやすいお店を提案
+  キーワード（100字）例: グルメ,集合場所,居酒屋,ランチ,飲み会,幹事,まんなか,友達,レストラン
+  support@mannaka.app の受信確認
+  年齢制限アンケートの回答
+  カテゴリ設定: フード＆ドリンク（メイン）
+
+[対応済み]
+  Bundle ID: jp.mannaka.mannaka
+  CFBundleDisplayName: Aima
+  CFBundleName: Aima（今回修正）
+  権限説明文（日本語）: 位置情報・カメラ・写真ライブラリ
+  プライバシーポリシー画面（8条）・利用規約画面（10条） in-app
+  APIキー: secrets.dart 隔離・gitignore済み
+  flutter analyze: クリーン
+  flutter test: 159/159 全通過
+
+==============================================================
+5. 技術スタック
+==============================================================
+
+  Framework    Flutter / Dart 3.9.2
+  状態管理     Riverpod v2 (NotifierProvider)
+  バックエンド  Firebase Firestore（履歴・訪問記録）
+  認証         Firebase 匿名認証
+  地図         Flutter Map（ホーム）+ Google Maps（詳細）
+  グルメAPI    Hotpepper グルメAPI（メイン）+ Foursquare（補完）
+  写真         Hotpepper + Foursquare + Google Places Photos
+  永続化       SharedPreferences（設定・オンボーディング）
+  シェア       share_plus（ネイティブシェートシート）

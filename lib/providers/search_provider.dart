@@ -652,6 +652,28 @@ class SearchNotifier extends Notifier<SearchState> {
     );
   }
 
+  /// 検索履歴から結果を復元する。
+  /// 参加者名・集合地点・重心座標を復元し、お店データを再フェッチする。
+  Future<void> restoreFromHistoryPoint(
+    List<String> participantNames,
+    MeetingPoint meetingPoint,
+  ) async {
+    final (lat, lng) = kStationLatLng[meetingPoint.stationIndex];
+    final participants = participantNames.asMap().entries
+        .map((e) => Participant(id: '${e.key + 1}', name: e.value))
+        .toList();
+    state = state.copyWith(
+      participants: participants,
+      results: [meetingPoint],
+      selectedMeetingPoint: meetingPoint,
+      hasCalculated: true,
+      centroidLat: lat,
+      centroidLng: lng,
+      hotpepperRestaurants: const [],
+    );
+    await selectMeetingPointAndFetch(meetingPoint);
+  }
+
   Future<void> setParticipantsFromHistory(
     List<String> names, {
     List<String?> stations = const [],

@@ -25,6 +25,7 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
   TabController? _tab;
   int _tabCount = 0;
   bool _isSaved = false;
+  bool _autoSaved = false; // セッション単位で1回だけ自動保存
 
   void _rebuildTab(
       int count, List<MeetingPoint> results, SearchNotifier notifier) {
@@ -217,6 +218,15 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
                             point: point,
                             state: state,
                             notifier: notifier,
+                            onFirstDetailOpen: () {
+                              if (!_autoSaved) {
+                                _autoSaved = true;
+                                ref.read(historyProvider.notifier).add(
+                                  state.participants.map((p) => p.name).toList(),
+                                  point,
+                                );
+                              }
+                            },
                           );
                         }).toList(),
                       ),
@@ -235,10 +245,12 @@ class _MeetingPointTab extends ConsumerStatefulWidget {
     required this.point,
     required this.state,
     required this.notifier,
+    required this.onFirstDetailOpen,
   });
   final MeetingPoint point;
   final SearchState state;
   final SearchNotifier notifier;
+  final VoidCallback onFirstDetailOpen; // セッション単位の自動保存コールバック
 
   @override
   ConsumerState<_MeetingPointTab> createState() => _MeetingPointTabState();
@@ -246,13 +258,12 @@ class _MeetingPointTab extends ConsumerStatefulWidget {
 
 class _MeetingPointTabState extends ConsumerState<_MeetingPointTab> {
   String? _selectedCategory;
-  bool _autoSaved = false;
 
   // Score cache — invalidated when base list or participants change
   List<ScoredRestaurant>? _cachedScored;
   int? _cachedBaseHash;
 
-  List<Restaurant> get _restaurants {
+  List<ScoredRestaurant> get _scoredRestaurants {
     final state = widget.state;
     final idx = widget.point.stationIndex;
 
@@ -271,6 +282,7 @@ class _MeetingPointTabState extends ConsumerState<_MeetingPointTab> {
       final baseHash = Object.hashAll([
         base.length,
         ...state.participants.map((p) => '${p.id}${p.lat}${p.lng}'),
+        state.occasion.index,
       ]);
       if (_cachedScored == null || _cachedBaseHash != baseHash) {
         _cachedScored = MidpointService.scoreRestaurants(
@@ -278,25 +290,31 @@ class _MeetingPointTabState extends ConsumerState<_MeetingPointTab> {
           centroidLat: state.centroidLat!,
           centroidLng: state.centroidLng!,
           baseRestaurants: base,
+          occasion: state.occasion != Occasion.none ? state.occasion.label : null,
         );
         _cachedBaseHash = baseHash;
       }
-      final filtered = _selectedCategory == null
-          ? _cachedScored!
-          : _cachedScored!
-              .where((s) => s.restaurant.category == _selectedCategory)
-              .toList();
-      return filtered.map((s) => s.restaurant).toList();
+      if (_selectedCategory == null) return _cachedScored!;
+      return _cachedScored!
+          .where((s) => s.restaurant.category == _selectedCategory)
+          .toList();
     }
 
     // centroid なしのフォールバック（通常は発生しない）
+    var filtered = base.where((r) => r.isReservable).toList();
     if (_selectedCategory != null) {
-      base = base.where((r) => r.category == _selectedCategory).toList();
+      filtered = filtered.where((r) => r.category == _selectedCategory).toList();
     }
-    return [...base]..sort((a, b) {
-        if (a.isReservable != b.isReservable) return a.isReservable ? -1 : 1;
-        return b.rating.compareTo(a.rating);
-      });
+    filtered.sort((a, b) => b.rating.compareTo(a.rating));
+    return filtered
+        .map((r) => ScoredRestaurant(
+              restaurant: r,
+              score: 0,
+              distanceKm: 0,
+              participantDistances: {},
+              fairnessScore: 0,
+            ))
+        .toList();
   }
 
   bool get _isLoading {
@@ -311,7 +329,7 @@ class _MeetingPointTabState extends ConsumerState<_MeetingPointTab> {
   @override
   Widget build(BuildContext context) {
     final point = widget.point;
-    final restaurants = _restaurants;
+    final scored = _scoredRestaurants;
     final categories = MidpointService.getAllCategories();
 
     return Column(
@@ -399,7 +417,7 @@ class _MeetingPointTabState extends ConsumerState<_MeetingPointTab> {
         Expanded(
           child: _isLoading
               ? const _SkeletonTab()
-              : restaurants.isEmpty
+              : scored.isEmpty
                   ? _EmptyState(
                       onReset: () => setState(() => _selectedCategory = null))
                   : Stack(
@@ -407,34 +425,26 @@ class _MeetingPointTabState extends ConsumerState<_MeetingPointTab> {
                         ListView.builder(
                           padding:
                               const EdgeInsets.only(top: 12, bottom: 32),
-                          itemCount: restaurants.length,
+                          itemCount: scored.length,
                           itemBuilder: (ctx, i) {
-                            final r = restaurants[i];
+                            final s = scored[i];
                             void openDetail() {
-                              if (!_autoSaved) {
-                                _autoSaved = true;
-                                ref.read(historyProvider.notifier).add(
-                                  widget.state.participants
-                                      .map((p) => p.name)
-                                      .toList(),
-                                  widget.point,
-                                );
-                              }
+                              widget.onFirstDetailOpen();
                               Navigator.of(context).push(
                                 MaterialPageRoute(
                                   builder: (_) =>
-                                      RestaurantDetailScreen(restaurant: r),
+                                      RestaurantDetailScreen(restaurant: s.restaurant),
                                 ),
                               );
                             }
 
                             return i == 0
                                 ? _HeroCard(
-                                    restaurant: r,
+                                    scored: s,
                                     onTap: openDetail,
                                   )
                                 : _CompactCard(
-                                    restaurant: r,
+                                    scored: s,
                                     rank: i + 1,
                                     onTap: openDetail,
                                   );
@@ -469,13 +479,13 @@ class _MeetingPointTabState extends ConsumerState<_MeetingPointTab> {
 // ─── ヒーローカード（1位） ────────────────────────────────────────────────────
 
 class _HeroCard extends StatelessWidget {
-  const _HeroCard({required this.restaurant, required this.onTap});
-  final Restaurant restaurant;
+  const _HeroCard({required this.scored, required this.onTap});
+  final ScoredRestaurant scored;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final r = restaurant;
+    final r = scored.restaurant;
     final catBg = AppColors.getCategoryBg(r.category);
 
     return GestureDetector(
@@ -524,40 +534,61 @@ class _HeroCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // おすすめラベル
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: r.isReservable
-                          ? AppColors.primaryLight
-                          : Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          r.isReservable
-                              ? Icons.check_circle_outline_rounded
-                              : Icons.emoji_events_rounded,
-                          size: 12,
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
                           color: r.isReservable
-                              ? AppColors.success
-                              : AppColors.primary,
+                              ? AppColors.primaryLight
+                              : Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(6),
                         ),
-                        const SizedBox(width: 4),
-                        Text(
-                          r.isReservable ? '予約可能 · No.1' : 'おすすめ No.1',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: r.isReservable
-                                ? AppColors.success
-                                : AppColors.primary,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              r.isReservable
+                                  ? Icons.check_circle_outline_rounded
+                                  : Icons.emoji_events_rounded,
+                              size: 12,
+                              color: r.isReservable
+                                  ? AppColors.success
+                                  : AppColors.primary,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              r.isReservable ? '予約可能 · No.1' : 'おすすめ No.1',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: r.isReservable
+                                    ? AppColors.success
+                                    : AppColors.primary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (scored.curationLabel.isNotEmpty) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            scored.curationLabel,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textSecondary,
+                            ),
                           ),
                         ),
                       ],
-                    ),
+                    ],
                   ),
                   const SizedBox(height: 10),
                   // 店名
@@ -646,14 +677,14 @@ Widget _imageFallback(Color bg, double iconSize) => Container(
 
 class _CompactCard extends StatelessWidget {
   const _CompactCard(
-      {required this.restaurant, required this.rank, required this.onTap});
-  final Restaurant restaurant;
+      {required this.scored, required this.rank, required this.onTap});
+  final ScoredRestaurant scored;
   final int rank;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final r = restaurant;
+    final r = scored.restaurant;
     final catBg = AppColors.getCategoryBg(r.category);
 
     return GestureDetector(
@@ -765,6 +796,10 @@ class _CompactCard extends StatelessWidget {
                       if (r.isFemalePopular) ...[
                         const SizedBox(width: 4),
                         _SmallBadge('女性人気', AppColors.primary),
+                      ],
+                      if (scored.curationLabel.isNotEmpty &&
+                          !r.isReservable && !r.hasPrivateRoom && !r.isFemalePopular) ...[
+                        _SmallBadge(scored.curationLabel, AppColors.textSecondary),
                       ],
                     ],
                   ),

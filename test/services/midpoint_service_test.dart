@@ -77,7 +77,7 @@ void main() {
       ];
       final results = MidpointService.calculate(participants);
       for (final r in results) {
-        expect(r.participantTimes.keys, containsAll(['Alice', 'Bob']));
+        expect(r.participantTimes.keys, containsAll(['1', '2']));
       }
     });
   });
@@ -233,7 +233,7 @@ void main() {
         baseRestaurants: testRestaurants,
       );
       for (final r in results) {
-        expect(r.participantDistances.keys, containsAll(['Alice', 'Bob']));
+        expect(r.participantDistances.keys, containsAll(['1', '2']));
       }
     });
 

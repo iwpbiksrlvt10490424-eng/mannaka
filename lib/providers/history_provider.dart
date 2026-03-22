@@ -53,7 +53,7 @@ class HistoryNotifier extends Notifier<List<HistoryEntry>> {
           .map((d) => HistoryEntry.fromJson(d.data()))
           .toList();
     } catch (e) {
-      debugPrint('HistoryNotifier: _load failed - $e');
+      debugPrint('HistoryNotifier: _load failed - ${e.runtimeType}');
     }
   }
 
@@ -72,7 +72,7 @@ class HistoryNotifier extends Notifier<List<HistoryEntry>> {
           .set(entry.toJson());
       state = [entry, ...state];
     } catch (e) {
-      debugPrint('HistoryNotifier: add failed - $e');
+      debugPrint('HistoryNotifier: add failed - ${e.runtimeType}');
     }
   }
 
@@ -85,7 +85,7 @@ class HistoryNotifier extends Notifier<List<HistoryEntry>> {
           .delete();
       state = state.where((e) => e.id != id).toList();
     } catch (e) {
-      debugPrint('HistoryNotifier: remove failed - $e');
+      debugPrint('HistoryNotifier: remove failed - ${e.runtimeType}');
     }
   }
 }

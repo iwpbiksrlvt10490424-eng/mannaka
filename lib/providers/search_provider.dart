@@ -195,6 +195,7 @@ class SearchState {
       hasPrivateRoom: _effectivePrivate,
       timeSlot: _effectiveTimeSlot,
       maxBudget: maxBudget,
+      occasion: occasion != Occasion.none ? occasion.label : null,
     );
   }
 
@@ -312,11 +313,16 @@ class SearchNotifier extends Notifier<SearchState> {
   }
 
   void addParticipant() {
-    final count = state.participants.length + 1;
+    // IDは現在の最大IDより1大きい値を使用（削除後の重複を防ぐ）
+    final maxId = state.participants
+        .map((p) => int.tryParse(p.id) ?? 0)
+        .fold(0, (a, b) => a > b ? a : b);
+    final newId = maxId + 1;
     final names = ['友達A', '友達B', '友達C', '友達D', '友達E'];
+    final count = state.participants.length + 1;
     final name = count <= names.length ? names[count - 1] : '参加者$count';
     state = state.copyWith(
-      participants: [...state.participants, Participant(id: '$count', name: name)],
+      participants: [...state.participants, Participant(id: '$newId', name: name)],
     );
   }
 

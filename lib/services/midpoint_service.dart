@@ -74,7 +74,7 @@ class MidpointService {
           : (maxTotal - r.totalMinutes) / (maxTotal - minTotal);
       final fairScore =
           maxStd == minStd ? 1.0 : (maxStd - r.stdDev) / (maxStd - minStd);
-      final overall = 0.4 * effScore + 0.6 * fairScore;
+      final overall = 0.2 * effScore + 0.8 * fairScore;
 
       return MeetingPoint(
         stationIndex: r.stationIndex,
@@ -161,6 +161,7 @@ class MidpointService {
     bool hasPrivateRoom = false,
     TimeSlot timeSlot = TimeSlot.all,
     int maxBudget = 0,
+    String? occasion,
   }) {
     final active = participants.where((p) => p.hasLocation).toList();
     if (active.isEmpty) return [];
@@ -184,6 +185,9 @@ class MidpointService {
     } else if (timeSlot == TimeSlot.dinner) {
       restaurants = restaurants.where((r) => r.isDinnerAvailable).toList();
     }
+
+    // 予約できるお店のみ表示
+    restaurants = restaurants.where((r) => r.isReservable).toList();
 
     if (restaurants.isEmpty) return [];
 
@@ -221,18 +225,54 @@ class MidpointService {
     final minStd = intermediates.map((s) => s.stdDev).reduce(min);
 
     final scored = intermediates.map((s) {
+      final r = s.restaurant;
       final distScore = maxDist == minDist
           ? 1.0
           : (maxDist - s.distFromCentroid) / (maxDist - minDist);
       final fairScore =
           maxStd == minStd ? 1.0 : (maxStd - s.stdDev) / (maxStd - minStd);
-      final ratingScore = ((s.restaurant.rating - 3.0) / 2.0).clamp(0.0, 1.0);
-      // 予約可否を最重要因子に（25%）
-      final reservationScore = s.restaurant.isReservable ? 1.0 : 0.0;
-      final overall = 0.30 * distScore +
-          0.30 * fairScore +
-          0.15 * ratingScore +
-          0.25 * reservationScore;
+
+      // 信頼度スコア: 評価 × レビュー数補正（300件で満点）
+      final normalizedRating = ((r.rating - 3.0) / 2.0).clamp(0.0, 1.0);
+      final reviewBoost = (r.reviewCount / 300).clamp(0.0, 1.0);
+      final trustScore = normalizedRating * (0.5 + 0.5 * reviewBoost);
+
+      // フォトジェニック: 写真3枚以上 or カフェ or インスタ映えタグ
+      final photogenicScore = (r.imageUrls.length >= 3 ||
+              r.category == 'カフェ' ||
+              r.tags.any((t) => t.contains('インスタ') || t.contains('映え')))
+          ? 1.0
+          : 0.0;
+
+      // シーン適合度
+      final occasionScore = r.occasionTags.isEmpty
+          ? 0.5
+          : (occasion != null &&
+                  r.occasionTags.any((t) =>
+                      t.contains(occasion) || occasion.contains(t)))
+              ? 1.0
+              : 0.3;
+
+      // 人気×公平性を重視したスコアリング（全店予約可前提）
+      final femaleScore = r.isFemalePopular ? 1.0 : 0.0;
+      final privateScore = r.hasPrivateRoom ? 1.0 : 0.0;
+
+      final overall = 0.30 * trustScore +     // 人気度（評価×レビュー数）
+          0.25 * fairScore +                   // アクセス公平性
+          0.20 * femaleScore +                 // 女性人気
+          0.12 * distScore +                   // 重心距離
+          0.07 * privateScore +                // 個室
+          0.04 * photogenicScore +             // インスタ映え
+          0.02 * occasionScore;                // シーン適合
+
+      // キュレーションラベル（選定理由を最大2つ）
+      final reasons = <String>[];
+      if (r.isFemalePopular) reasons.add('女性人気');
+      if (r.hasPrivateRoom) reasons.add('個室あり');
+      if (photogenicScore > 0) reasons.add('インスタ映え');
+      if (fairScore >= 0.85) reasons.add('みんな近い');
+      if (trustScore >= 0.6 && reasons.isEmpty) reasons.add('高評価');
+      final curationLabel = reasons.take(2).join(' · ');
 
       return ScoredRestaurant(
         restaurant: s.restaurant,
@@ -240,6 +280,7 @@ class MidpointService {
         distanceKm: s.distFromCentroid,
         participantDistances: s.participantDistances,
         fairnessScore: fairScore,
+        curationLabel: curationLabel,
       );
     }).toList();
 

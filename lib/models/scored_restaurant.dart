@@ -9,6 +9,7 @@ class ScoredRestaurant {
     required this.distanceKm,
     required this.participantDistances,
     required this.fairnessScore,
+    this.curationLabel = '',
   });
 
   final Restaurant restaurant;
@@ -16,6 +17,7 @@ class ScoredRestaurant {
   final double distanceKm;    // 重心からの直線距離 (km)
   final Map<String, double> participantDistances; // 参加者名 → 距離(km)
   final double fairnessScore; // 公平性スコア 0-1
+  final String curationLabel; // おすすめ理由ラベル（例: "予約OK · 女性人気"）
 
   String get distanceLabel {
     if (distanceKm < 1) return '${(distanceKm * 1000).round()}m';

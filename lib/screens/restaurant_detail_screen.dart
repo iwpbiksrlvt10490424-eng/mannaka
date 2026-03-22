@@ -567,7 +567,9 @@ class _RouteButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
+    return Tooltip(
+      message: 'Googleマップでルート検索',
+      child: SizedBox(
       width: double.infinity,
       height: 48,
       child: OutlinedButton.icon(
@@ -588,6 +590,7 @@ class _RouteButton extends StatelessWidget {
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       ),
+    ),
     );
   }
 }
@@ -600,20 +603,23 @@ class _ReserveButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: 52,
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primary,
-          foregroundColor: Colors.white,
-          elevation: 0,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+    return Tooltip(
+      message: '予約する',
+      child: SizedBox(
+        width: double.infinity,
+        height: 52,
+        child: ElevatedButton(
+          onPressed: onPressed,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.primary,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          ),
+          child: const Text('予約する',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
         ),
-        child: const Text('予約する',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
       ),
     );
   }

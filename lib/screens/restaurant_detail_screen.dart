@@ -248,7 +248,7 @@ class _RestaurantDetailScreenState extends ConsumerState<RestaurantDetailScreen>
               );
               _onShared(entry);
               WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted) _showLineShare();
+                if (mounted) _showLineShare(alreadySaved: true);
               });
             },
             style: ElevatedButton.styleFrom(
@@ -279,7 +279,7 @@ class _RestaurantDetailScreenState extends ConsumerState<RestaurantDetailScreen>
     }
   }
 
-  void _showLineShare() {
+  void _showLineShare({bool alreadySaved = false}) {
     if (!mounted) return;
     showModalBottomSheet(
       context: context,
@@ -287,7 +287,7 @@ class _RestaurantDetailScreenState extends ConsumerState<RestaurantDetailScreen>
       backgroundColor: Colors.transparent,
       builder: (_) => _LineShareSheet(
         restaurant: widget.restaurant,
-        onShared: _onShared,
+        onShared: alreadySaved ? null : _onShared,
       ),
     );
   }
@@ -705,7 +705,7 @@ class _LineShareSheet extends StatelessWidget {
     required this.onShared,
   });
   final Restaurant restaurant;
-  final void Function(ReservedRestaurant) onShared;
+  final void Function(ReservedRestaurant)? onShared;
 
   Future<void> _shareLine(BuildContext context) async {
     final r = restaurant;
@@ -746,7 +746,7 @@ class _LineShareSheet extends StatelessWidget {
     final r = restaurant;
     final station =
         r.lat != null && r.lng != null ? _nearestStationName(r.lat!, r.lng!) : '';
-    onShared(_buildEntry(r, station));
+    onShared?.call(_buildEntry(r, station));
     Navigator.pop(context);
   }
 

@@ -130,7 +130,7 @@ class _ReservedCard extends ConsumerWidget {
   void _markAsVisited(BuildContext context, WidgetRef ref) {
     HapticFeedback.mediumImpact();
     final visited = VisitedRestaurant(
-      id: '${entry.id}_visited_${DateTime.now().millisecondsSinceEpoch}',
+      id: 'visited_${entry.id}',
       restaurantName: entry.restaurantName,
       category: entry.category,
       visitedAt: DateTime.now(),

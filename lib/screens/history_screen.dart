@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../models/visited_restaurant.dart';
 import '../providers/history_provider.dart';
 import '../providers/nav_provider.dart';
@@ -402,12 +401,20 @@ class _VisitedCard extends StatelessWidget {
             ),
             if (entry.groupNames.isNotEmpty) ...[
               const SizedBox(height: 6),
-              Text(entry.groupNames.join('、'),
-                  style:
-                      TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+              RichText(
+                text: TextSpan(
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                  children: [
+                    const TextSpan(
+                        text: 'グループ：',
+                        style: TextStyle(fontWeight: FontWeight.w600)),
+                    TextSpan(text: entry.groupNames.join('、')),
+                  ],
+                ),
+              ),
             ],
             if (entry.nearestStation.isNotEmpty) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Row(
                 children: [
                   Icon(Icons.train_rounded,
@@ -417,30 +424,6 @@ class _VisitedCard extends StatelessWidget {
                       style: TextStyle(
                           fontSize: 12, color: Colors.grey.shade600)),
                 ],
-              ),
-            ],
-            if (entry.lat != null && entry.lng != null) ...[
-              const SizedBox(height: 10),
-              OutlinedButton.icon(
-                onPressed: () async {
-                  final uri = Uri.parse(
-                      'https://maps.google.com/maps?daddr=${entry.lat},${entry.lng}');
-                  if (await canLaunchUrl(uri)) {
-                    await launchUrl(uri,
-                        mode: LaunchMode.externalApplication);
-                  }
-                },
-                icon: const Icon(Icons.directions_rounded, size: 14),
-                label: const Text('道順', style: TextStyle(fontSize: 12)),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFF1A73E8),
-                  side: const BorderSide(color: Color(0xFF1A73E8), width: 1),
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8)),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
               ),
             ],
           ],

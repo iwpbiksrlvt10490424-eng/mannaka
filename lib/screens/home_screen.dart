@@ -360,7 +360,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    // タイトル（固定 — スクロールに連動しない）
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(20, 10, 20, 0),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          '集まりやすいお店、見つけよう',
+                          style: TextStyle(
+                            fontSize: 19,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.textPrimary,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                      ),
+                    ),
                     Expanded(child: CustomScrollView(
                   controller: scrollCtrl,
                   physics: const ClampingScrollPhysics(),
@@ -376,16 +391,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               crossAxisAlignment:
                                   CrossAxisAlignment.start,
                               children: [
-                                const Text(
-                                  '集まりやすいお店、見つけよう',
-                                  style: TextStyle(
-                                    fontSize: 19,
-                                    fontWeight: FontWeight.w800,
-                                    color: AppColors.textPrimary,
-                                    letterSpacing: -0.5,
-                                  ),
-                                ),
-                                const SizedBox(height: 10),
+                                const SizedBox(height: 4),
                                 // ─── メインCTA ─────────────────────
                                 Semantics(
                                   label: 'Aimaを探す',

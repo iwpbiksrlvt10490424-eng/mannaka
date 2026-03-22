@@ -11,7 +11,12 @@
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>集合場所を計算するために現在地を使用します。</string>
 	<key>CFBundleDevelopmentRegion</key>
-	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<string>ja</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>ja</string>
+		<string>en</string>
+	</array>
 	<key>CFBundleDisplayName</key>
 	<string>Aima</string>
 	<key>CFBundleExecutable</key>

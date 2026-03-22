@@ -144,8 +144,7 @@ class _StationSearchSheetState extends State<StationSearchSheet> {
     final hasQuery = _query.isNotEmpty;
 
     return Container(
-      height: MediaQuery.of(context).size.height * 0.82 -
-          MediaQuery.of(context).viewInsets.bottom,
+      height: MediaQuery.of(context).size.height * 0.88,
       decoration: const BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -174,7 +173,7 @@ class _StationSearchSheetState extends State<StationSearchSheet> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: TextField(
-              autofocus: false,
+              autofocus: true,
               decoration: InputDecoration(
                 hintText: '駅名を入力（例: 代官山、学芸大学、吉祥寺）',
                 prefixIcon: const Icon(Icons.search,

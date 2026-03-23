@@ -51,3 +51,5 @@ app.*.map.json
 # Claude Code worktrees and internal directories
 .claude/worktrees/
 .claire/
+.claude/
+CLAUDE.md

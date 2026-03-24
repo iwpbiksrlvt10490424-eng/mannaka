@@ -36,7 +36,7 @@ class RestaurantCacheService {
           .map((e) => Restaurant.fromJson(e as Map<String, dynamic>))
           .toList();
     } catch (e) {
-      debugPrint('RestaurantCacheService.get: $e');
+      debugPrint('RestaurantCacheService.get: ${e.runtimeType}');
       return null;
     }
   }
@@ -52,7 +52,7 @@ class RestaurantCacheService {
           })
           .timeout(_writeTimeout);
     } catch (e) {
-      debugPrint('RestaurantCacheService.set: $e');
+      debugPrint('RestaurantCacheService.set: ${e.runtimeType}');
     }
   }
 }

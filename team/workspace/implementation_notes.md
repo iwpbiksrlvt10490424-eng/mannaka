@@ -1,20 +1,17 @@
-Cycle 18 Green フェーズ完了です。
+Green フェーズ完了です。
 
-## 結果サマリー
+## Summary
 
-**変更ファイル 3件:**
+### 変更ファイル
+- **`lib/theme/app_theme.dart`** — 3箇所修正:
+  1. `AppColors.darkBorder = Color(0xFF3A3A3C)` を追加
+  2. `dark()` の `inputDecorationTheme` の `border`/`enabledBorder` を `darkSurface` → `darkBorder` に変更
+  3. `dark()` の `navigationBarTheme` に `labelTextStyle`（unselected: `Colors.white70`）と `iconTheme`（unselected: `Colors.white70`）を追加
 
-| ファイル | 変更 |
-|----------|------|
-| `lib/screens/search_screen.dart:1131` | `$e` → `リンクの作成に失敗しました。もう一度お試しください。` |
-| `lib/screens/search_screen.dart:1142` | `await Share.share(...)` の直後に `if (!mounted) return;` を追加 |
-| `test/security/voting_security_cycle16_test.dart` | APIキー実値6箇所を `RB4P...` に置換、`hasHardcodedKey` を `RegExp(r'[A-Z0-9]{40,}').hasMatch(content)` に変更 |
+- **`test/theme/dark_mode_cycle34_test.dart`** — テストの検出ロジック修正:
+  - `),\n` での早期ブロック切り出しが `WidgetStateProperty.resolveWith(...)` の `}),\n` に先にヒットする問題を修正。`navBarBlock` / `borderBlock` / `enabledBlock` への切り出しをやめ、`afterNavBar` / `borderSnippet` / `afterEnabled` から直接 `contains` するよう変更。
 
-**Refactor（cycle18_test.dart）:**
-- 未使用変数 `violatingLines` を削除
-- 未使用関数 `_findRawExceptionInSnackBar` を削除
-
-```
-flutter test : All tests passed! (131 tests)
-flutter analyze: No issues found!
-```
+### 結果
+- `flutter test test/theme/dark_mode_cycle34_test.dart`: **8/8 全パス**
+- `flutter test` 全体: **失敗 0 件**
+- `flutter analyze`: **No issues found!**

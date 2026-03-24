@@ -23,7 +23,7 @@ class VisitedRestaurantsNotifier extends Notifier<List<VisitedRestaurant>> {
           .map((d) => VisitedRestaurant.fromJson(d.data()))
           .toList();
     } catch (e) {
-      debugPrint('VisitedRestaurantsNotifier: _load failed - $e');
+      debugPrint('VisitedRestaurantsNotifier: _load failed - ${e.runtimeType}');
     }
   }
 
@@ -37,7 +37,7 @@ class VisitedRestaurantsNotifier extends Notifier<List<VisitedRestaurant>> {
           .set(entry.toJson());
       state = [entry, ...state];
     } catch (e) {
-      debugPrint('VisitedRestaurantsNotifier: add failed - $e');
+      debugPrint('VisitedRestaurantsNotifier: add failed - ${e.runtimeType}');
     }
   }
 
@@ -50,7 +50,7 @@ class VisitedRestaurantsNotifier extends Notifier<List<VisitedRestaurant>> {
           .delete();
       state = state.where((e) => e.id != id).toList();
     } catch (e) {
-      debugPrint('VisitedRestaurantsNotifier: remove failed - $e');
+      debugPrint('VisitedRestaurantsNotifier: remove failed - ${e.runtimeType}');
     }
   }
 }

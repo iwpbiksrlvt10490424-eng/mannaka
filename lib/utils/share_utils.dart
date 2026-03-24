@@ -37,6 +37,7 @@ class ShareUtils {
     sb.writeln('【場所】${r.name}');
     sb.writeln('【カテゴリ】${r.category}');
     if (r.priceAvg > 0) sb.writeln('【予算】${r.priceStr}');
+    if (r.rating >= 3.0) sb.writeln('【評価】★${r.ratingStr}');
     if (timeParts.isNotEmpty) {
       sb.writeln('');
       sb.writeln('全員の移動時間：');
@@ -46,15 +47,15 @@ class ShareUtils {
     sb.writeln('');
     sb.writeln('Aimaアプリで見つけたよ✨');
     sb.writeln('グループでちょうどいいお店を自動提案！');
-    sb.writeln('▶ App Store: https://apps.apple.com/jp/app/mannaka');
+    // TODO(release): App Store公開後に実際のApp IDに置き換える
+    // sb.writeln('▶ App Store: https://apps.apple.com/jp/app/aima/id<実際のID>');
 
     if (includeBackup && top3.length > 1) {
       sb.writeln('');
       sb.writeln('【代替案】');
       for (int i = 1; i < top3.length && i <= 2; i++) {
         final alt = top3[i].restaurant;
-        final label = i == 1 ? '代替案①' : '代替案②';
-        sb.writeln('$label ${alt.name}（${alt.category} / ${alt.priceStr}）');
+        sb.writeln('→ ${alt.name}（${alt.category} / ${alt.priceStr}）');
       }
     }
 
@@ -115,19 +116,34 @@ class ShareUtils {
         ? topRestaurants.first.restaurant.name
         : '${point.stationName}駅周辺のお店';
 
+    final maxSummary = point.participantTimes.length > 1
+        ? '最大${point.maxMinutes}分でアクセス可能\n'
+        : '';
+
     return '🍽️ 【$topName】に決まったよ！\n\n'
         '📍 ${point.stationName}駅周辺\n'
+        '$maxSummary'
         '移動時間：$participantLines\n\n'
         '他のおすすめ\n$restaurantLines\n\n'
-        '▶ Aima — グループでちょうどいいお店を自動提案するアプリ\nhttps://apps.apple.com/jp/app/mannaka\n\n'
+        // TODO(release): App Store公開後に実際のApp IDに置き換える
+        // '▶ Aima — グループでちょうどいいお店を自動提案するアプリ\nhttps://apps.apple.com/jp/app/aima/id<実際のID>\n\n'
+        '▶ Aima — グループでちょうどいいお店を自動提案するアプリ\n\n'
         '#Aima #女子会 #グルメ';
   }
 
   /// ネイティブ共有シートを開く
-  static Future<void> share(BuildContext context, SearchState state) async {
+  static Future<void> share(
+    BuildContext context,
+    SearchState state, {
+    Rect? sharePositionOrigin,
+  }) async {
     final text = buildMeetingPointText(state);
     if (text.isEmpty) return;
-    await Share.share(text, subject: 'Aimaで集合場所を見つけました！');
+    await Share.share(
+      text,
+      subject: 'Aimaで集合場所を見つけました！',
+      sharePositionOrigin: sharePositionOrigin,
+    );
   }
 
   /// LINEアプリで直接共有

@@ -7,6 +7,7 @@ import '../models/restaurant.dart';
 import '../models/scored_restaurant.dart';
 import '../providers/search_provider.dart';
 import '../utils/geo_utils.dart';
+import 'transit_router.dart';
 
 class MidpointService {
   /// 駅間の移動時間（分）を返す。
@@ -16,10 +17,8 @@ class MidpointService {
     if (fromIdx < kTransitMatrix.length && toIdx < kTransitMatrix.length) {
       return kTransitMatrix[fromIdx][toIdx];
     }
-    final from = kStationLatLng[fromIdx];
-    final to = kStationLatLng[toIdx];
-    final distKm = GeoUtils.distKm(from.$1, from.$2, to.$1, to.$2);
-    return max(5, (distKm / 25.0 * 60).round());
+    // Dijkstra-based routing for stations outside the pre-computed matrix
+    return TransitRouter.instance.travelMinutes(fromIdx, toIdx);
   }
 
   static List<MeetingPoint> calculate(List<Participant> participants) {
@@ -28,8 +27,8 @@ class MidpointService {
 
     final results = <MeetingPoint>[];
 
-    // 集合場所の候補はkTransitMatrix範囲内の駅のみ（表示用の35駅）
-    for (int c = 0; c < kTransitMatrix.length; c++) {
+    // 集合場所の候補は全59駅（Dijkstraルーターで全駅に対応）
+    for (int c = 0; c < kStations.length; c++) {
       final times = <String, int>{};
       for (final p in active) {
         times[p.id] = _transitTime(p.stationIndex!, c);
@@ -63,18 +62,26 @@ class MidpointService {
     if (results.isEmpty) return [];
 
     // Normalize scores
+    // Uber Eats式: 合計移動時間50% + 最遅到着者の時間30% + 分散（公平性）20%
     final minTotal = results.map((r) => r.totalMinutes).reduce(min);
     final maxTotal = results.map((r) => r.totalMinutes).reduce(max);
+    final minMax = results.map((r) => r.maxMinutes).reduce(min);
+    final maxMax = results.map((r) => r.maxMinutes).reduce(max);
     final minStd = results.map((r) => r.stdDev).reduce(min);
     final maxStd = results.map((r) => r.stdDev).reduce(max);
 
     final scored = results.map((r) {
+      // 合計移動時間最小化（全体効率 = Uber Eatsの総ETA最小と同義）
       final effScore = maxTotal == minTotal
           ? 1.0
           : (maxTotal - r.totalMinutes) / (maxTotal - minTotal);
+      // 最遅到着者の時間最小化（誰かだけが極端に遠くならないようにする）
+      final maxTimeScore =
+          maxMax == minMax ? 1.0 : (maxMax - r.maxMinutes) / (maxMax - minMax);
+      // 分散最小化（公平性ペナルティ: 偏りを少しならす）
       final fairScore =
           maxStd == minStd ? 1.0 : (maxStd - r.stdDev) / (maxStd - minStd);
-      final overall = 0.2 * effScore + 0.8 * fairScore;
+      final overall = 0.50 * effScore + 0.30 * maxTimeScore + 0.20 * fairScore;
 
       return MeetingPoint(
         stationIndex: r.stationIndex,
@@ -140,8 +147,19 @@ class MidpointService {
     return kRestaurants.map((r) => r.category).toSet().toList()..sort();
   }
 
-  /// 重心（centroid）を計算して返す
-  static (double lat, double lng)? calcCentroid(List<Participant> participants) {
+  /// 交通最適な集合地点の座標を返す（Uber Eats式: 合計移動時間最小化）
+  /// meetingPoints が渡された場合は最上位駅の座標を使用する。
+  /// 渡されない場合は地理的重心にフォールバックする。
+  static (double lat, double lng)? calcCentroid(
+    List<Participant> participants, {
+    List<MeetingPoint>? meetingPoints,
+  }) {
+    // 交通最適駅がある場合はその座標を集合地点として使用
+    if (meetingPoints != null && meetingPoints.isNotEmpty) {
+      final coords = kStationLatLng[meetingPoints.first.stationIndex];
+      return (coords.$1, coords.$2);
+    }
+    // フォールバック: 地理的重心（駅情報がない場合）
     final active = participants.where((p) => p.hasLocation).toList();
     if (active.length < 2) return null;
     final lat = active.map((p) => p.lat!).reduce((a, b) => a + b) / active.length;
@@ -149,8 +167,14 @@ class MidpointService {
     return (lat, lng);
   }
 
-  /// 重心ベースでレストランをスコアリングして返す
-  /// [baseRestaurants] が null の場合はモックデータ(kRestaurants)を使用
+  /// 4軸スコアリングでレストランを評価・ランク付けして返す
+  ///
+  /// 軸1 accessScore    集合しやすさ   : 駅からの徒歩時間
+  /// 軸2 conditionScore 条件一致       : ジャンル・予算・シーン適合
+  /// 軸3 qualityScore   品質           : 評価・写真・コース等のシグナル
+  /// 軸4 usabilityScore 利用しやすさ   : 予約可否・個室・禁煙等
+  ///
+  /// 日付指定時は予約可能な店舗のみを対象とする。
   static List<ScoredRestaurant> scoreRestaurants({
     required List<Participant> participants,
     required double centroidLat,
@@ -163,24 +187,23 @@ class MidpointService {
     int maxBudget = 0,
     String? occasion,
     String? groupRelation,
+    DateTime? selectedDate,
   }) {
     final active = participants.where((p) => p.hasLocation).toList();
     if (active.isEmpty) return [];
 
     var restaurants = (baseRestaurants ?? kRestaurants).toList();
 
-    // ハードフィルタ（ユーザーが明示的に指定した条件のみ）
+    // ── ハードフィルタ ──────────────────────────────────────────────────────
     if (categories != null && categories.isNotEmpty) {
       restaurants = restaurants.where((r) => categories.contains(r.category)).toList();
     }
     if (maxBudget > 0) {
       restaurants = restaurants.where((r) => r.priceAvg == 0 || r.priceAvg <= maxBudget).toList();
     } else if (maxBudget < 0) {
-      // ¥10,000以上（センチネル値 -10000）
       final minB = maxBudget.abs();
       restaurants = restaurants.where((r) => r.priceAvg == 0 || r.priceAvg >= minB).toList();
     }
-    // femaleFriendly はスコアリングで対応（シーンスコアで女子会に不向きな店を自然に下位に押し下げる）
     if (hasPrivateRoom) {
       restaurants = restaurants.where((r) => r.hasPrivateRoom).toList();
     }
@@ -189,90 +212,147 @@ class MidpointService {
     } else if (timeSlot == TimeSlot.dinner) {
       restaurants = restaurants.where((r) => r.isDinnerAvailable).toList();
     }
+    // 日付指定時: 予約可能な店舗のみ（その日程で予約できるところ）
+    if (selectedDate != null) {
+      restaurants = restaurants.where((r) => r.isReservable).toList();
+    }
 
     if (restaurants.isEmpty) return [];
 
-    // 各レストランの距離・公平性を計算
-    final intermediates = restaurants.map((r) {
+    // ── 参加者距離（Haversine、表示用）────────────────────────────────────
+    final scored = restaurants.map((r) {
       final (rLat, rLng) = (r.lat != null && r.lng != null)
           ? (r.lat!, r.lng!)
           : kStationLatLng[r.stationIndex];
       final distFromCentroid = GeoUtils.distKm(centroidLat, centroidLng, rLat, rLng);
+      final pDists = <String, double>{
+        for (final p in active)
+          p.id: GeoUtils.distKm(p.lat!, p.lng!, rLat, rLng)
+      };
 
-      final pDists = <String, double>{};
-      for (final p in active) {
-        pDists[p.id] = GeoUtils.distKm(p.lat!, p.lng!, rLat, rLng);
-      }
+      // ── 軸1: accessScore（集合しやすさ = 駅からの徒歩時間）──────────────
+      // distanceMinutes は Hotpepper "徒歩X分" から取得した実データ
+      final walkMin = r.distanceMinutes;
+      final double accessScore = walkMin <= 3
+          ? 1.00
+          : walkMin <= 5
+              ? 0.85
+              : walkMin <= 8
+                  ? 0.65
+                  : walkMin <= 10
+                      ? 0.45
+                      : walkMin <= 15
+                          ? 0.25
+                          : 0.10;
 
-      final dValues = pDists.values.toList();
-      final avg = dValues.reduce((a, b) => a + b) / dValues.length;
-      final variance =
-          dValues.map((v) => pow(v - avg, 2)).reduce((a, b) => a + b) / dValues.length;
-      final stdDev = sqrt(variance);
+      // ── 軸2: conditionScore（条件一致）──────────────────────────────────
+      // ジャンル一致
+      final double genreScore = (categories == null || categories.isEmpty)
+          ? 0.7 // ユーザーが未選択 = ニュートラル
+          : categories.contains(r.category)
+              ? 1.0
+              : 0.1;
+      // 予算一致（priceAvg == 0 はデータなし = ニュートラル）
+      final double budgetScore = r.priceAvg == 0
+          ? 0.7
+          : maxBudget <= 0
+              ? 0.7
+              : r.priceAvg <= maxBudget
+                  ? 1.0
+                  : r.priceAvg <= maxBudget * 1.2
+                      ? 0.5 // 20%超まで許容
+                      : 0.1;
+      // シーン適合
+      final double occasionScore =
+          occasion != null ? _computeOccasionScore(r, occasion) : 0.6;
+      final double conditionScore =
+          (genreScore * 0.40 + budgetScore * 0.25 + occasionScore * 0.35)
+              .clamp(0.0, 1.0);
 
-      return (
-        restaurant: r,
-        distFromCentroid: distFromCentroid,
-        participantDistances: pDists,
-        stdDev: stdDev,
-      );
-    }).toList();
-
-    // 正規化（距離のみ使用）
-    final maxDist = intermediates.map((s) => s.distFromCentroid).reduce(max);
-    final minDist = intermediates.map((s) => s.distFromCentroid).reduce(min);
-
-    final scored = intermediates.map((s) {
-      final r = s.restaurant;
-
-      // ── 距離スコア（重心からの近さ）──────────────────────────────────────
-      final distScore = maxDist == minDist
-          ? 1.0
-          : (maxDist - s.distFromCentroid) / (maxDist - minDist);
-
-      // ── クオリティスコア（客観的な店舗品質シグナル）─────────────────────
-      // 予約可能(Hotpepper URL あり) が最重要シグナル: 実在・人気店の証拠
+      // ── 軸3: qualityScore（品質シグナル）────────────────────────────────
       double qualityScore = 0.0;
-      if (r.isReservable) qualityScore += 0.40;                              // 予約可
-      if (r.imageUrl != null && r.imageUrl!.isNotEmpty) qualityScore += 0.25; // 写真あり
-      if (r.course) qualityScore += 0.15;                                    // コースあり
-      if (r.freeDrink) qualityScore += 0.10;                                 // 飲み放題
-      if (r.rating >= 3.5) qualityScore += 0.10;                             // 高評価
+      if (r.imageUrl != null && r.imageUrl!.isNotEmpty) { qualityScore += 0.35; } // 写真あり
+      if (r.course) { qualityScore += 0.25; }                                     // コースあり
+      if (r.rating >= 4.0) { qualityScore += 0.20; }                              // 高評価
+      else if (r.rating >= 3.5) { qualityScore += 0.10; }
+      if (r.freeDrink) { qualityScore += 0.15; }                                  // 飲み放題
+      if (r.freeFood) { qualityScore += 0.05; }                                   // 食べ放題
       qualityScore = qualityScore.clamp(0.0, 1.0);
 
-      // ── シーン適合スコア（occasion選択時のみ有効）───────────────────────
-      final occasionScore = occasion != null
-          ? _computeOccasionScore(r, occasion)
-          : 0.5; // occasion未選択時はニュートラル
+      // ── 軸4: usabilityScore（利用しやすさ）──────────────────────────────
+      double usabilityScore = 0.0;
+      if (r.isReservable) usabilityScore += 0.50;       // 予約可 = 最重要
+      if (r.hasPrivateRoom) usabilityScore += 0.25;     // 個室あり
+      if (r.nonSmoking) usabilityScore += 0.15;         // 禁煙
+      if (r.wifi) usabilityScore += 0.05;               // Wi-Fi
+      if (r.freeFood) usabilityScore += 0.05;
+      usabilityScore = usabilityScore.clamp(0.0, 1.0);
 
-      // ── 総合スコア ───────────────────────────────────────────────────────
-      // occasion未選択: クオリティ65% + 距離35%
-      // occasion選択時: シーン45% + クオリティ40% + 距離15%
-      final overall = occasion != null
-          ? 0.45 * occasionScore + 0.40 * qualityScore + 0.15 * distScore
-          : 0.65 * qualityScore + 0.35 * distScore;
+      // ── 総合スコア（ジャンル別重み）─────────────────────────────────────
+      // [accessW, conditionW, qualityW, usabilityW]
+      final weights = _genreWeights(r.category);
+      final overall = (weights[0] * accessScore +
+              weights[1] * conditionScore +
+              weights[2] * qualityScore +
+              weights[3] * usabilityScore)
+          .clamp(0.0, 1.0);
 
-      // ── おすすめラベル ────────────────────────────────────────────────────
+      // ── おすすめ理由ラベル（なぜこの店か）───────────────────────────────
       final reasons = <String>[];
-      if (r.isReservable) reasons.add('予約可');
-      if (r.freeDrink) reasons.add('飲み放題');
-      if (r.course) reasons.add('コースあり');
+      if (walkMin <= 3) { reasons.add('駅から$walkMin分'); }
+      else if (walkMin <= 5) { reasons.add('駅近$walkMin分'); }
+      if (selectedDate != null && r.isReservable) {
+        final m = selectedDate.month;
+        final d = selectedDate.day;
+        reasons.add('$m/$d予約可');
+      } else if (r.isReservable && reasons.length < 2) {
+        reasons.add('予約可');
+      }
       if (r.hasPrivateRoom && reasons.length < 2) reasons.add('個室あり');
-      if (distScore >= 0.8 && reasons.length < 2) reasons.add('中間地点');
+      if (r.freeDrink && reasons.length < 2) reasons.add('飲み放題');
+      if (r.course && reasons.length < 2) reasons.add('コースあり');
+      if (r.nonSmoking && reasons.length < 2) reasons.add('禁煙');
       final curationLabel = reasons.take(2).join(' · ');
 
       return ScoredRestaurant(
-        restaurant: s.restaurant,
+        restaurant: r,
         score: overall,
-        distanceKm: s.distFromCentroid,
-        participantDistances: s.participantDistances,
-        fairnessScore: distScore,
+        distanceKm: distFromCentroid,
+        participantDistances: pDists,
+        fairnessScore: accessScore,
         curationLabel: curationLabel,
+        accessScore: accessScore,
+        conditionScore: conditionScore,
+        qualityScore: qualityScore,
+        usabilityScore: usabilityScore,
       );
     }).toList();
 
     scored.sort((a, b) => b.score.compareTo(a.score));
     return scored;
+  }
+
+  /// ジャンル別スコアリング重み [access, condition, quality, usability]
+  /// 待ち合わせ用途では集合しやすさ（access）を軸に、ジャンル特性で調整する
+  static List<double> _genreWeights(String category) {
+    return switch (category) {
+      // 居酒屋: 集合しやすさ高め、利用しやすさ（個室・予約）重視
+      '居酒屋' => [0.35, 0.25, 0.15, 0.25],
+      // カフェ: ジャンル・雰囲気重視、品質シグナル大事
+      'カフェ' => [0.25, 0.35, 0.25, 0.15],
+      // 焼肉: 予約必須なので利用しやすさ高め
+      '焼肉' => [0.25, 0.25, 0.20, 0.30],
+      // バー: 雰囲気・シーン重視
+      'バー' => [0.20, 0.35, 0.25, 0.20],
+      // フレンチ・イタリアン: 品質・シーン重視
+      'フレンチ' || 'イタリアン' => [0.20, 0.35, 0.30, 0.15],
+      // 和食: バランス型
+      '和食' => [0.25, 0.30, 0.25, 0.20],
+      // 韓国料理: アクセス重視（グループ利用が多い）
+      '韓国料理' => [0.30, 0.30, 0.20, 0.20],
+      // デフォルト: 集合アプリの標準重み
+      _ => [0.30, 0.35, 0.20, 0.15],
+    };
   }
 
   /// シーンに応じたレストランスコアをカテゴリ・属性から動的に計算する

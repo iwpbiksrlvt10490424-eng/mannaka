@@ -1,38 +1,25 @@
-レビュー完了。`team/workspace/review_feedback.md` を更新しました。
+レビュー完了です。判定は **ISSUES_FOUND** です。
 
 ---
 
-## 判定: **ISSUES_FOUND**
+## 主な指摘事項
 
-### 問題点
+### ISSUE 1 (中): `dark()` の `navigationBarTheme` が不完全
+`light()` にある `labelTextStyle` と `iconTheme` が `dark()` に存在しない（`lib/theme/app_theme.dart:254-259`）。
+- 結果: ダークモードでナビバーのアイコン/ラベル色が Material3 デフォルトにフォールバックし、ブランドカラーが失われる
 
-**[HIGH] `mounted` チェック漏れ** (`search_screen.dart:1145`)
+### ISSUE 2 (軽): 入力フィールドのボーダーが不可視になる
+`border`/`enabledBorder` の色に `darkSurface` を指定しているが、これは `fillColor` と同色なのでボーダーが見えなくなる（line 239-245）。
 
-```dart
-await Share.share(shareText, sharePositionOrigin: shareOrigin);
-// ↓ mounted チェックなし — ウィジェット dispose 後に setState() 例外が発生しうる
-setState(() => _waitingForLocation = true);
-```
-
-`Share.share()` は非同期。ダイアログが開いている間にユーザーが戻ると `setState() called after dispose()` になる。
-
-修正: `if (!mounted) return;` を `Share.share()` の直後に挿入。
-
-**[LOW] 未認証時の `ownerUid: ''` が無言失敗** (`search_screen.dart:1125`)  
-動作上は catch で拾われるが、ユーザーに原因が伝わらない。現状は許容範囲。
+### NOTICE: `dividerTheme` と CLAUDE.md の「Divider禁止」ルール
+定義そのものは問題ないが、目的をコメントで明記することを推奨。
 
 ---
 
-### 良い点
-- `firestore.rules` の create/update/delete 分離と ownerUid スプーフィング防止が正確
-- Stream リスナー内の `mounted` チェックは正しく実装されている
-- `Share.share()` に `sharePositionOrigin` 指定あり（CLAUDE.md ルール遵守）
-- `TextEditingController` と `StreamSubscription` の dispose が漏れなし
-- 絵文字・Divider なし、削除操作の配置も正しい
+## 良かった点
+- `withValues(alpha:)` を正しく使用、`withOpacity()` ゼロ
+- `darkCardBg` の定数化、2階層カラー構造（background/surface）は iOS 準拠
+- `app.dart` の `ThemeMode.system` 接続が正しい
 
----
-
-### TDD 評価
-- cycle13_test の `allow write` フォールバック除去は偽グリーン解消として正しい
-- `'A' * 40` → `List.filled(40` の置換は無効Dart構文の正当な修正
-- **懸念**: `location_session_service.dart` の `ownerUid` 追加（セキュリティ重要変更）に対応する機能テストが存在しない。次サイクルでの追加を推奨。
+## TDD評価
+受け入れ条件のカバレッジは OK だが、テストが「ソースコードの文字列検索」にとどまっており `labelTextStyle` 欠落のようなロジックの穴を検知できなかった。

@@ -149,16 +149,16 @@ void main() {
         // → テストファイルを git にコミットすると実キーが公開される。
         //
         // 違反箇所（合計6箇所）:
-        //   Line 208: //     'RB4PAHEZPYFPF0S4FIV11R102LA2PKPC15C04HGZ3MMMRM5L',
-        //   Line 216: content.contains('RB4PAHEZPYFPF0S4FIV11R102LA2PKPC15C04HGZ3MMMRM5L')
-        //   Line 222: 'Foursquare APIキーの実値 `RB4PAHEZPYFPF0S4FIV11R102LA2PKPC15C04HGZ3MMMRM5L`'
-        //   Line 231: "    'RB4PAHEZPYFPF0S4FIV11R102LA2PKPC15C04HGZ3MMMRM5L',"
-        //   Line 252: //     'RB4PAHEZPYFPF0S4FIV11R102LA2PKPC15C04HGZ3MMMRM5L',
-        //   Line 277: "    'RB4PAHEZPYFPF0S4FIV11R102LA2PKPC15C04HGZ3MMMRM5L',"
+        //   Line 208: //     'RB4P...',
+        //   Line 216: content.contains('RB4P...')
+        //   Line 222: 'Foursquare APIキーの実値 `RB4P...`'
+        //   Line 231: "    'RB4P...',"
+        //   Line 252: //     'RB4P...',
+        //   Line 277: "    'RB4P...',"
         //
         // 修正: 全箇所を `RB4P...` のようなプレースホルダーか
         //       `RegExp(r'[A-Z0-9]{40,}').hasMatch(content)` 形式に置換する。
-        final apiKeyPattern = RegExp(r'RB4PAHEZPYFPF0S4FIV11R102LA2PKPC15C04HGZ3MMMRM5L');
+        final apiKeyPattern = RegExp(r'[A-Z0-9]{40,}');
         final occurrences = apiKeyPattern.allMatches(content).length;
 
         expect(
@@ -176,11 +176,11 @@ void main() {
               "  //     'RB4P...',           // ← プレースホルダーに置換\n"
               '\n'
               '  // contains() チェック:\n'
-              "  // 修正前: content.contains('RB4PAHEZPYFPF0S4FIV11R102LA2PKPC15C04HGZ3MMMRM5L')\n"
+              "  // 修正前: content.contains('RB4P...')\n"
               "  // 修正後: RegExp(r'[A-Z0-9]{40,}').hasMatch(content)\n"
               '\n'
               '  // reason: 文字列内:\n'
-              "  // 修正前: 'APIキーの実値 `RB4PAHEZPYFPF0S4FIV11R102LA2PKPC15C04HGZ3MMMRM5L`'\n"
+              "  // 修正前: 'APIキーの実値 `RB4P...`'\n"
               "  // 修正後: 'APIキーの実値 `RB4P...` （40文字以上の英大文字英数字列）'\n",
         );
       },
@@ -213,7 +213,7 @@ void main() {
               '\n'
               '修正例:\n'
               '  // 修正前:\n'
-              "  final hasHardcodedKey = content.contains('RB4PAHEZPYFPF0S4FIV11R102LA2PKPC15C04HGZ3MMMRM5L');\n"
+              "  final hasHardcodedKey = content.contains('RB4P...');\n"
               '\n'
               '  // 修正後:\n'
               "  final hasHardcodedKey = RegExp(r'[A-Z0-9]{40,}').hasMatch(content);\n",

@@ -36,7 +36,20 @@
 - [✅] **Cycle 14 残件修正** — Firestore Rules vote()阻害(CRITICAL)・未認証hostUid空文字バグ・偽グリーン解消・APIキー実値削除・location_sessions Rules制限（2026-03-19 Cycle 15完了）
 - [✅] **Cycle 15 残件修正** — テスト偽グリーン解消(cycle13 Group1 Test1/2)・APIキー実値削除(cycle15_test:359)（2026-03-19 Cycle 16完了）
 - [✅] **Cycle 16 残件修正** — LocationSession ownerUid欠落(本番CRITICAL)・cycle16_test `'A'*40` 無効構文・cycle13_test allow write フォールバック偽グリーン（2026-03-19 Cycle 17完了）
-- [🚧] **Cycle 17 残件修正** — search_screen mounted バグ(クラッシュリスク)・cycle16_test APIキー実値除去・search_screen エラー詳細UI露出・location_session_service テスト追加（2026-03-19 Cycle 18）
+- [✅] **Cycle 17 残件修正** — search_screen mounted バグ・エラー詳細UI露出・location_session_service テスト追加（2026-03-23 Cycle 18 APPROVED）
+- [✅] **Cycle 19 残件修正** — visited/reserved_restaurants_provider debugPrint $e 6箇所・main.dart Firebase $e 1箇所・share_utils/settings_screen App Store URLプレースホルダー（2026-03-24 Cycle 19完了）
+- [✅] **Cycle 20 残件修正** — restaurant_detail_screen ColoredBox疑似Divider3箇所(テスト失敗ブロッカー)・restaurant_cache_service/$search_provider $e残存3箇所・share_preview_screen URL・settings_screen LINE sharePositionOrigin（2026-03-24 Cycle 20 APPROVED）
+- [✅] **Cycle 21 残件修正** — _PhotoCarousel placeholder Container(color:)→BoxDecoration修正(latent design_rules_test失敗)・settings_screen 友達に教えるボタンasync gap修正（2026-03-24 Cycle 21完了）
+- [✅] **パフォーマンス最適化（Cycle 22）** — scoreRestaurants 再計算キャッシュ実装（2026-03-24 Cycle 22 APPROVED）
+- [✅] **Cycle 22 残件修正** — sortedRestaurants キャッシュ・icon getter 絵文字除去・フィルタ変更再計算テスト（Cycle 23完了 2026-03-24）
+- [✅] **パフォーマンス最適化（地図画面）** — restaurant_map_screen のフレームレート計測・RepaintBoundary/キャッシュ適用（Cycle 24 APPROVED）
+- [✅] **Cycle 24 残件修正** — restaurant_map `'?'` UIテキスト違反（CLAUDE.md ルール）→ `Icons.person` に置き換え（Cycle 25 完了）
+- [✅] **Cycle 26: share_utils sharePositionOrigin 修正 + materialIcon デッドコード削除** — `share_utils.dart` の iPad クラッシュリスク解消・`SortOptionExt.materialIcon` 未使用 getter 削除（2026-03-24 Cycle 26 APPROVED）
+- [✅] **Cycle 27: share_preview_screen `Share.share()` await 追加** — `onPressed` を async 化し `await` 追加でシェアシート安定化（Critic Cycle 26 WARNING-2 解消）
+- [✅] **Cycle 28: share_preview_screen アバター `'?'` 禁止文字修正** — `name` が空の場合のフォールバック文字 `'?'` を Material Icon に置き換え（Critic Cycle 27 WARNING-2 解消）
+- [✅] **Cycle 29: share_preview_screen_cycle28_test テスト設計修正** — テスト2の文字距離 regex（400字制限）を除去し `dart format` 耐性を持たせる（Critic Cycle 28 ISSUE-1 解消）
+- [✅] **Security WARNING 修正: テストの Hotpepper APIキー実値除去** — `voting_security_cycle18_test.dart:161` の APIキー実値 → 構造パターン正規表現に置換（Cycle 31 完了 2026-03-24）
+- [✅] **Cycle 32: share_preview_screen トグルラベル旧表記除去** — `share_preview_screen.dart:347` `代替案①②をシェアテキストに追加` → `代替案をシェアテキストに追加`（Critic Cycle 30 ISSUE High 解消 2026-03-24）
 
 ## 🟢 低優先度
 
@@ -44,8 +57,8 @@
 - [ ] **App Store スクリーンショット作成** — 6.7インチ・6.1インチ用スクリーンショット準備
 - [ ] **プライバシーポリシーURL確定** — 実際のホスティング先URLに更新
 - [ ] **まんちゃんアニメーション追加** — マスコットに新しいアニメーションパターンを追加
-- [ ] **シェア機能のテンプレート改善** — シェアテキストをより魅力的に
-- [ ] **ダークモード対応** — システムテーマに追従するカラー設定
+- [✅] **シェア機能のテンプレート改善** — シェアテキストをより魅力的に（Cycle 30完了 2026-03-24）
+- [🚧] **ダークモード残件修正（Cycle 34）** — `AppTheme.dark()` の `navigationBarTheme` に `labelTextStyle`・`iconTheme` 補完 & `inputDecorationTheme` border 色修正（`darkSurface` と同色で不可視 → `darkBorder` に変更）（Cycle 33 Critic ISSUE 1・2 解消中）
 
 ---
 

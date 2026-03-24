@@ -132,5 +132,41 @@ void main() {
             '違反箇所:\n${violations.map((l) => '  $l').join('\n')}',
       );
     });
+
+    // ── Cycle 23: SortOptionExt.icon 絵文字 getter 削除（★ 現在は RED ★）──
+    // CLAUDE.md: 「絵文字をUIアイコンとして使用禁止 — Material Icons のみ」
+    // search_provider.dart の SortOptionExt.icon が '✨'/'📍'/'⭐'/'💴' を返すため違反。
+    // materialIcon getter は既にあるので icon getter ごと削除する。
+    test(
+        'search_provider.dart が SortOptionExt の icon getter を含まないとき '
+        '絵文字アイコン禁止ルールに準拠する',
+        () {
+      final file = File('lib/providers/search_provider.dart');
+      if (!file.existsSync()) fail('lib/providers/search_provider.dart が存在しません');
+
+      final lines = file.readAsLinesSync();
+      // SortOptionExt ブロック内の "String get icon" 定義を検出する
+      // （OccasionExt.emoji はシェアテキスト用途のため対象外）
+      final violations = lines
+          .asMap()
+          .entries
+          .where((e) =>
+              e.value.contains('String get icon') &&
+              // SortOptionExt の context か確認（直近50行以内に SortOptionExt がある）
+              lines
+                  .skip(e.key > 50 ? e.key - 50 : 0)
+                  .take(50)
+                  .any((l) => l.contains('SortOptionExt')))
+          .map((e) => '行${e.key + 1}: ${e.value.trim()}')
+          .toList();
+
+      expect(
+        violations,
+        isEmpty,
+        reason: 'SortOptionExt に String get icon getter が残っています。\n'
+            '  icon getter を削除し、呼び出し元は materialIcon getter を使用してください。\n'
+            '  違反箇所:\n${violations.map((l) => '  $l').join('\n')}',
+      );
+    });
   });
 }

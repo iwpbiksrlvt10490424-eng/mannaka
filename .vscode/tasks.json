@@ -1,0 +1,74 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Flutter: Run on Simulator",
+      "type": "shell",
+      "command": "flutter run --device-id=366D236E-C477-41BC-A9B1-C80FB6044606",
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Flutter: Analyze",
+      "type": "shell",
+      "command": "flutter analyze",
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Auto: Screenshot",
+      "type": "shell",
+      "command": "bash scripts/screenshot.sh",
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Auto: Start Watcher",
+      "type": "shell",
+      "command": "bash scripts/watcher.sh",
+      "group": "none",
+      "isBackground": true,
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": false
+      },
+      "problemMatcher": {
+        "pattern": {
+          "regexp": "^(.*)$",
+          "message": 1
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "Watcher 起動",
+          "endsPattern": "待機中"
+        }
+      }
+    },
+    {
+      "label": "Auto: Start Pull Watcher",
+      "type": "shell",
+      "command": "bash scripts/pull_watcher.sh",
+      "group": "none",
+      "isBackground": true,
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": false
+      },
+      "problemMatcher": []
+    }
+  ]
+}

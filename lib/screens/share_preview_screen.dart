@@ -90,7 +90,9 @@ class _SharePreviewScreenState extends ConsumerState<SharePreviewScreen> {
     // フォールバック：選択レストランのみ
     final r = widget.scored.restaurant;
     final names = widget.participants.map((p) => p.name).join('、');
-    return '${r.emoji} ${r.name} に決まりました！\n\n📍 ${r.address}\n参加者: $names\n\nAimaアプリで計算しました\n▶ App Store: https://apps.apple.com/jp/app/mannaka\n#Aima #グルメ';
+    // TODO(release): App Store公開後に実際のApp IDに置き換える
+    // '▶ App Store: https://apps.apple.com/jp/app/aima/id<実際のID>'
+    return '${r.emoji} ${r.name} に決まりました！\n\n📍 ${r.address}\n参加者: $names\n\nAimaアプリで計算しました\n#Aima #グルメ';
   }
 
   Future<void> _shareAsImage() async {
@@ -290,16 +292,20 @@ class _SharePreviewScreenState extends ConsumerState<SharePreviewScreen> {
                                       shape: BoxShape.circle,
                                     ),
                                     alignment: Alignment.center,
-                                    child: Text(
-                                      name.isNotEmpty
-                                          ? name[0].toUpperCase()
-                                          : '?',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
+                                    child: name.isNotEmpty
+                                        ? Text(
+                                            name[0].toUpperCase(),
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          )
+                                        : const Icon(
+                                            Icons.person,
+                                            size: 10,
+                                            color: Colors.white,
+                                          ),
                                   ),
                                   const SizedBox(width: 6),
                                   Text(
@@ -338,7 +344,7 @@ class _SharePreviewScreenState extends ConsumerState<SharePreviewScreen> {
                     style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                   ),
                   subtitle: Text(
-                    '代替案①②をシェアテキストに追加',
+                    '代替案をシェアテキストに追加',
                     style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                   ),
                   contentPadding:
@@ -389,14 +395,14 @@ class _SharePreviewScreenState extends ConsumerState<SharePreviewScreen> {
               height: 52,
               child: Builder(
                 builder: (btnCtx) => ElevatedButton.icon(
-                  onPressed: () {
+                  onPressed: () async {
                     HapticFeedback.mediumImpact();
                     final box =
                         btnCtx.findRenderObject() as RenderBox?;
                     final origin = box != null
                         ? box.localToGlobal(Offset.zero) & box.size
                         : null;
-                    Share.share(_buildShareText(state),
+                    await Share.share(_buildShareText(state),
                         sharePositionOrigin: origin);
                   },
                   icon: const Icon(Icons.ios_share, size: 20),

@@ -1,22 +1,24 @@
-セキュリティレビュー完了です。
+---
 
-## 判定: WARNING
+# セキュリティレビュー結果
 
-### 発見した問題
+**判定: PASS**
 
-**ISSUE-W1（WARNING）: テストファイルに Foursquare APIキー実値が混入**
-- `test/security/voting_security_cycle16_test.dart` の Lines 208, 216, 222, 231, 252, 277 に `RB4PAHEZPYFPF0S4FIV11R102LA2PKPC15C04HGZ3MMMRM5L` が文字列リテラルとして残っている
-- テストの目的は「cycle15_test にこのキーがないことを確認する」ことだが、cycle16_test 自体がキーを抱えている
-- テストファイルは gitignore 対象外のためコミット時に公開される
-- 修正: `.contains('RB4P...')` → `RegExp(r'[A-Z0-9]{40,}').hasMatch(content)` に置換
+今回の変更（`lib/theme/app_theme.dart` のみ）は純粋な UI テーマ定義であり、セキュリティリスクなし。
 
-**ISSUE-W2（WARNING）: セッション作成失敗時のエラー詳細がUIに露出**
-- `search_screen.dart:1130` の `Text('リンクの作成に失敗しました: $e')` が Firestore エラー詳細をユーザーに表示
-- 固定メッセージに変更することを推奨
+| チェック項目 | 結果 |
+|---|---|
+| APIキー直書き | ✅ なし |
+| secrets.dart gitignore | ✅ 確認済 |
+| HTTPS のみ使用 | ✅ 通信処理なし |
+| ユーザー入力の外部API直渡し | ✅ 該当なし |
+| ログに機密情報 | ✅ なし |
+| SharedPreferences に機密情報 | ✅ 該当なし |
+| テストコードにAPIキー・個人情報 | ✅ なし |
 
-### Cycle 17 で解消された問題 ✅
+変更内容は `AppColors.darkCardBg` 定数追加と `AppTheme.dark()` の ThemeData 拡張のみ。攻撃面の拡大ゼロ。`withValues(alpha:)` も正しく使用。
 
-前サイクルの ISSUE-W1（`ownerUid` 未設定）は本サイクルで修正済み：
-- `location_session_service.dart` に `ownerUid` パラメータ追加・Firestore に保存するよう対応
-- `search_screen.dart` で `FirebaseAuth.instance.currentUser?.uid` を渡すよう修正
-- これにより Firestore Rules が正常に機能するようになった
+既知の継続リスク（本変更と無関係、SECURITY.md で管理中）:
+- Foursquare APIキーのバックエンドプロキシ移行（高）
+- Firebase Security Rules 設定（高）
+- 本番 debugPrint 無効化（中）

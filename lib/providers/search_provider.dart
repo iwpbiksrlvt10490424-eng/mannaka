@@ -48,15 +48,6 @@ extension OccasionExt on Occasion {
         Occasion.welcome => '🎉',
         Occasion.date => '💕',
       };
-  IconData get materialIcon => switch (this) {
-        Occasion.none => Icons.restaurant_menu_rounded,
-        Occasion.girlsNight => Icons.people_alt_rounded,
-        Occasion.birthday => Icons.cake_rounded,
-        Occasion.lunch => Icons.wb_sunny_outlined,
-        Occasion.mixer => Icons.groups_rounded,
-        Occasion.welcome => Icons.celebration_rounded,
-        Occasion.date => Icons.favorite_rounded,
-      };
   bool get filterFemale =>
       this == Occasion.girlsNight || this == Occasion.mixer || this == Occasion.date;
   bool get filterPrivate =>
@@ -74,18 +65,6 @@ extension SortOptionExt on SortOption {
         SortOption.distance => '距離順',
         SortOption.rating => '評価順',
         SortOption.budget => '価格順',
-      };
-  String get icon => switch (this) {
-        SortOption.recommended => '✨',
-        SortOption.distance => '📍',
-        SortOption.rating => '⭐',
-        SortOption.budget => '💴',
-      };
-  IconData get materialIcon => switch (this) {
-        SortOption.recommended => Icons.recommend_rounded,
-        SortOption.distance => Icons.near_me_rounded,
-        SortOption.rating => Icons.star_rounded,
-        SortOption.budget => Icons.payments_rounded,
       };
 }
 
@@ -135,7 +114,13 @@ class SearchState {
     this.loadingMessage,
     this.selectedDate,
     this.groupRelation,
-  });
+    List<ScoredRestaurant>? scoredCache,
+    List<ScoredRestaurant>? sortedCache,
+  })  : _scoredCache = scoredCache,
+        _sortedCache = sortedCache;
+
+  final List<ScoredRestaurant>? _scoredCache;
+  final List<ScoredRestaurant>? _sortedCache;
 
   final List<Participant> participants;
   final List<MeetingPoint> results;
@@ -169,7 +154,7 @@ class SearchState {
       occasion.filterLunch ? TimeSlot.lunch : timeSlot;
 
   /// 重心ベースのスコアリング済みレストラン（フィルター適用済み・キャッシュ付き）
-  late final List<ScoredRestaurant> scoredRestaurants = _computeScored();
+  late final List<ScoredRestaurant> scoredRestaurants = _scoredCache ?? _computeScored();
 
   List<ScoredRestaurant> _computeScored() {
     if (!hasCentroid) return [];
@@ -198,11 +183,12 @@ class SearchState {
       maxBudget: maxBudget,
       occasion: occasion != Occasion.none ? occasion.label : null,
       groupRelation: groupRelation,
+      selectedDate: selectedDate, // 日付指定時は予約可能店舗のみ表示
     );
   }
 
   /// ソート済みレストラン（表示用・キャッシュ付き）
-  late final List<ScoredRestaurant> sortedRestaurants = _computeSorted();
+  late final List<ScoredRestaurant> sortedRestaurants = _sortedCache ?? _computeSorted();
 
   List<ScoredRestaurant> _computeSorted() {
     final base = scoredRestaurants;
@@ -261,6 +247,27 @@ class SearchState {
     String? groupRelation,
     bool clearGroupRelation = false,
   }) {
+    // スコアリング入力が1つも変わっていない場合は計算済みキャッシュを引き継ぐ
+    final isScoringUnchanged = participants == null &&
+        results == null &&
+        hotpepperRestaurants == null &&
+        centroidLat == null &&
+        centroidLng == null &&
+        !clearCentroid &&
+        restaurantCategories == null &&
+        !clearCategory &&
+        showFemaleFriendly == null &&
+        showPrivateRoom == null &&
+        occasion == null &&
+        timeSlot == null &&
+        maxBudget == null &&
+        groupRelation == null &&
+        !clearGroupRelation &&
+        selectedDate == null &&
+        !clearDate;
+
+    final isSortUnchanged = isScoringUnchanged && sortOption == null;
+
     return SearchState(
       participants: participants ?? this.participants,
       results: results ?? this.results,
@@ -283,6 +290,8 @@ class SearchState {
       restaurantCache: restaurantCache ?? this.restaurantCache,
       selectedDate: clearDate ? null : (selectedDate ?? this.selectedDate),
       groupRelation: clearGroupRelation ? null : (groupRelation ?? this.groupRelation),
+      scoredCache: isScoringUnchanged ? scoredRestaurants : null,
+      sortedCache: isSortUnchanged ? sortedRestaurants : null,
     );
   }
 }
@@ -442,7 +451,8 @@ class SearchNotifier extends Notifier<SearchState> {
     try {
       final results = MidpointService.calculate(state.participants);
       state = state.copyWith(loadingMessage: 'ちょうどいい場所を探しています...');
-      final centroid = MidpointService.calcCentroid(state.participants);
+      // Uber Eats式: 交通最適駅の座標を集合地点として使用
+      final centroid = MidpointService.calcCentroid(state.participants, meetingPoints: results);
 
       List<Restaurant> hotpepperRestaurants = [];
       if (centroid != null) {
@@ -523,7 +533,7 @@ class SearchNotifier extends Notifier<SearchState> {
             ).timeout(const Duration(seconds: 8));
           }
         } catch (e) {
-          debugPrint('prefetch: ${point.stationName} failed - $e');
+          debugPrint('prefetch: ${point.stationName} failed - ${e.runtimeType}');
         }
         cache[point.stationIndex] = restaurants;
       });

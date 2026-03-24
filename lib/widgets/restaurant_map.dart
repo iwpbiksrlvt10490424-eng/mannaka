@@ -68,7 +68,7 @@ class _RestaurantMapState extends State<RestaurantMap>
               maxZoom: 19,
             ),
             // 参加者ピン（青丸アイコン）
-            MarkerLayer(
+            RepaintBoundary(child: MarkerLayer(
               markers: widget.participants
                   .where((p) => p.hasLocation)
                   .map((p) => Marker(
@@ -95,29 +95,33 @@ class _RestaurantMapState extends State<RestaurantMap>
                                 ],
                               ),
                               alignment: Alignment.center,
-                              child: Text(
-                                p.name.isNotEmpty
-                                    ? p.name[0].toUpperCase()
-                                    : '?',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
+                              child: p.name.isNotEmpty
+                                  ? Text(
+                                      p.name[0].toUpperCase(),
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    )
+                                  : const Icon(
+                                      Icons.person,
+                                      size: 14,
+                                      color: Colors.white,
+                                    ),
                             ),
                             CustomPaint(
                               size: const Size(10, 6),
-                              painter: _TrianglePainter(
-                                  color: const Color(0xFF3B82F6)),
+                              painter: const _TrianglePainter(
+                                  color: Color(0xFF3B82F6)),
                             ),
                           ],
                         ),
                       ))
                   .toList(),
-            ),
+            )),
             // 重心マーカー
-            MarkerLayer(
+            RepaintBoundary(child: MarkerLayer(
               markers: [
                 Marker(
                   point: LatLng(widget.centroidLat, widget.centroidLng),
@@ -143,9 +147,9 @@ class _RestaurantMapState extends State<RestaurantMap>
                   ),
                 ),
               ],
-            ),
+            )),
             // レストランマーカー
-            MarkerLayer(
+            RepaintBoundary(child: MarkerLayer(
               markers: widget.scored.asMap().entries.map((e) {
                 final sr = e.value;
                 final isSelected = _selected == sr;
@@ -189,7 +193,7 @@ class _RestaurantMapState extends State<RestaurantMap>
                   ),
                 );
               }).toList(),
-            ),
+            )),
           ],
         );
           },

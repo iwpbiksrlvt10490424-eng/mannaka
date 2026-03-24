@@ -28,7 +28,7 @@ void main() async {
   try {
     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   } catch (e) {
-    debugPrint('Firebase初期化エラー: $e');
+    debugPrint('Firebase初期化エラー: ${e.runtimeType}');
   }
 
   // Deep link handler

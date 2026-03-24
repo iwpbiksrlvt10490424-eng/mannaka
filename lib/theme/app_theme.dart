@@ -14,8 +14,18 @@ abstract final class AppColors {
   // ページ背景（ライトグレー — 白いカードが映える）
   static const Color pageBackground = Color(0xFFF7F7F7);
 
+  // ダークモード用背景色
+  static const Color darkBackground = Color(0xFF0F0F0F);
+  static const Color darkSurface = Color(0xFF1C1C1E);
+
   // カード背景（ピュアホワイト）
   static const Color cardBg = Colors.white;
+
+  // ダークモード用カード背景色（iOS grouped secondary background dark）
+  static const Color darkCardBg = Color(0xFF2C2C2E);
+
+  // ダークモード用ボーダー色（iOS separator dark）
+  static const Color darkBorder = Color(0xFF3A3A3C);
 
   // 統一スペーシング
   static const double spacing4 = 4;
@@ -180,6 +190,98 @@ abstract final class AppTheme {
       ),
       bottomSheetTheme: const BottomSheetThemeData(
         backgroundColor: AppColors.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+      ),
+    );
+  }
+
+  static ThemeData dark() {
+    const primary = AppColors.primary;
+
+    return ThemeData(
+      useMaterial3: true,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: primary,
+        brightness: Brightness.dark,
+        surface: AppColors.darkSurface,
+      ),
+      scaffoldBackgroundColor: AppColors.darkBackground,
+      fontFamily: '.SF Pro Text',
+      appBarTheme: const AppBarTheme(
+        backgroundColor: AppColors.darkSurface,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        scrolledUnderElevation: 0.5,
+        shadowColor: Colors.black,
+        surfaceTintColor: Colors.transparent,
+        systemOverlayStyle: SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.light,
+          statusBarBrightness: Brightness.dark,
+        ),
+        titleTextStyle: TextStyle(
+          color: Colors.white,
+          fontSize: 17,
+          fontWeight: FontWeight.w700,
+          letterSpacing: -0.3,
+        ),
+      ),
+      dividerTheme: const DividerThemeData(
+        color: Color(0xFF3A3A3C),
+        thickness: 1,
+        space: 1,
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: AppColors.darkSurface,
+        hintStyle:
+            const TextStyle(color: AppColors.textTertiary, fontSize: 15),
+        border: OutlineInputBorder(
+          borderRadius: const BorderRadius.all(Radius.circular(12)),
+          borderSide: const BorderSide(color: AppColors.darkBorder),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: const BorderRadius.all(Radius.circular(12)),
+          borderSide: const BorderSide(color: AppColors.darkBorder),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: const BorderRadius.all(Radius.circular(12)),
+          borderSide: const BorderSide(color: primary, width: 1.5),
+        ),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: AppColors.darkSurface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0.5,
+        indicatorColor: AppColors.primary.withValues(alpha: 0.2),
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: AppColors.primary,
+              letterSpacing: -0.2,
+            );
+          }
+          return const TextStyle(fontSize: 11, color: Colors.white70);
+        }),
+        iconTheme: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return const IconThemeData(color: AppColors.primary, size: 22);
+          }
+          return const IconThemeData(color: Colors.white70, size: 22);
+        }),
+      ),
+      cardTheme: const CardThemeData(
+        color: AppColors.darkCardBg,
+      ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: AppColors.darkSurface,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),

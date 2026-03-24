@@ -532,15 +532,28 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       subtitle: '友達にAimaを教えよう',
                       onTap: () async {
                         const text =
-                            'Aima — みんなが行きやすいお店を一緒に探せるアプリ！\nhttps://apps.apple.com/app/id0000000000';
+                            // TODO(release): App Store公開後に実際のApp IDに置き換える
+                            // 'Aima — みんなが行きやすいお店を一緒に探せるアプリ！\nhttps://apps.apple.com/jp/app/aima/id<実際のID>'
+                            'Aima — みんなが行きやすいお店を一緒に探せるアプリ！';
                         final encoded = Uri.encodeComponent(text);
                         final lineUrl =
                             Uri.parse('https://line.me/R/share?text=$encoded');
+                        final size = MediaQuery.of(context).size;
                         if (await canLaunchUrl(lineUrl)) {
                           await launchUrl(lineUrl,
                               mode: LaunchMode.externalApplication);
                         } else {
-                          await Share.share(text);
+                          await Share.share(
+                            text,
+                            sharePositionOrigin: Rect.fromCenter(
+                              center: Offset(
+                                size.width / 2,
+                                size.height / 2,
+                              ),
+                              width: 100,
+                              height: 100,
+                            ),
+                          );
                         }
                       },
                     ),
@@ -550,13 +563,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       color: const Color(0xFF3B82F6),
                       subtitle: 'シェアして一緒に使おう',
                       onTap: () async {
+                        final size = MediaQuery.of(context).size;
                         await Share.share(
                           '【Aima】グループの集合場所が一発で決まるアプリ！\n'
                           'みんなの出発駅を入れるだけで、ちょうどいいお店を提案してくれます。',
                           sharePositionOrigin: Rect.fromCenter(
                             center: Offset(
-                              MediaQuery.of(context).size.width / 2,
-                              MediaQuery.of(context).size.height / 2,
+                              size.width / 2,
+                              size.height / 2,
                             ),
                             width: 100,
                             height: 100,

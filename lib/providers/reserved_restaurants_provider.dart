@@ -23,7 +23,7 @@ class ReservedRestaurantsNotifier extends Notifier<List<ReservedRestaurant>> {
           .map((d) => ReservedRestaurant.fromJson(d.data()))
           .toList();
     } catch (e) {
-      debugPrint('ReservedRestaurantsNotifier: _load failed - $e');
+      debugPrint('ReservedRestaurantsNotifier: _load failed - ${e.runtimeType}');
       state = [];
     }
   }
@@ -38,7 +38,7 @@ class ReservedRestaurantsNotifier extends Notifier<List<ReservedRestaurant>> {
           .set(entry.toJson());
       state = [entry, ...state];
     } catch (e) {
-      debugPrint('ReservedRestaurantsNotifier: add failed - $e');
+      debugPrint('ReservedRestaurantsNotifier: add failed - ${e.runtimeType}');
     }
   }
 
@@ -51,7 +51,7 @@ class ReservedRestaurantsNotifier extends Notifier<List<ReservedRestaurant>> {
           .delete();
       state = state.where((e) => e.id != id).toList();
     } catch (e) {
-      debugPrint('ReservedRestaurantsNotifier: remove failed - $e');
+      debugPrint('ReservedRestaurantsNotifier: remove failed - ${e.runtimeType}');
     }
   }
 }

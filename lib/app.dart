@@ -15,6 +15,8 @@ class AimaApp extends StatelessWidget {
       title: 'Aima',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
+      themeMode: ThemeMode.system,
       navigatorKey: navigatorKey,
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       supportedLocales: const [Locale('ja', 'JP'), Locale('en', 'US')],

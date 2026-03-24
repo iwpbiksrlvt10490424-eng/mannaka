@@ -511,7 +511,9 @@ class _PhotoCarouselState extends State<_PhotoCarousel> {
           itemBuilder: (_, i) => CachedNetworkImage(
             imageUrl: widget.photos[i],
             fit: BoxFit.cover,
-            placeholder: (context, url) => Container(color: Colors.grey.shade100),
+            placeholder: (context, url) => Container(
+              decoration: BoxDecoration(color: Colors.grey.shade100),
+            ),
             errorWidget: (context, url, error) => Container(
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
@@ -576,7 +578,7 @@ class _PhotoCarouselState extends State<_PhotoCarousel> {
 }
 
 Widget _heroFallback(Restaurant r) => Container(
-      color: const Color(0xFFEEEEEE),
+      decoration: const BoxDecoration(color: Color(0xFFEEEEEE)),
       child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,

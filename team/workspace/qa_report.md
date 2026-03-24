@@ -1,6 +1,6 @@
 ---
 
-# QA レポート — Cycle 17
+# QA レポート — Cycle 33 結果
 
 ## 判定: ✅ APPROVED
 
@@ -8,22 +8,16 @@
 `No issues found!` → **0 issues**
 
 ### flutter test
-Exit code 0、失敗 0件 → **124件全パス**（Cycle 16: 119件 + Cycle 17新規: 5件）
+`+228: All tests passed!` → **全 228 件パス**
 
-### 受け入れ条件カバレッジ
+### 受け入れ条件カバレッジ（5/5）
 
-| 深刻度 | 条件 | 結果 |
-|--------|------|------|
-| 🔴 CRITICAL | `createSession()` が `ownerUid` を Firestore に書く | ✅ テスト + 実装確認済み |
-| 🔴 CRITICAL | `createSession()` シグネチャに `required String ownerUid` | ✅ テスト + 実装確認済み |
-| 🔴 HIGH | `hasSelfValidationTest` が `'A' * 40` を要求しない | ✅ テスト + 実装確認済み |
-| 🔴 HIGH | `hasSelfValidationTest` に有効な Dart パターン（`List.filled(40`）がある | ✅ テスト + 実装確認済み |
-| 🟡 MEDIUM | `hasCreateRule` に `allow write` フォールバックがない | ✅ テスト + 実装確認済み |
+| # | 修正内容 | 状態 |
+|---|---|---|
+| 1 | `navigationBarTheme`（darkSurface 背景 + primary インジケーター） | ✅ 3テスト Green |
+| 2 | `inputDecorationTheme`（darkSurface fill + primary フォーカスボーダー） | ✅ 4テスト Green |
+| 3 | `dividerTheme`（iOS ダーク区切り線色 `0xFF3A3A3C`） | ✅ 2テスト Green |
+| 4 | `appBarTheme.shadowColor: Colors.black` | ✅ 1テスト Green |
+| 5 | `AppColors.darkCardBg` + `cardTheme.color` | ✅ 3テスト Green |
 
-### 追加チェック
-- `withOpacity()` 禁止: 違反なし
-- APIキー直書きなし: 違反なし
-
----
-
-Cycle 17 の全受け入れ条件を満たしています。本番での PERMISSION_DENIED リリースブロッカーは解消済みです。残課題は外部情報待ちの 3 件（App Store URL / GMaps APIキー / サポートメール）のみです。
+Cycle 33 専用テスト 13/13 がすべて Red → Green に移行。`lib/theme/app_theme.dart` 単一ファイル変更で完結しており、リグレッションなし。リリース可能な状態です。

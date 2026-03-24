@@ -53,3 +53,6 @@ app.*.map.json
 .claire/
 .claude/
 CLAUDE.md
+screenshots/
+scripts/*.log
+scripts/*.pid

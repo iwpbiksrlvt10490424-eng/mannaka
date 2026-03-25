@@ -21,8 +21,35 @@ class MidpointService {
     return TransitRouter.instance.travelMinutes(fromIdx, toIdx);
   }
 
+  /// 参加者から候補駅cへの移動時間（分）を返す
+  /// stationIndex がある場合はmatrix/Dijkstra、
+  /// stationName のみの場合（kStations外駅）はDijkstra+座標フォールバック
+  static int _transitTimeForParticipant(Participant p, int candidateIdx) {
+    if (p.stationIndex != null) {
+      return _transitTime(p.stationIndex!, candidateIdx);
+    }
+    if (p.stationName != null) {
+      return TransitRouter.instance.travelMinutesFromName(
+        p.stationName!,
+        candidateIdx,
+        lat: p.lat,
+        lng: p.lng,
+      );
+    }
+    // lat/lng のみの場合はHaversine推定
+    if (p.lat != null && p.lng != null) {
+      final candidate = kStationLatLng[candidateIdx];
+      final distKm = GeoUtils.distKm(p.lat!, p.lng!, candidate.$1, candidate.$2);
+      return max(5, (distKm / 25.0 * 60).round());
+    }
+    return 60;
+  }
+
   static List<MeetingPoint> calculate(List<Participant> participants) {
-    final active = participants.where((p) => p.hasStation).toList();
+    // stationIndex がなくても stationName か座標があれば参加者として含める
+    final active = participants
+        .where((p) => p.hasStation || p.stationName != null || p.hasLocation)
+        .toList();
     if (active.isEmpty) return [];
 
     final results = <MeetingPoint>[];
@@ -31,7 +58,7 @@ class MidpointService {
     for (int c = 0; c < kStations.length; c++) {
       final times = <String, int>{};
       for (final p in active) {
-        times[p.id] = _transitTime(p.stationIndex!, c);
+        times[p.id] = _transitTimeForParticipant(p, c);
       }
 
       final values = times.values.toList();
@@ -288,31 +315,28 @@ class MidpointService {
       if (r.freeFood) usabilityScore += 0.05;
       usabilityScore = usabilityScore.clamp(0.0, 1.0);
 
-      // ── 総合スコア（ジャンル別重み）─────────────────────────────────────
+      // ── 総合スコア（ジャンル別 × シーン別 × 人数別重み）─────────────────
       // [accessW, conditionW, qualityW, usabilityW]
-      final weights = _genreWeights(r.category);
+      final baseWeights = _genreWeights(r.category);
+      final weights = _applySceneParticipantWeights(
+        baseWeights,
+        occasion,
+        active.length,
+      );
       final overall = (weights[0] * accessScore +
               weights[1] * conditionScore +
               weights[2] * qualityScore +
               weights[3] * usabilityScore)
           .clamp(0.0, 1.0);
 
-      // ── おすすめ理由ラベル（なぜこの店か）───────────────────────────────
-      final reasons = <String>[];
-      if (walkMin <= 3) { reasons.add('駅から$walkMin分'); }
-      else if (walkMin <= 5) { reasons.add('駅近$walkMin分'); }
-      if (selectedDate != null && r.isReservable) {
-        final m = selectedDate.month;
-        final d = selectedDate.day;
-        reasons.add('$m/$d予約可');
-      } else if (r.isReservable && reasons.length < 2) {
-        reasons.add('予約可');
-      }
-      if (r.hasPrivateRoom && reasons.length < 2) reasons.add('個室あり');
-      if (r.freeDrink && reasons.length < 2) reasons.add('飲み放題');
-      if (r.course && reasons.length < 2) reasons.add('コースあり');
-      if (r.nonSmoking && reasons.length < 2) reasons.add('禁煙');
-      final curationLabel = reasons.take(2).join(' · ');
+      // ── キュレーションラベル（外さない / おしゃれ / 穴場）────────────────
+      final curationLabel = _computeCurationLabel(
+        r,
+        accessScore: accessScore,
+        qualityScore: qualityScore,
+        occasion: occasion,
+        selectedDate: selectedDate,
+      );
 
       return ScoredRestaurant(
         restaurant: r,
@@ -353,6 +377,127 @@ class MidpointService {
       // デフォルト: 集合アプリの標準重み
       _ => [0.30, 0.35, 0.20, 0.15],
     };
+  }
+
+  /// シーン別・人数別の重み補正 [access, condition, quality, usability]
+  ///
+  /// ジャンル基本重みに乗数を掛けて正規化することで、
+  /// ジャンルの特性を維持しながらシーン・人数に応じた傾斜を与える。
+  static List<double> _applySceneParticipantWeights(
+    List<double> base,
+    String? occasion,
+    int participantCount,
+  ) {
+    // [access, condition, quality, usability]
+    var m = [1.0, 1.0, 1.0, 1.0];
+
+    // 人数別乗数
+    if (participantCount >= 5) {
+      // 大人数: 個室・予約しやすさ(usability) を強化
+      m[3] *= 1.45;
+      m[0] *= 1.10; // 駅近も依然重要
+      m[2] *= 0.85;
+    } else if (participantCount == 2) {
+      // 2人: 品質(雰囲気・写真)とシーン一致を重視
+      m[2] *= 1.30;
+      m[1] *= 1.20;
+      m[0] *= 0.80;
+    }
+    // 3〜4人はデフォルト乗数(1.0)のまま
+
+    // シーン別乗数
+    switch (occasion) {
+      case '仕事帰り':
+        m[0] *= 1.30; // 駅近必須
+        m[3] *= 1.20; // 予約・個室
+        m[2] *= 0.75;
+      case 'デート':
+        m[2] *= 1.40; // 品質・雰囲気
+        m[1] *= 1.25; // シーン一致
+        m[0] *= 0.70; // 駅近はやや下げ
+      case '女子会':
+        m[2] *= 1.30; // 品質・写真映え
+        m[1] *= 1.20; // シーン一致
+        m[3] *= 1.10; // 個室もプラス
+      case '歓迎会':
+      case '打ち上げ':
+        m[3] *= 1.40; // 個室・予約・飲み放題
+        m[0] *= 1.10;
+        m[2] *= 0.80;
+      case '合コン':
+        m[2] *= 1.20; // 品質・雰囲気
+        m[1] *= 1.30; // シーン一致
+        m[3] *= 1.10;
+    }
+
+    // 乗数適用
+    final adjusted = List.generate(4, (i) => base[i] * m[i]);
+    final sum = adjusted.reduce((a, b) => a + b);
+    // sum==0 は理論上あり得ないが安全のため基本重みをそのまま返す
+    if (sum == 0) return base;
+    return adjusted.map((x) => x / sum).toList();
+  }
+
+  /// キュレーションラベルを決定する
+  ///
+  /// 優先順: 外さない > おしゃれ > 穴場 > 特徴ラベル
+  ///
+  /// - 外さない: 駅近(accessScore>=0.65) + 評価安定(reviewCount>=30) + 予約可
+  /// - おしゃれ: 写真あり + 女性人気/デート向きカテゴリ
+  /// - 穴場    : レビュー10〜79件 + 評価3.5以上 + 駅から4分以上
+  static String _computeCurationLabel(
+    Restaurant r, {
+    required double accessScore,
+    required double qualityScore,
+    required String? occasion,
+    required DateTime? selectedDate,
+  }) {
+    // ── タイプ判定 ────────────────────────────────────────────────────
+    final isHazusanai = accessScore >= 0.65 &&
+        r.reviewCount >= 30 &&
+        r.isReservable &&
+        r.rating >= 3.5;
+
+    final oshareCategories = {'フレンチ', 'イタリアン', 'カフェ', 'バー'};
+    final isOshare = (r.imageUrl != null && r.imageUrl!.isNotEmpty) &&
+        (r.isFemalePopular ||
+            oshareCategories.contains(r.category) ||
+            occasion == 'デート' ||
+            occasion == '女子会');
+
+    final isAnaba = r.reviewCount >= 10 &&
+        r.reviewCount < 80 &&
+        r.rating >= 3.5 &&
+        r.distanceMinutes >= 4;
+
+    String type = '';
+    if (isHazusanai) {
+      type = '外さない';
+    } else if (isOshare) {
+      type = 'おしゃれ';
+    } else if (isAnaba) {
+      type = '穴場';
+    }
+
+    // ── サブラベル（特徴）────────────────────────────────────────────
+    String sub = '';
+    if (selectedDate != null && r.isReservable) {
+      sub = '${selectedDate.month}/${selectedDate.day}予約可';
+    } else if (r.distanceMinutes <= 3) {
+      sub = '駅${r.distanceMinutes}分';
+    } else if (r.distanceMinutes <= 5) {
+      sub = '駅近';
+    } else if (r.hasPrivateRoom) {
+      sub = '個室';
+    } else if (r.freeDrink) {
+      sub = '飲放';
+    } else if (r.course) {
+      sub = 'コース';
+    }
+
+    if (type.isNotEmpty && sub.isNotEmpty) return '$type · $sub';
+    if (type.isNotEmpty) return type;
+    return sub;
   }
 
   /// シーンに応じたレストランスコアをカテゴリ・属性から動的に計算する

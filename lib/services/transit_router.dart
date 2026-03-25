@@ -28,6 +28,27 @@ class TransitRouter {
     return routes[toName] ?? _geoFallback(fromIdx, toIdx);
   }
 
+  /// 出発駅名（kStations外も可）から候補駅インデックスへの移動時間（分）を返す
+  /// kTransitGraph に駅名があればDijkstraで計算、なければ座標フォールバック
+  int travelMinutesFromName(
+    String fromName,
+    int toIdx, {
+    double? lat,
+    double? lng,
+  }) {
+    if (toIdx >= kStations.length) return 60;
+    final toName = kStations[toIdx];
+    final routes = routeFromStation(fromName);
+    if (routes.containsKey(toName)) return routes[toName]!;
+    // 座標が渡された場合はHaversine推定
+    if (lat != null && lng != null) {
+      final to = kStationLatLng[toIdx];
+      final distKm = GeoUtils.distKm(lat, lng, to.$1, to.$2);
+      return max(5, (distKm / 25.0 * 60).round());
+    }
+    return _geoFallback(0, toIdx);
+  }
+
   void _runDijkstra(String origin) {
     final dist = <String, int>{};
     final pq = PriorityQueue<(int, String, String)>(

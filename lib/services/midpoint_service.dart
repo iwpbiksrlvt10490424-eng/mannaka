@@ -25,6 +25,17 @@ class MidpointService {
   /// stationIndex がある場合はmatrix/Dijkstra、
   /// stationName のみの場合（kStations外駅）はDijkstra+座標フォールバック
   static int _transitTimeForParticipant(Participant p, int candidateIdx) {
+    // stationName が kStations 外の駅名（日本橋等）の場合は
+    // setStationWithCoords() が最寄kStations駅に変換していても、
+    // 実際の駅名でDijkstraを使う（精度優先）
+    if (p.stationName != null && !kStations.contains(p.stationName)) {
+      return TransitRouter.instance.travelMinutesFromName(
+        p.stationName!,
+        candidateIdx,
+        lat: p.lat,
+        lng: p.lng,
+      );
+    }
     if (p.stationIndex != null) {
       return _transitTime(p.stationIndex!, candidateIdx);
     }

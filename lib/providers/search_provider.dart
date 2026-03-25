@@ -512,8 +512,8 @@ class SearchNotifier extends Notifier<SearchState> {
         cache[results.first.stationIndex] = hotpepperRestaurants;
       }
 
-      // Pre-fetch for remaining candidates in parallel (max 3 additional, 8s timeout)
-      final remaining = results.skip(1).take(3).toList();
+      // Pre-fetch for remaining candidates in parallel (2〜5位すべて対象, 8s timeout)
+      final remaining = results.skip(1).toList();
       final foursquare = ref.read(foursquareServiceProvider);
       final hasHotpepper = ApiConfig.hotpepperApiKey.isNotEmpty;
       final prefetchFutures = remaining.map((point) async {

@@ -1,23 +1,26 @@
+`current_task.md` を更新しました。バックログの該当タスクはすでに `[🚧]` 状態です（前回セッションで設定済み）。
+
 ---
 
-## 今日のタスク: Cycle 34
+## 今日のタスク選定結果
 
-**ダークモード残件修正 — navigationBarTheme 補完 & border 色修正**
+**ダークモード残件修正（Cycle 34）**
 
 ### 選定理由
 
-| 理由 | 内容 |
+| 観点 | 内容 |
 |------|------|
-| Critic 残件 | Cycle 33 APPROVED 後も 2件の指摘が未解消 |
-| ブランド崩れ | ダークモードでナビバーのアイコン/ラベルが Material3 デフォルト色にフォールバックする |
-| 高優先度はブロック中 | App Store URL・Google Maps APIキー・メール設定は全て外部依存待ち |
-| 最小変更・低リスク | `lib/theme/app_theme.dart` のみ修正で完結 |
+| 既着手 | Cycle 33 QA レビューで検出済みの2件 ISSUE が未解消のまま [🚧] |
+| リリースブランド影響 | ダークモードでナビバーのアイコン/ラベルが Material3 デフォルト色にフォールバック → ブランド崩れ |
+| 高優先度タスクはブロック中 | App Store URL・Google Maps APIキー・support メールはすべて外部依存待ちで着手不可 |
+| 最小変更・低リスク | `lib/theme/app_theme.dart` 1ファイルのみで完結 |
 
 ### 修正対象（2件）
 
-| # | 重要度 | 問題 | 修正方針 |
-|---|--------|------|---------|
-| 1 | 中 | `dark()` の `navigationBarTheme` に `labelTextStyle`・`iconTheme` 欠落 | light() と同構造で、unselected に `Colors.white70` 等のダーク色を使う |
-| 2 | 軽 | `border`/`enabledBorder` が `fillColor`（`darkSurface`）と同色で不可視 | `AppColors.darkBorder = Color(0xFF3A3A3C)` を追加して置換 |
+| # | ISSUE | 修正方針 |
+|---|-------|---------|
+| 1 | `navigationBarTheme` の `labelTextStyle`・`iconTheme` 欠落 | dark() に選択中/非選択の WidgetStateProperty を追加 |
+| 2 | `inputDecorationTheme` の border が `darkSurface` と同色で不可視 | `AppColors.darkBorder = Color(0xFF3A3A3C)` を定義して置換 |
 
-`current_task.md` 保存済み、バックログを `[🚧]` Cycle 34 に更新済みです。
+### 進め方
+TDD (Red → Green → Refactor) で `test/theme/dark_theme_cycle34_test.dart` を先に書いてから実装します。

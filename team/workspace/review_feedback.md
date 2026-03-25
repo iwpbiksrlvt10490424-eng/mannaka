@@ -1,25 +1,29 @@
-レビュー完了です。判定は **ISSUES_FOUND** です。
+---
+
+## レビュー結果: ISSUES_FOUND
+
+### WARNING 1件
+
+**`dividerTheme` の border 色がハードコード** (`lib/theme/app_theme.dart:233`)
+
+```dart
+// 問題
+color: Color(0xFF3A3A3C),  // ← AppColors.darkBorder と同値なのに直書き
+
+// 修正
+color: AppColors.darkBorder,
+```
+
+今サイクルで `AppColors.darkBorder` を「一元管理用定数」として追加したにもかかわらず、`dividerTheme` だけ同じ値をリテラルで書いており一貫性が欠けています。動作は壊れませんが、将来ボーダー色を変更したとき `dividerTheme` だけ取り残されるリスクがあります。
 
 ---
 
-## 主な指摘事項
+### 良い点
 
-### ISSUE 1 (中): `dark()` の `navigationBarTheme` が不完全
-`light()` にある `labelTextStyle` と `iconTheme` が `dark()` に存在しない（`lib/theme/app_theme.dart:254-259`）。
-- 結果: ダークモードでナビバーのアイコン/ラベル色が Material3 デフォルトにフォールバックし、ブランドカラーが失われる
+- `inputDecorationTheme` の `border`/`enabledBorder` → `darkBorder` への置き換えは正確
+- `navigationBarTheme` の `labelTextStyle`/`iconTheme` 両状態のカバー、`Colors.white70` 使用は正しい
+- `withOpacity()` ゼロ、`withValues(alpha:)` に統一済み
 
-### ISSUE 2 (軽): 入力フィールドのボーダーが不可視になる
-`border`/`enabledBorder` の色に `darkSurface` を指定しているが、これは `fillColor` と同色なのでボーダーが見えなくなる（line 239-245）。
+### TDD 評価
 
-### NOTICE: `dividerTheme` と CLAUDE.md の「Divider禁止」ルール
-定義そのものは問題ないが、目的をコメントで明記することを推奨。
-
----
-
-## 良かった点
-- `withValues(alpha:)` を正しく使用、`withOpacity()` ゼロ
-- `darkCardBg` の定数化、2階層カラー構造（background/surface）は iOS 準拠
-- `app.dart` の `ThemeMode.system` 接続が正しい
-
-## TDD評価
-受け入れ条件のカバレッジは OK だが、テストが「ソースコードの文字列検索」にとどまっており `labelTextStyle` 欠落のようなロジックの穴を検知できなかった。
+テストは受け入れ条件を8件網羅しており Red→Green サイクルも確認済み。ただし `dividerTheme` のハードコードがテスト対象外のため見逃されました（△）。対応指示に追加テストの推奨を記載しています。

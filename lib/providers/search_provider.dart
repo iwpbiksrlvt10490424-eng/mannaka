@@ -107,10 +107,12 @@ class SearchState {
     this.maxBudget = 0,
     this.centroidLat,
     this.centroidLng,
+    this.geoCentroidLat,
+    this.geoCentroidLng,
     this.hotpepperRestaurants = const [],
     this.sortOption = SortOption.recommended,
     this.errorMessage,
-    this.restaurantCache = const {},
+    this.restaurantCache = const <String, List<Restaurant>>{},
     this.loadingMessage,
     this.selectedDate,
     this.groupRelation,
@@ -135,13 +137,15 @@ class SearchState {
   final int maxBudget;
   final double? centroidLat;
   final double? centroidLng;
+  final double? geoCentroidLat;   // 地理的重心（参加者の平均座標）
+  final double? geoCentroidLng;
   final List<Restaurant> hotpepperRestaurants;
   final SortOption sortOption;
   final String? errorMessage;
   final String? loadingMessage;
   final DateTime? selectedDate;
-  // キャッシュ: stationIndex → restaurants
-  final Map<int, List<Restaurant>> restaurantCache;
+  // キャッシュ: stationName → restaurants
+  final Map<String, List<Restaurant>> restaurantCache;
   // グループ関係性（おすすめ改善用）
   final String? groupRelation; // 'friends' | 'couple' | 'colleagues' | 'family'
 
@@ -165,17 +169,24 @@ class SearchState {
     if (hotpepperRestaurants.isNotEmpty) {
       base = hotpepperRestaurants;
     } else if (results.isNotEmpty) {
-      final stationIndices = results.map((r) => r.stationIndex).toSet();
+      final stationNames = results.map((r) => r.stationName).toSet();
       base = kRestaurants
-          .where((r) => stationIndices.contains(r.stationIndex))
+          .where((r) => r.stationIndex < kStations.length &&
+              stationNames.contains(kStations[r.stationIndex]))
           .toList();
     }
+
+    // ジャンル除外をスコアリング前に適用（カフェにお好み焼き等を出さない）
+    final filteredBase = MidpointService.filterRestaurantsForDisplayGenre(
+      base ?? [],
+      restaurantCategories,
+    );
 
     return MidpointService.scoreRestaurants(
       participants: participants,
       centroidLat: centroidLat!,
       centroidLng: centroidLng!,
-      baseRestaurants: base,
+      baseRestaurants: filteredBase.isNotEmpty ? filteredBase : base,
       categories: restaurantCategories,
       femaleFriendly: _effectiveFemale,
       hasPrivateRoom: _effectivePrivate,
@@ -232,11 +243,13 @@ class SearchState {
     int? maxBudget,
     double? centroidLat,
     double? centroidLng,
+    double? geoCentroidLat,
+    double? geoCentroidLng,
     List<Restaurant>? hotpepperRestaurants,
     SortOption? sortOption,
     String? errorMessage,
     String? loadingMessage,
-    Map<int, List<Restaurant>>? restaurantCache,
+    Map<String, List<Restaurant>>? restaurantCache,
     bool clearMeetingPoint = false,
     bool clearCategory = false,
     bool clearCentroid = false,
@@ -283,6 +296,8 @@ class SearchState {
       maxBudget: maxBudget ?? this.maxBudget,
       centroidLat: clearCentroid ? null : (centroidLat ?? this.centroidLat),
       centroidLng: clearCentroid ? null : (centroidLng ?? this.centroidLng),
+      geoCentroidLat: clearCentroid ? null : (geoCentroidLat ?? this.geoCentroidLat),
+      geoCentroidLng: clearCentroid ? null : (geoCentroidLng ?? this.geoCentroidLng),
       hotpepperRestaurants: hotpepperRestaurants ?? this.hotpepperRestaurants,
       sortOption: sortOption ?? this.sortOption,
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
@@ -454,6 +469,14 @@ class SearchNotifier extends Notifier<SearchState> {
       // Uber Eats式: 交通最適駅の座標を集合地点として使用
       final centroid = MidpointService.calcCentroid(state.participants, meetingPoints: results);
 
+      // 地理的重心（参加者座標の単純平均）
+      final located = state.participants.where((p) => p.lat != null && p.lng != null).toList();
+      double? geoCentLat, geoCentLng;
+      if (located.length >= 2) {
+        geoCentLat = located.map((p) => p.lat!).reduce((a, b) => a + b) / located.length;
+        geoCentLng = located.map((p) => p.lng!).reduce((a, b) => a + b) / located.length;
+      }
+
       List<Restaurant> hotpepperRestaurants = [];
       if (centroid != null) {
         state = state.copyWith(loadingMessage: 'お店を検索中...');
@@ -507,9 +530,9 @@ class SearchNotifier extends Notifier<SearchState> {
       }
 
       // Build cache — already fetched for the centroid/best point
-      final cache = <int, List<Restaurant>>{};
+      final cache = <String, List<Restaurant>>{};
       if (results.isNotEmpty) {
-        cache[results.first.stationIndex] = hotpepperRestaurants;
+        cache[results.first.stationName] = hotpepperRestaurants;
       }
 
       // Pre-fetch for remaining candidates in parallel (2〜5位すべて対象, 8s timeout)
@@ -517,7 +540,7 @@ class SearchNotifier extends Notifier<SearchState> {
       final foursquare = ref.read(foursquareServiceProvider);
       final hasHotpepper = ApiConfig.hotpepperApiKey.isNotEmpty;
       final prefetchFutures = remaining.map((point) async {
-        final latLng = kStationLatLng[point.stationIndex];
+        final latLng = (point.lat, point.lng);
         List<Restaurant> restaurants = [];
         try {
           if (hasHotpepper) {
@@ -535,7 +558,7 @@ class SearchNotifier extends Notifier<SearchState> {
         } catch (e) {
           debugPrint('prefetch: ${point.stationName} failed - ${e.runtimeType}');
         }
-        cache[point.stationIndex] = restaurants;
+        cache[point.stationName] = restaurants;
       });
       await Future.wait(prefetchFutures, eagerError: false);
       await NotificationService.recordSearch();
@@ -557,6 +580,8 @@ class SearchNotifier extends Notifier<SearchState> {
         selectedMeetingPoint: results.isNotEmpty ? results.first : null,
         centroidLat: centroid?.$1,
         centroidLng: centroid?.$2,
+        geoCentroidLat: geoCentLat,
+        geoCentroidLng: geoCentLng,
         hotpepperRestaurants: hotpepperRestaurants,
         restaurantCache: cache,
         clearCategory: true,
@@ -592,31 +617,43 @@ class SearchNotifier extends Notifier<SearchState> {
   }
 
   Future<void> selectMeetingPointAndFetch(MeetingPoint point) async {
+    // 選択中駅の座標を centroid として更新する
+    // （distanceKm・scoreRestaurants の基準点を選択駅に合わせる）
+    final lat = point.lat;
+    final lng = point.lng;
+
     // Check cache first — instant if cached
-    if (state.restaurantCache.containsKey(point.stationIndex)) {
+    if (state.restaurantCache.containsKey(point.stationName)) {
       state = state.copyWith(
         selectedMeetingPoint: point,
-        hotpepperRestaurants: state.restaurantCache[point.stationIndex]!,
+        hotpepperRestaurants: state.restaurantCache[point.stationName]!,
+        centroidLat: lat,
+        centroidLng: lng,
         clearCategory: true,
       );
       return; // instant, no network call
     }
 
     // Not cached — fetch with loading indicator
-    state = state.copyWith(selectedMeetingPoint: point, clearCategory: true, isCalculating: true);
+    state = state.copyWith(
+      selectedMeetingPoint: point,
+      centroidLat: lat,
+      centroidLng: lng,
+      clearCategory: true,
+      isCalculating: true,
+    );
     try {
-      final latLng = kStationLatLng[point.stationIndex];
       List<Restaurant> restaurants = await ref.read(foursquareServiceProvider).searchNearby(
-        latLng.$1, latLng.$2,
+        lat, lng,
       );
       if (restaurants.isEmpty) {
         restaurants = await OverpassService.searchNearby(
-          lat: latLng.$1, lng: latLng.$2,
+          lat: lat, lng: lng,
         );
       }
       // Add to cache
-      final newCache = Map<int, List<Restaurant>>.from(state.restaurantCache);
-      newCache[point.stationIndex] = restaurants;
+      final newCache = Map<String, List<Restaurant>>.from(state.restaurantCache);
+      newCache[point.stationName] = restaurants;
       state = state.copyWith(
         hotpepperRestaurants: restaurants.isNotEmpty ? restaurants : state.hotpepperRestaurants,
         restaurantCache: newCache,
@@ -654,7 +691,7 @@ class SearchNotifier extends Notifier<SearchState> {
     // カテゴリ変更時はFirebaseキャッシュを無効化するため検索結果もクリア
     state = state.copyWith(
       restaurantCategories: current,
-      restaurantCache: const {},
+      restaurantCache: const <String, List<Restaurant>>{},
     );
   }
 
@@ -686,7 +723,8 @@ class SearchNotifier extends Notifier<SearchState> {
     List<String> participantNames,
     MeetingPoint meetingPoint,
   ) async {
-    final (lat, lng) = kStationLatLng[meetingPoint.stationIndex];
+    final lat = meetingPoint.lat;
+    final lng = meetingPoint.lng;
     final participants = participantNames.asMap().entries
         .map((e) => Participant(id: '${e.key + 1}', name: e.value))
         .toList();

@@ -159,6 +159,11 @@ class HotpepperService {
       lunchFromApi: lunchFromApi,
       wifi: wifi,
       course: course,
+      sourceApi: 'hotpepper',
+      confidenceLevel: 'high',
+      ratingConfidence: 'known',
+      reviewConfidence: 'known',
+      planInfoConfidence: 'known',
     );
   }
 

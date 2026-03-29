@@ -688,29 +688,53 @@ class _ParticipantRowState extends State<_ParticipantRow> {
               ),
               // 駅エリア
               Expanded(
-                child: GestureDetector(
-                  onTap: hasStation ? widget.onStationTap : null,
-                  child: Row(
+                child: Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       if (hasStation) ...[
+                        // 駅選択済み: 他の選択項目と同じ primaryLight スタイルで統一
                         Flexible(
-                          child: Text(
-                            p.stationName ?? '',
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w500,
-                              color: AppColors.textPrimary,
+                          child: GestureDetector(
+                            onTap: widget.onStationTap,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: AppColors.primaryLight,
+                                borderRadius: BorderRadius.circular(8),
+                                border:
+                                    Border.all(color: AppColors.primaryBorder),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                      Icons.directions_subway_rounded,
+                                      size: 12,
+                                      color: AppColors.primary),
+                                  const SizedBox(width: 4),
+                                  Flexible(
+                                    child: Text(
+                                      p.stationName ?? '',
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.primary,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  GestureDetector(
+                                    onTap: widget.onStationClear,
+                                    child: const Icon(Icons.close_rounded,
+                                        size: 14, color: AppColors.primary),
+                                  ),
+                                ],
+                              ),
                             ),
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 1,
                           ),
-                        ),
-                        const SizedBox(width: 6),
-                        GestureDetector(
-                          onTap: widget.onStationClear,
-                          child: const Icon(Icons.cancel,
-                              size: 16, color: AppColors.textTertiary),
                         ),
                       ] else ...[
                         // GPS ボタン（最初の参加者のみ）
@@ -820,7 +844,6 @@ class _ParticipantRowState extends State<_ParticipantRow> {
                       ],
                     ],
                   ),
-                ),
               ),
               if (widget.canRemove) ...[
                 const SizedBox(width: 12),
@@ -1526,14 +1549,14 @@ class _GroupRelationChips extends StatelessWidget {
                         horizontal: 14, vertical: 8),
                     decoration: BoxDecoration(
                       color: isSelected
-                          ? AppColors.primaryLight
+                          ? AppColors.chipSelectedBg
                           : Colors.white,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
                         color: isSelected
-                            ? AppColors.primary
+                            ? AppColors.chipSelectedBg
                             : AppColors.divider,
-                        width: isSelected ? 1.5 : 1,
+                        width: 1,
                       ),
                     ),
                     child: Text(
@@ -1544,7 +1567,7 @@ class _GroupRelationChips extends StatelessWidget {
                             ? FontWeight.w600
                             : FontWeight.w400,
                         color: isSelected
-                            ? AppColors.primary
+                            ? AppColors.chipSelectedText
                             : AppColors.textSecondary,
                       ),
                     ),

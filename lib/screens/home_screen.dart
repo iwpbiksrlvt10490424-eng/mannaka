@@ -31,6 +31,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   // 生のGPS座標は保持しない。最寄駅に変換した座標のみを使用（プライバシー保護）
   gmap.LatLng? _nearestStationLatLng;
   ProviderSubscription<HomeStationData?>? _homeStationSub;
+  // マイページでホーム駅が変更されたとき用 — Offstage中でもアニメーション漏れを防ぐ
+  gmap.LatLng? _pendingCameraLatLng;
 
   double _lastSize = 0;
 
@@ -95,8 +97,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ).timeout(const Duration(seconds: 5));
       if (!mounted) return;
       _updateToNearestStation(pos.latitude, pos.longitude, saveAsHome: true);
-      // 地図が既に表示されていればカメラをアニメーションで移動
-      if (_nearestStationLatLng != null) {
+      // ホーム駅が手動設定済みの場合はGPSによるカメラ移動をスキップする
+      // （マイページで選択した駅のピンが画面外に押し出されるのを防ぐ）
+      final existingHome = ref.read(homeStationDataProvider);
+      if (existingHome == null && _nearestStationLatLng != null) {
         _mapController?.animateCamera(
           gmap.CameraUpdate.newLatLngZoom(_nearestStationLatLng!, 14.0),
         );
@@ -117,11 +121,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     _lastSize = size;
   }
 
-  void _animateCameraToLatLng(double lat, double lng) {
-    if (ref.read(searchProvider).hasCentroid) return;
-    _mapController?.animateCamera(
-      gmap.CameraUpdate.newLatLngZoom(gmap.LatLng(lat, lng), 14.0),
-    );
+  /// SharedPreferences からホーム駅を読み込んで homeStationDataProvider を設定する。
+  /// SettingsScreen._loadPrefs() と競合しないよう、未設定の場合のみ実行する。
+  Future<void> _loadHomeStationIfNeeded() async {
+    if (ref.read(homeStationDataProvider) != null) return;
+    final prefs = await SharedPreferences.getInstance();
+    final homeStation = prefs.getInt('home_station');
+    if (homeStation == null) return;
+    if (!mounted) return;
+    final homeStationName = prefs.getString('home_station_name');
+    final homeStationLat = prefs.getDouble('home_station_lat');
+    final homeStationLng = prefs.getDouble('home_station_lng');
+    if (homeStation < kStationLatLng.length) {
+      final fallback = kStationLatLng[homeStation];
+      final lat = homeStationLat ?? fallback.$1;
+      final lng = homeStationLng ?? fallback.$2;
+      if (!mounted) return;
+      ref.read(homeStationProvider.notifier).state = homeStation;
+      ref.read(homeStationDataProvider.notifier).state = HomeStationData(
+        name: homeStationName ?? kStations[homeStation],
+        lat: lat,
+        lng: lng,
+      );
+    }
   }
 
   @override
@@ -129,17 +151,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     super.initState();
     _sheetCtrl.addListener(_onSheetChanged);
     _fetchLocation();
+    _loadHomeStationIfNeeded();
     // ホーム駅の変更を監視してカメラを移動（マーカーはbuild()内のwatchで自動更新）
     _homeStationSub = ref.listenManual<HomeStationData?>(homeStationDataProvider, (prev, next) {
       if (next == null) return;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _animateCameraToLatLng(next.lat, next.lng);
-      });
-    });
-    // 起動時に既存のホーム駅があればカメラを移動
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final data = ref.read(homeStationDataProvider);
-      if (data != null) _animateCameraToLatLng(data.lat, data.lng);
+      final target = gmap.LatLng(next.lat, next.lng);
+      if (_mapController != null) {
+        // マップが既に生成済み → 直接アニメーション（Offstage中でも試みる）
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          _mapController?.animateCamera(
+            gmap.CameraUpdate.newLatLngZoom(target, 14.5),
+          );
+        });
+      } else {
+        // マップ未生成（onMapCreated待ち） → 生成後に適用
+        setState(() { _pendingCameraLatLng = target; });
+      }
     });
   }
 
@@ -229,6 +257,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               mapType: gmap.MapType.normal,
               onMapCreated: (controller) {
                 _mapController = controller;
+                // ホーム駅選択中 or 選択済みのとき、初期カメラをホーム駅に移動
+                final pending = _pendingCameraLatLng;
+                if (pending != null) {
+                  _pendingCameraLatLng = null;
+                  Future.microtask(() {
+                    if (mounted) {
+                      controller.animateCamera(
+                        gmap.CameraUpdate.newLatLngZoom(pending, 14.5),
+                      );
+                    }
+                  });
+                } else {
+                  final homeData = ref.read(homeStationDataProvider);
+                  if (homeData != null && !ref.read(searchProvider).hasCentroid) {
+                    Future.microtask(() {
+                      if (mounted) {
+                        controller.animateCamera(
+                          gmap.CameraUpdate.newLatLngZoom(
+                            gmap.LatLng(homeData.lat, homeData.lng), 14.5,
+                          ),
+                        );
+                      }
+                    });
+                  }
+                }
               },
             ),
           ),

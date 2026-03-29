@@ -141,6 +141,11 @@ class FoursquareService {
       hotpepperUrl: '',
       imageUrl: imageUrl,
       imageUrls: imageUrls,
+      sourceApi: 'foursquare',
+      confidenceLevel: 'medium',
+      ratingConfidence: 'known',
+      reviewConfidence: 'known',
+      planInfoConfidence: 'unknown',  // Foursquare doesn't have course/drink/food plan info
     );
   }
 

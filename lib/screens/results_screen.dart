@@ -203,7 +203,7 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
                         final selected = state.selectedMeetingPoint;
                         if (selected != null &&
                             !state.restaurantCache
-                                .containsKey(selected.stationIndex)) {
+                                .containsKey(selected.stationName)) {
                           notifier.selectMeetingPointAndFetch(selected);
                         } else {
                           notifier.calculate();
@@ -229,7 +229,7 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
                         controller: tab,
                         children: results.take(5).toList().map((point) {
                           return _MeetingPointTab(
-                            key: ValueKey(point.stationIndex),
+                            key: ValueKey(point.stationName),
                             point: point,
                             state: state,
                             notifier: notifier,
@@ -292,11 +292,11 @@ class _MeetingPointTabState extends ConsumerState<_MeetingPointTab> {
 
   List<Restaurant> _baseRestaurants() {
     final state = widget.state;
-    final idx = widget.point.stationIndex;
-    if (state.selectedMeetingPoint?.stationIndex == idx) {
+    final name = widget.point.stationName;
+    if (state.selectedMeetingPoint?.stationName == name) {
       return state.hotpepperRestaurants;
     }
-    return state.restaurantCache[idx] ?? [];
+    return state.restaurantCache[name] ?? [];
   }
 
   /// 全スコアリング済みリスト（ローカルカテゴリフィルタ・ソート前）
@@ -393,11 +393,11 @@ class _MeetingPointTabState extends ConsumerState<_MeetingPointTab> {
 
   bool get _isLoading {
     final state = widget.state;
-    final idx = widget.point.stationIndex;
+    final name = widget.point.stationName;
     return state.isCalculating ||
-        (state.selectedMeetingPoint?.stationIndex == idx &&
+        (state.selectedMeetingPoint?.stationName == name &&
             state.hotpepperRestaurants.isEmpty &&
-            !state.restaurantCache.containsKey(idx));
+            !state.restaurantCache.containsKey(name));
   }
 
   @override

@@ -1,7 +1,45 @@
 import 'transit_edge.dart';
 
-/// 乗り換えペナルティ（分）
-const int kTransferPenaltyMinutes = 5;
+/// 駅別乗換ペナルティ（分）
+/// 未定義駅は kDefaultTransferMinutes（5分）を使う
+/// 重い乗換（8-10分）: 構内が広大・混雑で乗換に時間がかかる駅
+/// 軽い乗換（3分）: 同一ホーム対面乗換や小規模駅
+const int kDefaultTransferMinutes = 5;
+const Map<String, int> kStationTransferMinutes = {
+  // ── 重い乗換（8分）──────────────────────────────────────────────
+  '新宿':   8,
+  '渋谷':   8,
+  '池袋':   8,
+  '東京':   8,
+  '大手町': 8,
+  '横浜':   8,
+  '品川':   7,
+  '上野':   7,
+  '北千住': 7,
+  '新橋':   7,
+  '秋葉原': 7,
+  '高田馬場': 7,
+  '恵比寿': 6,
+  '目黒':   6,
+  '三鷹':   6,
+  '川越':   6,
+  '大宮':   6,
+  '船橋':   6,
+  '千葉':   6,
+  // ── 軽い乗換（3分）: 同一改札・対面乗換 ─────────────────────────
+  '日比谷':   3,
+  '銀座':     3,
+  '表参道':   3,
+  '赤坂見附': 3,
+  '永田町':   3,
+  '飯田橋':   3,
+  '神谷町':   3,
+  '溜池山王': 3,
+  '国会議事堂前': 3,
+};
+
+/// 乗り換えペナルティ（分）- 後方互換のため残す
+const int kTransferPenaltyMinutes = kDefaultTransferMinutes;
 
 /// 東京圏の主要路線の隣接リスト（双方向）
 /// lineId は路線を識別するためのキー（乗り換えペナルティ計算に使用）
@@ -112,6 +150,7 @@ const Map<String, List<TransitEdge>> kTransitGraph = {
     TransitEdge('新宿', 8, 'shonan'),
     TransitEdge('赤羽', 10, 'shonan'),
     TransitEdge('板橋', 4, 'saikyo'),
+    TransitEdge('東池袋', 1, 'yurakucho'),
   ],
   '大塚': [
     TransitEdge('池袋', 3, 'yamanote'),
@@ -205,6 +244,8 @@ const Map<String, List<TransitEdge>> kTransitGraph = {
     TransitEdge('新橋', 2, 'yamanote'),
     TransitEdge('東京', 2, 'keihin_tohoku'),
     TransitEdge('新橋', 2, 'keihin_tohoku'),
+    TransitEdge('桜田門', 3, 'yurakucho'),
+    TransitEdge('銀座一丁目', 2, 'yurakucho'),
   ],
   '新橋': [
     TransitEdge('有楽町', 2, 'yamanote'),
@@ -443,6 +484,8 @@ const Map<String, List<TransitEdge>> kTransitGraph = {
     TransitEdge('後楽園', 4, 'namboku'),
     TransitEdge('神楽坂', 3, 'tozai'),
     TransitEdge('九段下', 3, 'tozai'),
+    TransitEdge('江戸川橋', 4, 'yurakucho'),
+    TransitEdge('市ヶ谷', 3, 'yurakucho'),
   ],
   '市ヶ谷': [
     TransitEdge('飯田橋', 3, 'chuo_sobu'),
@@ -451,6 +494,8 @@ const Map<String, List<TransitEdge>> kTransitGraph = {
     TransitEdge('四ッ谷', 3, 'namboku'),
     TransitEdge('曙橋', 3, 'toei_shinjuku'),
     TransitEdge('九段下', 3, 'toei_shinjuku'),
+    TransitEdge('飯田橋', 3, 'yurakucho'),
+    TransitEdge('麹町', 3, 'yurakucho'),
   ],
 
   // ─── JR京浜東北線 (keihin_tohoku) ──────────────────────────────
@@ -944,8 +989,8 @@ const Map<String, List<TransitEdge>> kTransitGraph = {
   '日本橋': [
     TransitEdge('京橋', 2, 'ginza'),
     TransitEdge('三越前', 2, 'ginza'),
-    TransitEdge('東京', 3, 'tozai'),
-    TransitEdge('茅場町', 2, 'tozai'),
+    TransitEdge('大手町', 3, 'tozai'),  // 東西線 西方向（大手町→竹橋→九段下→飯田橋）
+    TransitEdge('茅場町', 2, 'tozai'),  // 東西線 東方向（茅場町→門前仲町→西船橋）
     TransitEdge('人形町', 3, 'toei_asakusa'),
     TransitEdge('宝町', 2, 'toei_asakusa'),
   ],
@@ -1201,6 +1246,8 @@ const Map<String, List<TransitEdge>> kTransitGraph = {
     TransitEdge('半蔵門', 3, 'hanzomon'),
     TransitEdge('溜池山王', 2, 'namboku'),
     TransitEdge('四ッ谷', 3, 'namboku'),
+    TransitEdge('麹町', 3, 'yurakucho'),
+    TransitEdge('桜田門', 3, 'yurakucho'),
   ],
   '半蔵門': [
     TransitEdge('永田町', 3, 'hanzomon'),
@@ -1951,5 +1998,38 @@ const Map<String, List<TransitEdge>> kTransitGraph = {
   '松戸': [
     TransitEdge('柏', 10, 'joban'),
     TransitEdge('北千住', 15, 'joban'),
+  ],
+
+  // ─── 有楽町線 (yurakucho) ────────────────────────────────────────
+  '東池袋': [
+    TransitEdge('池袋', 1, 'yurakucho'),
+    TransitEdge('護国寺', 3, 'yurakucho'),
+  ],
+  '護国寺': [
+    TransitEdge('東池袋', 3, 'yurakucho'),
+    TransitEdge('江戸川橋', 3, 'yurakucho'),
+  ],
+  '江戸川橋': [
+    TransitEdge('護国寺', 3, 'yurakucho'),
+    TransitEdge('飯田橋', 4, 'yurakucho'),
+  ],
+  '麹町': [
+    TransitEdge('市ヶ谷', 3, 'yurakucho'),
+    TransitEdge('永田町', 3, 'yurakucho'),
+  ],
+  '桜田門': [
+    TransitEdge('永田町', 3, 'yurakucho'),
+    TransitEdge('有楽町', 3, 'yurakucho'),
+  ],
+  '銀座一丁目': [
+    TransitEdge('有楽町', 2, 'yurakucho'),
+    TransitEdge('新富町', 2, 'yurakucho'),
+  ],
+  '新富町': [
+    TransitEdge('銀座一丁目', 2, 'yurakucho'),
+    TransitEdge('月島', 5, 'yurakucho'),
+  ],
+  '月島': [
+    TransitEdge('新富町', 5, 'yurakucho'),
   ],
 };

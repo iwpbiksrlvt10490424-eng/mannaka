@@ -279,25 +279,6 @@ class _StationSearchSheetState extends State<StationSearchSheet> {
                     style: TextStyle(
                         fontSize: 12, color: Colors.grey.shade500),
                   ),
-                  if (_apiResults.isNotEmpty) ...[
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: AppColors.primaryLight,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: const Text(
-                        '全国対応',
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
                 ],
               ),
             ),

@@ -32,6 +32,13 @@ class Restaurant {
     this.lunchFromApi = false,
     this.wifi = false,
     this.course = false,
+    this.sourceApi = 'mock',
+    this.confidenceLevel = 'high',
+    this.secondaryGenres = const [],
+    this.blockedGenres = const [],
+    this.ratingConfidence = 'known',
+    this.reviewConfidence = 'known',
+    this.planInfoConfidence = 'known',
   });
 
   final String id;
@@ -66,6 +73,24 @@ class Restaurant {
   final bool lunchFromApi;
   final bool wifi;
   final bool course;
+
+  // APIソース管理
+  final String sourceApi;        // 'hotpepper' | 'foursquare' | 'overpass' | 'mock'
+  final String confidenceLevel;  // 'high' | 'medium' | 'low'
+
+  // ── ジャンル詳細 ──────────────────────────────────────────────────
+  final List<String> secondaryGenres;   // 副ジャンル（例: 居酒屋でも洋食系）
+  final List<String> blockedGenres;     // このジャンル表示では出すべきでない
+  // ── 項目別信頼度（'known' | 'unknown'） ──────────────────────────
+  final String ratingConfidence;   // 評価の信頼度
+  final String reviewConfidence;   // レビュー件数の信頼度
+  final String planInfoConfidence; // コース/飲放/食放情報の信頼度
+
+  /// 情報が十分そろっている店かどうか（ラベル付与の前提条件）
+  bool get hasAdequateInfo =>
+      ratingConfidence == 'known' &&
+      reviewConfidence == 'known' &&
+      (reviewCount > 0 || confidenceLevel == 'high');
 
   String get ratingStr => rating.toStringAsFixed(1);
   String get priceStr => '¥${_formatNumber(priceAvg)}〜';
@@ -145,6 +170,13 @@ class Restaurant {
     'lunchFromApi': lunchFromApi,
     'wifi': wifi,
     'course': course,
+    'sourceApi': sourceApi,
+    'confidenceLevel': confidenceLevel,
+    'secondaryGenres': secondaryGenres,
+    'blockedGenres': blockedGenres,
+    'ratingConfidence': ratingConfidence,
+    'reviewConfidence': reviewConfidence,
+    'planInfoConfidence': planInfoConfidence,
   };
 
   factory Restaurant.fromJson(Map<String, dynamic> j) => Restaurant(
@@ -180,5 +212,12 @@ class Restaurant {
     lunchFromApi: j['lunchFromApi'] as bool? ?? false,
     wifi: j['wifi'] as bool? ?? false,
     course: j['course'] as bool? ?? false,
+    sourceApi: j['sourceApi'] as String? ?? 'mock',
+    confidenceLevel: j['confidenceLevel'] as String? ?? 'high',
+    secondaryGenres: List<String>.from(j['secondaryGenres'] as List? ?? []),
+    blockedGenres: List<String>.from(j['blockedGenres'] as List? ?? []),
+    ratingConfidence: j['ratingConfidence'] as String? ?? 'known',
+    reviewConfidence: j['reviewConfidence'] as String? ?? 'known',
+    planInfoConfidence: j['planInfoConfidence'] as String? ?? 'known',
   );
 }

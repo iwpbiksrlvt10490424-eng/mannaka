@@ -126,6 +126,11 @@ out $limit;
       hasPrivateRoom: hasPrivateRoom,
       isFemalePopular: (hash % 5) == 0,
       occasionTags: const [],
+      sourceApi: 'overpass',
+      confidenceLevel: 'low',
+      ratingConfidence: 'unknown',
+      reviewConfidence: 'unknown',
+      planInfoConfidence: 'unknown',
     );
   }
 

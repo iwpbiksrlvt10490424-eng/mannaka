@@ -57,15 +57,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       _nameCtrl.text = name;
       ref.read(nicknameProvider.notifier).state = name;
       ref.read(homeStationProvider.notifier).state = homeStation;
-      // 実際の選択駅データを復元（ピン位置の正確性のため）
-      if (homeStationName != null && homeStationLat != null && homeStationLng != null) {
+      if (homeStation != null && homeStation < kStationLatLng.length) {
+        // Geocoding API で保存された正確な座標を優先。なければ kStationLatLng にフォールバック
+        final fallback = kStationLatLng[homeStation];
+        final lat = homeStationLat ?? fallback.$1;
+        final lng = homeStationLng ?? fallback.$2;
         ref.read(homeStationDataProvider.notifier).state = HomeStationData(
-          name: homeStationName, lat: homeStationLat, lng: homeStationLng);
-      } else if (homeStation != null) {
-        // 旧データ: kStations の座標で復元
-        final (lat, lng) = kStationLatLng[homeStation];
-        ref.read(homeStationDataProvider.notifier).state = HomeStationData(
-          name: kStations[homeStation], lat: lat, lng: lng);
+          name: homeStationName ?? kStations[homeStation], lat: lat, lng: lng);
       }
       ref.read(ageGroupProvider.notifier).state = ageGroup;
       ref.read(profileImagePathProvider.notifier).state = imagePath;
@@ -147,6 +145,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final homeStationIdx = ref.watch(homeStationProvider);
+    final homeStationData = ref.watch(homeStationDataProvider);
     final ageGroup = ref.watch(ageGroupProvider);
     final imagePath = ref.watch(profileImagePathProvider);
     final favorites = ref.watch(favoritesProvider);
@@ -278,9 +277,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               GestureDetector(
                                 onTap: () => _pickHomeStation(context, ref),
                                 child: Text(
-                                  homeStationIdx != null
-                                      ? '${kStations[homeStationIdx]}駅'
-                                      : 'よく出発する駅',
+                                  homeStationData != null
+                                      ? '${homeStationData.name}駅'
+                                      : homeStationIdx != null
+                                          ? '${kStations[homeStationIdx]}駅'
+                                          : 'よく出発する駅',
                                   style: TextStyle(
                                     fontSize: 13,
                                     color: homeStationIdx != null
@@ -757,12 +758,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
     if (mounted) _isNavigating = false;
     if (result != null) {
-      // 検索用: kIndex が null の場合は lat/lng から最寄 kStation を特定
+      // 検索用インデックス: kIndex が null の場合は最寄 kStation を使用
       final idx = result.kIndex ?? LocationService.nearestStationIndex(result.lat, result.lng);
-      // 暫定座標でまず表示（kIndex がある場合は kStationLatLng を使用）
-      final (provisionalLat, provisionalLng) = result.kIndex != null
-          ? kStationLatLng[result.kIndex!]
-          : (result.lat, result.lng);
+      // ピン座標:
+      //   kStations 内の駅 (kIndex 有効) → kStationLatLng（精度高）
+      //   kStations 外の駅 (kIndex null) → result.lat/lng を暫定使用（Geocoding APIで補正）
+      //   ※ nearestStationIndex で別駅の座標を使うと選択駅と全く異なる場所にピンが立つ
+      final double provisionalLat;
+      final double provisionalLng;
+      if (result.kIndex != null) {
+        (provisionalLat, provisionalLng) = kStationLatLng[result.kIndex!];
+      } else {
+        provisionalLat = result.lat;
+        provisionalLng = result.lng;
+      }
       ref.read(homeStationDataProvider.notifier).state = HomeStationData(
         name: result.name, lat: provisionalLat, lng: provisionalLng);
       ref.read(homeStationProvider.notifier).state = idx;

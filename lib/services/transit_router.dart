@@ -49,6 +49,21 @@ class TransitRouter {
     return _geoFallback(0, toIdx);
   }
 
+  /// 出発駅名から目的駅名への移動時間（分）を返す（全kTransitGraph駅対応）
+  /// 鉄道ネットワーク未接続の場合は null を返す（Haversine 推定は行わない）
+  int? travelMinutesByName(String fromName, String toName) {
+    if (fromName == toName) return 0;
+    final routes = routeFromStation(fromName);
+    return routes[toName]; // null = 未接続（ランキングから除外すべき候補）
+  }
+
+  /// GPS座標のみで時間を推定する（Haversine）
+  /// 参加者に駅名がない場合の最終フォールバック専用。主ランキングには使わない。
+  int haversineFallback(double fromLat, double fromLng, double toLat, double toLng) {
+    final distKm = GeoUtils.distKm(fromLat, fromLng, toLat, toLng);
+    return max(5, (distKm / 25.0 * 60).round());
+  }
+
   void _runDijkstra(String origin) {
     final dist = <String, int>{};
     final pq = PriorityQueue<(int, String, String)>(
@@ -67,7 +82,7 @@ class TransitRouter {
 
       for (final edge in neighbors) {
         final transfer = (arrivingLine.isNotEmpty && arrivingLine != edge.lineId)
-            ? kTransferPenaltyMinutes
+            ? (kStationTransferMinutes[name] ?? kDefaultTransferMinutes)
             : 0;
         final newCost = cost + edge.minutes + transfer;
         if (newCost < (dist[edge.to] ?? 999999)) {
@@ -77,13 +92,8 @@ class TransitRouter {
       }
     }
 
-    final originIdx = kStations.indexOf(origin);
-    final result = <String, int>{};
-    for (int i = 0; i < kStations.length; i++) {
-      final name = kStations[i];
-      result[name] = dist[name] ?? _geoFallback(originIdx >= 0 ? originIdx : 0, i);
-    }
-    _cache[origin] = result;
+    // Save ALL reachable nodes (not just kStations)
+    _cache[origin] = Map<String, int>.from(dist);
   }
 
   int _geoFallback(int fromIdx, int toIdx) {

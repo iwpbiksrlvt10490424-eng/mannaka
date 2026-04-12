@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../providers/search_provider.dart';
 import '../providers/history_provider.dart';
-import '../providers/nav_provider.dart';
 import '../models/meeting_point.dart';
 import '../models/restaurant.dart';
 import '../models/scored_restaurant.dart';
@@ -25,7 +24,6 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
     with TickerProviderStateMixin {
   TabController? _tab;
   int _tabCount = 0;
-  bool _isSaved = false;
   bool _autoSaved = false; // セッション単位で1回だけ自動保存
 
   void _rebuildTab(
@@ -72,7 +70,7 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
         foregroundColor: AppColors.textPrimary,
         centerTitle: true,
         title: const Text(
-          'Aimachiのお店',
+          'Aimaのお店',
           style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
         ),
         actions: [
@@ -108,34 +106,6 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
               onPressed: () {
                 HapticFeedback.lightImpact();
                 ShareUtils.share(context, state);
-              },
-            ),
-            IconButton(
-              icon: Icon(
-                _isSaved ? Icons.bookmark_rounded : Icons.bookmark_border,
-                size: 22,
-                color: _isSaved ? AppColors.primary : null,
-              ),
-              onPressed: () {
-                HapticFeedback.lightImpact();
-                ref.read(historyProvider.notifier).add(
-                      state.participants.map((p) => p.name).toList(),
-                      state.selectedMeetingPoint!,
-                      restaurants: state.scoredRestaurants.take(5).map((sr) =>
-                        HistoryRestaurant(
-                          name: sr.restaurant.name,
-                          category: sr.restaurant.category,
-                          rating: sr.restaurant.rating,
-                          imageUrl: sr.restaurant.imageUrl,
-                          hotpepperUrl: sr.restaurant.hotpepperUrl,
-                          lat: sr.restaurant.lat,
-                          lng: sr.restaurant.lng,
-                          address: sr.restaurant.address,
-                        )).toList(),
-                    );
-                setState(() => _isSaved = true);
-                // Navigate to history tab (index 2)
-                ref.read(navIndexProvider.notifier).state = 2;
               },
             ),
           ],

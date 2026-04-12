@@ -127,7 +127,7 @@ class _RankingContent extends StatelessWidget {
                 ),
                 SizedBox(height: 4),
                 Text(
-                  '全員の移動時間バランスが最も良かった駅の選ばれた回数です。\nこのランキングはまんなかアプリ全ユーザーの検索データに基づいています。',
+                  '全員の移動時間バランスが最も良かった駅の選ばれた回数です。\nこのランキングはAimachi全ユーザーの検索データに基づいています。',
                   style: TextStyle(
                     fontSize: 12,
                     color: AppColors.textSecondary,

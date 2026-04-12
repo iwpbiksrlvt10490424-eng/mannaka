@@ -867,9 +867,23 @@ class _MascotSheet extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Row(
                 children: [
-                  CustomPaint(
-                    size: const Size(64, 64),
-                    painter: const _MascotPainter(blinkAmount: 1.0),
+                  Column(
+                    children: [
+                      CustomPaint(
+                        size: const Size(64, 64),
+                        painter: const _MascotPainter(blinkAmount: 1.0),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'マチみちゃん',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.primary,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(width: 12),
                   Expanded(

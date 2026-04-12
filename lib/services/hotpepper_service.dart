@@ -56,6 +56,7 @@ class HotpepperService {
       }
       final json = jsonDecode(res.body) as Map<String, dynamic>;
       final shops = ((json['results'] as Map?)?['shop'] as List?) ?? [];
+      debugPrint('[HotpepperService] 取得: ${shops.length}件 (lat=$lat, lng=$lng, range=$range)');
       return shops.map((s) => _mapShop(s as Map<String, dynamic>)).toList();
     } catch (e) {
       debugPrint('HotpepperService: searchNearCentroid failed - ${e.runtimeType}');

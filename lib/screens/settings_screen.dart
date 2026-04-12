@@ -18,6 +18,7 @@ import '../services/location_service.dart';
 import '../widgets/station_search_sheet.dart';
 import 'support_screen.dart';
 import 'policy_screen.dart';
+import '../utils/share_utils.dart';
 
 
 final _kAgeGroups = <String>[
@@ -58,12 +59,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ref.read(nicknameProvider.notifier).state = name;
       ref.read(homeStationProvider.notifier).state = homeStation;
       if (homeStation != null && homeStation < kStationLatLng.length) {
-        // Geocoding API で保存された正確な座標を優先。なければ kStationLatLng にフォールバック
-        final fallback = kStationLatLng[homeStation];
-        final lat = homeStationLat ?? fallback.$1;
-        final lng = homeStationLng ?? fallback.$2;
+        final stationName = homeStationName ?? kStations[homeStation];
+        // kStationLatLng が正（Google Maps とズレない）。
+        // index が実際に選択した駅と一致する場合のみ kStationLatLng を使う。
+        final isRealKIndex = homeStation < kStations.length &&
+            stationName == kStations[homeStation];
+        final canonical = kStationLatLng[homeStation];
+        final lat = isRealKIndex ? canonical.$1 : (homeStationLat ?? canonical.$1);
+        final lng = isRealKIndex ? canonical.$2 : (homeStationLng ?? canonical.$2);
         ref.read(homeStationDataProvider.notifier).state = HomeStationData(
-          name: homeStationName ?? kStations[homeStation], lat: lat, lng: lng);
+          name: stationName, lat: lat, lng: lng);
       }
       ref.read(ageGroupProvider.notifier).state = ageGroup;
       ref.read(profileImagePathProvider.notifier).state = imagePath;
@@ -317,7 +322,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   children: [
                     _NavItem(
                       label: '年代',
-                      subtitle: ageGroup ?? '未設定',
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            ageGroup ?? '未設定',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: ageGroup != null
+                                  ? AppColors.primary
+                                  : AppColors.textTertiary,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Icon(Icons.chevron_right_rounded,
+                              size: 20, color: Colors.grey.shade300),
+                        ],
+                      ),
                       onTap: () => _pickAgeGroup(context, ref),
                     ),
                   ],
@@ -530,12 +551,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       icon: Icons.send_rounded,
                       label: 'LINEで紹介する',
                       color: const Color(0xFF06C755),
-                      subtitle: '友達にAimaを教えよう',
+                      subtitle: '友達にAimachiを教えよう',
                       onTap: () async {
-                        const text =
-                            // TODO(release): App Store公開後に実際のApp IDに置き換える
-                            // 'Aima — みんなが行きやすいお店を一緒に探せるアプリ！\nhttps://apps.apple.com/jp/app/aima/id<実際のID>'
-                            'Aima — みんなが行きやすいお店を一緒に探せるアプリ！';
+                        final text =
+                            'お店選び、もう迷わない\n\n'
+                            'みんなの駅を入れるだけで、全員が行きやすいお店を自動で提案してくれるよ\n\n'
+                            'Aimachi（無料）\n${ShareUtils.appStoreUrl}';
                         final encoded = Uri.encodeComponent(text);
                         final lineUrl =
                             Uri.parse('https://line.me/R/share?text=$encoded');
@@ -566,8 +587,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       onTap: () async {
                         final size = MediaQuery.of(context).size;
                         await Share.share(
-                          '【Aima】グループの集合場所が一発で決まるアプリ！\n'
-                          'みんなの出発駅を入れるだけで、ちょうどいいお店を提案してくれます。',
+                          'お店選び、もう迷わない\n\n'
+                          'みんなの駅を入れるだけで、全員が行きやすいお店を自動で提案してくれるよ\n\n'
+                          'Aimachi（無料）\n${ShareUtils.appStoreUrl}',
                           sharePositionOrigin: Rect.fromCenter(
                             center: Offset(
                               size.width / 2,
@@ -594,7 +616,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       color: const Color(0xFF3B82F6),
                       onTap: () => launchUrl(
                         Uri.parse(
-                          'mailto:support@mannaka.app?subject=Aima%20%E3%81%8A%E5%95%8F%E3%81%84%E5%90%88%E3%82%8F%E3%81%9B',
+                          'mailto:support@mannaka.app?subject=%E3%81%BE%E3%82%93%E3%81%AA%E3%81%8B%20%E3%81%8A%E5%95%8F%E3%81%84%E5%90%88%E3%82%8F%E3%81%9B',
                         ),
                         mode: LaunchMode.externalApplication,
                       ),
@@ -614,15 +636,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       icon: Icons.star_rounded,
                       label: 'レビューを書いて応援する',
                       color: const Color(0xFFF59E0B),
-                      onTap: () {
-                        // TODO: App Store公開後に実際のApp IDに変更する
-                        // 例: https://apps.apple.com/jp/app/id1234567890
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('App Store公開後にご利用いただけます'),
-                            duration: Duration(seconds: 2),
-                          ),
+                      onTap: () async {
+                        final url = Uri.parse(
+                          '${ShareUtils.appStoreUrl}?action=write-review',
                         );
+                        if (await canLaunchUrl(url)) {
+                          await launchUrl(url, mode: LaunchMode.externalApplication);
+                        }
                       },
                     ),
                     _NavItem(
@@ -762,44 +782,33 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       final idx = result.kIndex ?? LocationService.nearestStationIndex(result.lat, result.lng);
       // ピン座標:
       //   kStations 内の駅 (kIndex 有効) → kStationLatLng（精度高）
-      //   kStations 外の駅 (kIndex null) → result.lat/lng を暫定使用（Geocoding APIで補正）
-      //   ※ nearestStationIndex で別駅の座標を使うと選択駅と全く異なる場所にピンが立つ
-      final double provisionalLat;
-      final double provisionalLng;
-      if (result.kIndex != null) {
-        (provisionalLat, provisionalLng) = kStationLatLng[result.kIndex!];
-      } else {
-        provisionalLat = result.lat;
-        provisionalLng = result.lng;
-      }
-      ref.read(homeStationDataProvider.notifier).state = HomeStationData(
-        name: result.name, lat: provisionalLat, lng: provisionalLng);
-      ref.read(homeStationProvider.notifier).state = idx;
-      ref.read(searchProvider.notifier).setHomeStation(idx);
-      // ホーム画面へ先に遷移（ユーザーをブロックしない）
-      ref.read(navIndexProvider.notifier).state = 0;
-      // Geocoding API で Google Maps の正確な座標を取得してピンを更新
-      GeocodingService.getStationLatLng(result.name).then((coords) {
-        if (coords == null) return;
+      // GeocodingAPIで正確な座標を取得してからホームに遷移
+      debugPrint('[HomeStation] 選択: ${result.name}, kIndex: ${result.kIndex}');
+      double finalLat = result.lat;
+      double finalLng = result.lng;
+      final coords = await GeocodingService.getStationLatLng(result.name);
+      if (coords != null) {
         final (gLat, gLng) = coords;
-        if (mounted) {
-          ref.read(homeStationDataProvider.notifier).state = HomeStationData(
-            name: result.name, lat: gLat, lng: gLng);
-        }
-        // prefs にも正確な座標を保存
-        SharedPreferences.getInstance().then((prefs) {
-          prefs.setInt('home_station', idx);
-          prefs.setString('home_station_name', result.name);
-          prefs.setDouble('home_station_lat', gLat);
-          prefs.setDouble('home_station_lng', gLng);
-        });
-      });
-      // prefs に暫定座標を先に保存（API失敗時のフォールバック）
+        debugPrint('[HomeStation] Geocoding成功: ${result.name} → ($gLat, $gLng)');
+        finalLat = gLat;
+        finalLng = gLng;
+      } else {
+        debugPrint('[HomeStation] Geocoding失敗、暫定座標使用');
+      }
+      if (!mounted) return;
+      ref.read(homeStationDataProvider.notifier).state = HomeStationData(
+        name: result.name, lat: finalLat, lng: finalLng);
+      ref.read(homeStationProvider.notifier).state = idx;
+      // 探す画面の自分の駅にも設定
+      ref.read(searchProvider.notifier).setHomeStationWithCoords(
+        result.name, finalLat, finalLng);
+      ref.read(navIndexProvider.notifier).state = 0;
+      // prefs に座標を保存
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt('home_station', idx);
       await prefs.setString('home_station_name', result.name);
-      await prefs.setDouble('home_station_lat', provisionalLat);
-      await prefs.setDouble('home_station_lng', provisionalLng);
+      await prefs.setDouble('home_station_lat', finalLat);
+      await prefs.setDouble('home_station_lng', finalLng);
     }
   }
 

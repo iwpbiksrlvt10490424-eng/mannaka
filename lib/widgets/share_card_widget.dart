@@ -62,7 +62,7 @@ class ShareCardWidget extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     const Text(
-                      'Aima',
+                      'Aimachi',
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,

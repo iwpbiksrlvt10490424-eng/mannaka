@@ -18,7 +18,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
       body: const SingleChildScrollView(
         padding: EdgeInsets.all(20),
         child: _PolicyContent(
-          header: 'Aima プライバシーポリシー\n制定日：2024年4月1日\n最終改定日：2026年3月17日',
+          header: 'Aimachi プライバシーポリシー\n制定日：2024年4月1日\n最終改定日：2026年4月10日',
           sections: [
             _PolicySection(
               title: '第1条（個人情報の定義）',
@@ -55,6 +55,14 @@ class PrivacyPolicyScreen extends StatelessWidget {
                   '提供情報：検索時の緯度・経度、検索条件\n'
                   '利用目的：周辺レストラン情報の取得\n'
                   'プライバシーポリシー：https://www.recruit.co.jp/privacy/\n\n'
+                  '【Foursquare Labs, Inc.（Foursquare Places API）】\n'
+                  '提供情報：検索時の緯度・経度、検索条件\n'
+                  '利用目的：周辺レストラン・施設情報の取得\n'
+                  'プライバシーポリシー：https://foursquare.com/legal/privacy\n\n'
+                  '【OpenStreetMap コミュニティ（Overpass API）】\n'
+                  '提供情報：検索時の緯度・経度、検索条件\n'
+                  '利用目的：周辺施設情報の取得（フォールバック）\n'
+                  'プライバシーポリシー：https://wiki.osmfoundation.org/wiki/Privacy_Policy\n\n'
                   '【Google LLC（Firebase）】\n'
                   '提供情報：匿名の利用統計・クラッシュ情報\n'
                   '利用目的：アプリ品質改善\n'
@@ -65,7 +73,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
               title: '第4条（個人情報の安全管理）',
               content:
                   '当アプリは、収集した個人情報の漏洩、滅失、毀損の防止のため、以下の安全管理措置を講じます。\n\n'
-                  '・位置情報は端末内でのみ処理し、外部サーバーへ送信しません\n'
+                  '・GPS位置情報は最寄り駅の座標に変換し、集合場所検索の目的でのみ外部APIに送信します\n'
                   '・外部APIへの通信はHTTPS（TLS暗号化）を使用します\n'
                   '・端末内データはOSが提供するセキュアな保存領域（Keychain/SharedPreferences）を使用します\n'
                   '・個人情報を含む情報をログに記録しません',
@@ -122,12 +130,12 @@ class TermsScreen extends StatelessWidget {
       body: const SingleChildScrollView(
         padding: EdgeInsets.all(20),
         child: _PolicyContent(
-          header: 'Aima 利用規約\n制定日：2024年4月1日\n最終改定日：2025年3月15日',
+          header: 'Aimachi 利用規約\n制定日：2024年4月1日\n最終改定日：2025年3月15日',
           sections: [
             _PolicySection(
               title: '第1条（本規約の適用）',
               content:
-                  '本利用規約（以下「本規約」）は、Aima（以下「当アプリ」）が提供するサービス（以下「本サービス」）の利用条件を定めるものです。ユーザーは本サービスを利用することにより、本規約に同意したものとみなします。なお、ユーザーが未成年者の場合は、保護者の同意を得た上でご利用ください。',
+                  '本利用規約（以下「本規約」）は、Aimachi（以下「当アプリ」）が提供するサービス（以下「本サービス」）の利用条件を定めるものです。ユーザーは本サービスを利用することにより、本規約に同意したものとみなします。なお、ユーザーが未成年者の場合は、保護者の同意を得た上でご利用ください。',
             ),
             _PolicySection(
               title: '第2条（サービスの内容）',
@@ -228,9 +236,7 @@ class _PolicyContent extends StatelessWidget {
               height: 1.7,
             ),
           ),
-          const SizedBox(height: 20),
-          Divider(color: Colors.grey.shade200),
-          const SizedBox(height: 16),
+          const SizedBox(height: 28),
         ],
         ...sections.map((s) => _SectionWidget(section: s)),
         const SizedBox(height: 32),

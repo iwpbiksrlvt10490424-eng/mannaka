@@ -155,18 +155,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // ホーム駅の変更を監視してカメラを移動（マーカーはbuild()内のwatchで自動更新）
     _homeStationSub = ref.listenManual<HomeStationData?>(homeStationDataProvider, (prev, next) {
       if (next == null) return;
+      debugPrint('[HomeScreen] homeStationData変更: ${next.name} (${next.lat}, ${next.lng})');
       final target = gmap.LatLng(next.lat, next.lng);
-      if (_mapController != null) {
-        // マップが既に生成済み → 直接アニメーション（Offstage中でも試みる）
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-          _mapController?.animateCamera(
-            gmap.CameraUpdate.newLatLngZoom(target, 14.5),
+      // カメラ移動を複数回リトライ（IndexedStackのOffstage対策）
+      for (final delay in [300, 800, 1500]) {
+        Future.delayed(Duration(milliseconds: delay), () {
+          if (!mounted || _mapController == null) return;
+          _mapController!.animateCamera(
+            gmap.CameraUpdate.newLatLngZoom(target, 15.0),
           );
         });
-      } else {
-        // マップ未生成（onMapCreated待ち） → 生成後に適用
-        setState(() { _pendingCameraLatLng = target; });
       }
     });
   }
@@ -188,13 +186,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         searchState.sortedRestaurants.isNotEmpty;
     final homeStationData = ref.watch(homeStationDataProvider);
 
-    final lat = searchState.centroidLat
+    // ホーム駅が設定されている場合はそちらを優先
+    final lat = homeStationData?.lat
+        ?? searchState.centroidLat
         ?? _nearestStationLatLng?.latitude
-        ?? homeStationData?.lat
         ?? 35.6812;
-    final lng = searchState.centroidLng
+    final lng = homeStationData?.lng
+        ?? searchState.centroidLng
         ?? _nearestStationLatLng?.longitude
-        ?? homeStationData?.lng
         ?? 139.7671;
     final scored = searchState.sortedRestaurants;
 
@@ -211,8 +210,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             markerId: const gmap.MarkerId('home_station'),
             position: gmap.LatLng(homeStationData.lat, homeStationData.lng),
             infoWindow: gmap.InfoWindow(title: '🏠 ${homeStationData.name}'),
-            icon: gmap.BitmapDescriptor.defaultMarkerWithHue(
-                gmap.BitmapDescriptor.hueRose),
+            icon: gmap.BitmapDescriptor.defaultMarker,
           )
         : null;
     if (effectiveHomeMarker != null) gmapMarkers.add(effectiveHomeMarker);
@@ -221,7 +219,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       gmapMarkers.add(gmap.Marker(
         markerId: const gmap.MarkerId('centroid'),
         position: gmap.LatLng(lat, lng),
-        infoWindow: const gmap.InfoWindow(title: 'Aima'),
+        infoWindow: const gmap.InfoWindow(title: 'Aimachi'),
         icon: gmap.BitmapDescriptor.defaultMarkerWithHue(
             gmap.BitmapDescriptor.hueRose),
       ));
@@ -248,7 +246,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             child: gmap.GoogleMap(
               initialCameraPosition: gmap.CameraPosition(
                 target: gmap.LatLng(lat, lng),
-                zoom: hasResult ? 15.5 : 13.5,
+                zoom: homeStationData != null ? 15.0 : (hasResult ? 15.5 : 13.5),
               ),
               markers: gmapMarkers,
               myLocationEnabled: true,
@@ -320,7 +318,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       ],
                     ),
                     child: const Text(
-                      'Aima',
+                      'Aimachi',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
@@ -330,23 +328,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
                   ),
                   const Spacer(),
-                  if (hasResult)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        '${scored.length}件のお店',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
                 ],
               ),
             ),

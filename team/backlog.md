@@ -7,20 +7,27 @@
 
 ## 🔴 高優先度
 
-- [ ] **App Store URL修正** — `settings_screen.dart` の `id000000000` を実際のApp IDに変更（リリースブロッカー）
+- [✅] **App Store URL修正** — `ShareUtils.appStoreUrl` に `id6743108270` で一元管理済み（2026-04-09 完了）
 - [ ] **Google Maps APIキー本番化** — `ios/Runner/Info.plist` のキーを本番用に差し替え
 - [ ] **support@mannaka.app 受信確認** — メール設定を確認してサポートメールが届くことを確認
 - [✅] **flutter analyze 完全クリーン化** — 現在のwarning/infoをすべて0にする
 - [✅] **flutter test 全パス確認** — 既存テストが全て通ることを確認し、不足テストを追加
+- [✅] **Aima → Aimachi ブランド名統一** — UIテキスト36箇所+クラス名リネーム+Aimachichi タイポ修正+App Store URL一元管理（2026-04-09 完了）
+- [✅] **UIテキスト「Aimachi」→「まんなか」完全統一** — UIテキスト47箇所+シェアファイル名2箇所+コメント1箇所修正完了（2026-04-10 Cycle 2-3 QA APPROVED）
 
 ## 🟡 中優先度
+
+- [✅] **policy_screen.dart UX修正** — 利用規約の手動改行+全角スペースインデント除去 + Divider違反修正（Critic Cycle 1 指摘 2026-04-09 QA APPROVED）
+- [✅] **Critic Cycle 3 指摘修正** — search_screen.dart Divider違反2箇所 + policy_screen.dart SizedBox冗長整理（2026-04-09 QA APPROVED）
+- [✅] **scene_area_screen 絵文字UIアイコン違反修正** — リストアイテム leading の絵文字をテキストのみに修正（Critic Cycle 3 ISSUE-3）（2026-04-09 Cycle 5 QA APPROVED）
+- [✅] **meeting_point_card 絵文字UIアイコン違反修正** — `Text(point.stationEmoji)` を Material Icon に置換（Critic Cycle 5 CRITICAL → 2026-04-09 QA APPROVED）
 
 - [✅] **Foursquare APIキー安全化** — `api_config.dart` のハードコードを `secrets.dart` 経由に移行（実装確認済み）
 - [✅] **オフライン時のエラーハンドリング改善** — ネットワーク未接続時にクラッシュしないことを確認・改善
 - [✅] **検索履歴のUI改善** — 履歴画面のUXを整理（スワイプ削除+AppBarクリアで実装済みを確認）
 - [✅] **レストランカード写真フォールバック** — 写真URLが取得できない場合のグラデーション背景を統一（Cycle 2完了）
 - [✅] **Cycle 2 指摘バグ修正** — use-after-dispose クラッシュ・Controller dispose漏れ・URLスキーム検証（Cycle 3完了）
-- [ ] **パフォーマンス最適化** — 地図画面のフレームレート計測と改善
+- [✅] **パフォーマンス最適化** — 地図画面のフレームレート計測と改善（Cycle 24で完了済み）
 - [✅] **アクセシビリティ対応** — VoiceOver/TalkBackの基本対応（重要ボタンのsemanticLabel追加）
 - [✅] **Critic/Security 指摘修正** — TDD違反(buildGoogleMapsRouteUrl テスト追加)・疑似Divider除去・_ReserveButton http許容修正（2026-03-19 Cycle 3完了）
 - [✅] **Cycle 3 残件修正** — 絵文字アイコン違反(地図マーカー)・_NearbyResultsSheet mounted クラッシュリスク・$e 生ログ4箇所（2026-03-19 Cycle 4完了）
@@ -53,12 +60,15 @@
 
 ## 🟢 低優先度
 
-- [ ] **TestFlight配布準備** — 社内テスター向けTestFlight設定
-- [ ] **App Store スクリーンショット作成** — 6.7インチ・6.1インチ用スクリーンショット準備
+- [✅] **TestFlight配布準備** — Bundle ID統一・PrivacyManifest追加・アプリ表示名修正・ExportOptions整合性（2026-04-10 Cycle 1 QA APPROVED）
+- [✅] **PrivacyInfo.xcprivacy 位置情報収集宣言 + ポリシー外部API記載** — NSPrivacyCollectedDataTypes空問題(Critic Cycle 1 ISSUE) + Security W5解消（2026-04-10 Cycle 4 QA APPROVED）
+- [🚧] **App Store スクリーンショット作成 + ポリシー改定日修正** — 6.7インチ・6.1インチ用スクリーンショット準備 + Critic Cycle 4 ISSUE（改定日未更新）解消
 - [ ] **プライバシーポリシーURL確定** — 実際のホスティング先URLに更新
 - [ ] **まんちゃんアニメーション追加** — マスコットに新しいアニメーションパターンを追加
 - [✅] **シェア機能のテンプレート改善** — シェアテキストをより魅力的に（Cycle 30完了 2026-03-24）
-- [🚧] **ダークモード残件修正（Cycle 34）** — `AppTheme.dark()` の `navigationBarTheme` に `labelTextStyle`・`iconTheme` 補完 & `inputDecorationTheme` border 色修正（`darkSurface` と同色で不可視 → `darkBorder` に変更）（Cycle 33 Critic ISSUE 1・2 解消中）
+- [✅] **ダークモード残件修正（Cycle 34）** — `ThemeMode.system` 適用・`AppTheme.dark()` の `navigationBarTheme`/`inputDecorationTheme` 修正（2026-03-30 Cycle 34 APPROVED）
+- [✅] **近接集合地点の重複排除 + 有楽町線追加** — 1.2km以内の近接駅を上位1件に絞る deduplication 実装 & kTransitGraph に有楽町線エッジを追加（2026-03-26 完了・QA APPROVED）
+- [✅] **deduplication バグ修正（Cycle 35）** — 赤坂見附・国会議事堂前（0.91km）が重複排除されず `flutter test` FAIL（2026-04-02 修正確認済み）
 
 ---
 

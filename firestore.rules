@@ -5,6 +5,11 @@ service cloud.firestore {
     match /{document=**} {
       allow read, write: if false;
     }
+    // ユーザーデータ: 本人のみ読み書き可能
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null
+          && request.auth.uid == userId;
+    }
     // 投票セッション: 認証ユーザーのみ読み書き可能
     // create は誰でも（認証済みなら）OK。update は参加者も可。delete はホストのみ。
     match /voting_sessions/{sessionId} {

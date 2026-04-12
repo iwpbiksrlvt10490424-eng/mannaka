@@ -51,6 +51,8 @@ const _meetingPoint = MeetingPoint(
   stationIndex: 0,
   stationName: '渋谷',
   stationEmoji: '🚉',
+  lat: 35.6580,
+  lng: 139.7016,
   totalMinutes: 20,
   maxMinutes: 12,
   minMinutes: 8,
@@ -135,13 +137,15 @@ void main() {
       expect(text, contains('Bさん'));
     });
 
-    test('Occasion.birthdayのとき誕生日ラベルを含む', () {
+    test('Occasion設定に関わらずApp Storeリンクを含む', () {
       final state = SearchState(
         occasion: Occasion.birthday,
         selectedMeetingPoint: const MeetingPoint(
           stationIndex: 0,
           stationName: '新宿',
           stationEmoji: '🚉',
+          lat: 35.6896,
+          lng: 139.7006,
           totalMinutes: 15,
           maxMinutes: 10,
           minMinutes: 5,
@@ -152,7 +156,8 @@ void main() {
         ),
       );
       final text = ShareUtils.buildMeetingPointText(state);
-      expect(text, contains('誕生日'));
+      expect(text, contains('apps.apple.com'));
+      expect(text, contains('Aimachi'));
     });
   });
 
@@ -203,7 +208,7 @@ void main() {
       expect(text, contains('店C'));
     });
 
-    test('Occasion.girlsNightのとき女子会ハッシュタグを含む', () {
+    test('シェアテキストにApp Storeリンクが含まれる', () {
       final r = _restaurant(id: 'r2', name: '花カフェ');
       final sr = _scored(r);
       final state = SearchState(
@@ -216,7 +221,8 @@ void main() {
         primaryScored: sr,
         includeBackup: false,
       );
-      expect(text, contains('女子会'));
+      expect(text, contains('apps.apple.com'));
+      expect(text, contains('Aimachi'));
     });
 
     test('priceAvg=0のとき予算行を含まない', () {

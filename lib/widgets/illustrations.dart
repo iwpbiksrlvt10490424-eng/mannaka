@@ -952,7 +952,7 @@ class _MidpointAnimPainter extends CustomPainter {
         final lblAlpha = ((phase3 - 0.5) / 0.3).clamp(0.0, 1.0);
         final tp = TextPainter(
           text: TextSpan(
-            text: 'Aima',
+            text: 'Aimachi',
             style: TextStyle(
               color: AppColors.primary.withValues(alpha: lblAlpha),
               fontSize: size.width * 0.055,
@@ -1079,7 +1079,7 @@ class _AnimatedInputIllustrationState extends State<AnimatedInputIllustration>
                     ),
                     alignment: Alignment.center,
                     child: const Text(
-                      'Aimaを探す',
+                      'Aimaで探す',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 13,
@@ -1309,7 +1309,7 @@ class _AnimatedResultIllustrationState
               // お店リスト
               _ShopRow(
                   progress: shop1,
-                  name: '炭火焼き鳥 Aima',
+                  name: '炭火焼き鳥 まんなか',
                   genre: '焼き鳥',
                   color: const Color(0xFFF59E0B)),
               const SizedBox(height: 5),

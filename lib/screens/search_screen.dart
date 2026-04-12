@@ -309,7 +309,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               padding: EdgeInsets.symmetric(horizontal: 16),
               child: Row(
                 children: [
-                  Expanded(child: Divider(thickness: 1, color: Color(0xFFE0E0E0))),
+                  Expanded(child: SizedBox(height: 1, child: ColoredBox(color: Color(0xFFE0E0E0)))),
                   Padding(
                     padding: EdgeInsets.symmetric(horizontal: 10),
                     child: Text('先にメンバーの駅を入れてね',
@@ -318,7 +318,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                             fontWeight: FontWeight.w600,
                             color: Color(0xFFBBBBBB))),
                   ),
-                  Expanded(child: Divider(thickness: 1, color: Color(0xFFE0E0E0))),
+                  Expanded(child: SizedBox(height: 1, child: ColoredBox(color: Color(0xFFE0E0E0)))),
                 ],
               ),
             ),
@@ -1872,7 +1872,7 @@ class _HowToSheet extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            '準備は駅の名前だけ。あとはAimaにおまかせ。',
+            '準備は駅の名前だけ。あとはAimachiにおまかせ。',
             style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
             textAlign: TextAlign.center,
           ),

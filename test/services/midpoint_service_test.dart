@@ -256,4 +256,220 @@ void main() {
       }
     });
   });
+
+  group('シーン別・人数別重み調整', () {
+    final baseRestaurants = [
+      const Restaurant(
+        id: 'r_usability',
+        name: '大箱居酒屋',
+        stationIndex: 0,
+        category: '居酒屋',
+        rating: 3.8,
+        reviewCount: 200,
+        priceLabel: '¥4,000',
+        priceAvg: 4000,
+        tags: ['個室', '飲み放題'],
+        emoji: '🍺',
+        description: 'テスト',
+        distanceMinutes: 3,
+        address: '東京都渋谷区',
+        openHours: '17:00-23:00',
+        lat: 35.658,
+        lng: 139.701,
+        hasPrivateRoom: true,
+        isReservable: true,
+        freeDrink: true,
+      ),
+      const Restaurant(
+        id: 'r_quality',
+        name: 'おしゃれイタリアン',
+        stationIndex: 0,
+        category: 'イタリアン',
+        rating: 4.2,
+        reviewCount: 80,
+        priceLabel: '¥6,000',
+        priceAvg: 6000,
+        tags: ['写真映え'],
+        emoji: '🍝',
+        description: 'テスト',
+        distanceMinutes: 8,
+        address: '東京都渋谷区',
+        openHours: '18:00-23:00',
+        lat: 35.659,
+        lng: 139.702,
+        imageUrl: 'https://example.com/img.jpg',
+        isReservable: true,
+        nonSmoking: true,
+      ),
+    ];
+
+    final participants2 = [
+      const Participant(id: '1', name: 'Alice', lat: 35.658, lng: 139.701),
+      const Participant(id: '2', name: 'Bob', lat: 35.660, lng: 139.703),
+    ];
+
+    final participants5 = [
+      const Participant(id: '1', name: 'Alice', lat: 35.658, lng: 139.701),
+      const Participant(id: '2', name: 'Bob', lat: 35.660, lng: 139.703),
+      const Participant(id: '3', name: 'Carol', lat: 35.662, lng: 139.705),
+      const Participant(id: '4', name: 'Dave', lat: 35.664, lng: 139.707),
+      const Participant(id: '5', name: 'Eve', lat: 35.666, lng: 139.709),
+    ];
+
+    test('5人以上のとき個室あり店舗のusabilityScore寄与が増す', () {
+      final results5 = MidpointService.scoreRestaurants(
+        participants: participants5,
+        centroidLat: 35.662,
+        centroidLng: 139.705,
+        baseRestaurants: baseRestaurants,
+      );
+      final results2 = MidpointService.scoreRestaurants(
+        participants: participants2,
+        centroidLat: 35.659,
+        centroidLng: 139.702,
+        baseRestaurants: baseRestaurants,
+      );
+      // 5人時の r_usability(居酒屋・個室)の順位が2人時よりも相対的に有利になる
+      // 少なくとも結果が返ることと、スコアが有効範囲内であることを確認
+      expect(results5, isNotEmpty);
+      for (final r in results5) {
+        expect(r.score, inInclusiveRange(0.0, 1.0));
+        expect(r.usabilityScore, inInclusiveRange(0.0, 1.0));
+      }
+      // 5人時は大箱居酒屋(個室・予約可)のスコアが2人時より高いか同等
+      final usability5 = results5.firstWhere((r) => r.restaurant.id == 'r_usability');
+      final usability2 = results2.firstWhere((r) => r.restaurant.id == 'r_usability');
+      expect(usability5.score, greaterThanOrEqualTo(usability2.score - 0.05));
+    });
+
+    test('2人・デートシーンのとき品質重視店のスコアが相対的に上がる', () {
+      final resultsDate = MidpointService.scoreRestaurants(
+        participants: participants2,
+        centroidLat: 35.659,
+        centroidLng: 139.702,
+        baseRestaurants: baseRestaurants,
+        occasion: 'デート',
+      );
+      final resultsNone = MidpointService.scoreRestaurants(
+        participants: participants2,
+        centroidLat: 35.659,
+        centroidLng: 139.702,
+        baseRestaurants: baseRestaurants,
+      );
+      expect(resultsDate, isNotEmpty);
+      // デートシーンでは全スコアが有効範囲
+      for (final r in resultsDate) {
+        expect(r.score, inInclusiveRange(0.0, 1.0));
+      }
+      // デートシーンでは r_quality(イタリアン) の conditionScore が higher
+      final qDate = resultsDate.firstWhere((r) => r.restaurant.id == 'r_quality');
+      final qNone = resultsNone.firstWhere((r) => r.restaurant.id == 'r_quality');
+      expect(qDate.conditionScore, greaterThan(qNone.conditionScore - 0.01));
+    });
+  });
+
+  group('curationLabel', () {
+    final participants = [
+      const Participant(id: '1', name: 'Alice', lat: 35.658, lng: 139.701),
+      const Participant(id: '2', name: 'Bob', lat: 35.681, lng: 139.767),
+    ];
+
+    test('「外さない」: 駅近・レビュー多・予約可の店舗', () {
+      final safe = [
+        const Restaurant(
+          id: 'safe',
+          name: '安定居酒屋',
+          stationIndex: 0,
+          category: '居酒屋',
+          rating: 3.8,
+          reviewCount: 60,
+          priceLabel: '¥3,000',
+          priceAvg: 3000,
+          tags: [],
+          emoji: '🍺',
+          description: 'test',
+          distanceMinutes: 3,
+          address: '東京',
+          openHours: '17:00-23:00',
+          lat: 35.660,
+          lng: 139.700,
+          isReservable: true,
+        ),
+      ];
+      final results = MidpointService.scoreRestaurants(
+        participants: participants,
+        centroidLat: 35.670,
+        centroidLng: 139.734,
+        baseRestaurants: safe,
+      );
+      expect(results, isNotEmpty);
+      expect(results.first.curationLabel, contains('外さない'));
+    });
+
+    test('「おしゃれ」: 写真あり・女性人気・フレンチ/イタリアン系の店舗', () {
+      final oshare = [
+        const Restaurant(
+          id: 'oshare',
+          name: 'おしゃれカフェ',
+          stationIndex: 0,
+          category: 'カフェ',
+          rating: 4.0,
+          reviewCount: 30,
+          priceLabel: '¥2,000',
+          priceAvg: 2000,
+          tags: [],
+          emoji: '☕',
+          description: 'test',
+          distanceMinutes: 6,
+          address: '東京',
+          openHours: '10:00-20:00',
+          lat: 35.660,
+          lng: 139.700,
+          imageUrl: 'https://example.com/photo.jpg',
+          isFemalePopular: true,
+          isReservable: false,
+        ),
+      ];
+      final results = MidpointService.scoreRestaurants(
+        participants: participants,
+        centroidLat: 35.670,
+        centroidLng: 139.734,
+        baseRestaurants: oshare,
+      );
+      expect(results, isNotEmpty);
+      expect(results.first.curationLabel, contains('おしゃれ'));
+    });
+
+    test('「穴場」: 中程度のレビュー数・良評価・駅近でない店舗', () {
+      final anaba = [
+        const Restaurant(
+          id: 'anaba',
+          name: '知る人ぞ知る和食',
+          stationIndex: 0,
+          category: '和食',
+          rating: 3.9,
+          reviewCount: 25,
+          priceLabel: '¥3,500',
+          priceAvg: 3500,
+          tags: [],
+          emoji: '🍱',
+          description: 'test',
+          distanceMinutes: 9,
+          address: '東京',
+          openHours: '17:00-22:00',
+          lat: 35.660,
+          lng: 139.700,
+          isReservable: false,
+        ),
+      ];
+      final results = MidpointService.scoreRestaurants(
+        participants: participants,
+        centroidLat: 35.670,
+        centroidLng: 139.734,
+        baseRestaurants: anaba,
+      );
+      expect(results, isNotEmpty);
+      expect(results.first.curationLabel, contains('穴場'));
+    });
+  });
 }

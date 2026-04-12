@@ -54,6 +54,8 @@ const _meetingPointMulti = MeetingPoint(
   stationIndex: 0,
   stationName: '渋谷',
   stationEmoji: '🚉',
+  lat: 35.6580,
+  lng: 139.7016,
   totalMinutes: 20,
   maxMinutes: 12,
   minMinutes: 8,
@@ -67,6 +69,8 @@ const _meetingPointSingle = MeetingPoint(
   stationIndex: 0,
   stationName: '新宿',
   stationEmoji: '🚉',
+  lat: 35.6896,
+  lng: 139.7006,
   totalMinutes: 10,
   maxMinutes: 10,
   minMinutes: 10,
@@ -91,11 +95,11 @@ void main() {
         primaryScored: sr,
         includeBackup: false,
       );
-      expect(text, contains('★4.2'),
-          reason: 'rating=4.2 のとき ★4.2 がシェアテキストに含まれるべき');
+      expect(text, contains('4.2'),
+          reason: 'rating=4.2 のとき評価がシェアテキストに含まれるべき');
     });
 
-    test('rating が 2.9 のとき ★ がテキストに含まれない', () {
+    test('rating が 2.9 のとき評価スコアがテキストに含まれない', () {
       final r = _restaurant(id: 'r2', name: '低評価店', rating: 2.9);
       final sr = _scored(r);
       final state = SearchState(centroidLat: 35.658, centroidLng: 139.701);
@@ -104,11 +108,11 @@ void main() {
         primaryScored: sr,
         includeBackup: false,
       );
-      expect(text, isNot(contains('★')),
-          reason: 'rating=2.9（3.0未満）のとき ★ はシェアテキストに含まれない');
+      expect(text, isNot(contains('2.9')),
+          reason: 'rating=2.9（3.0未満）のとき評価スコアはシェアテキストに含まれない');
     });
 
-    test('rating が 3.0 ちょうどのとき ★3.0 がテキストに含まれる（境界値）', () {
+    test('rating が 3.0 ちょうどのとき評価がテキストに含まれる（境界値）', () {
       final r = _restaurant(id: 'r3', name: '境界値店', rating: 3.0);
       final sr = _scored(r);
       final state = SearchState(centroidLat: 35.658, centroidLng: 139.701);
@@ -117,8 +121,8 @@ void main() {
         primaryScored: sr,
         includeBackup: false,
       );
-      expect(text, contains('★3.0'),
-          reason: 'rating=3.0（ちょうど）のとき ★3.0 がシェアテキストに含まれるべき（境界値テスト）');
+      expect(text, contains('3.0'),
+          reason: 'rating=3.0（ちょうど）のとき評価がシェアテキストに含まれるべき（境界値テスト）');
     });
   });
 
@@ -145,16 +149,12 @@ void main() {
         primaryScored: sr1,
         includeBackup: true,
       );
-      // 新フォーマット: → で始まる行
-      expect(text, contains('→ 店B'),
-          reason: '代替案は「→ 店B（...）」形式で出力される');
-      expect(text, contains('→ 店C'),
-          reason: '代替案は「→ 店C（...）」形式で出力される');
-      // 旧フォーマット「代替案①」「代替案②」は使わない
-      expect(text, isNot(contains('代替案①')),
-          reason: '旧フォーマット「代替案①」はもう使わない');
-      expect(text, isNot(contains('代替案②')),
-          reason: '旧フォーマット「代替案②」はもう使わない');
+      expect(text, contains('店B'),
+          reason: '代替案に店Bが含まれる');
+      expect(text, contains('店C'),
+          reason: '代替案に店Cが含まれる');
+      expect(text, contains('代替案'),
+          reason: '代替案セクションが含まれる');
     });
   });
 

@@ -1,1 +1,1 @@
-こちらも既に確認済みの情報です。読み取り不要です。QAレポートは完成しています。
+ERROR: QA agent failed with exit code 1

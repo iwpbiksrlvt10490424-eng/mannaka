@@ -1,1 +1,1 @@
-# marketing_report (初期化済み)
+ERROR: Marketing agent failed with exit code 1

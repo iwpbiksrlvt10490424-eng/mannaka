@@ -397,12 +397,15 @@ class _StationItem {
   }
 
   factory _StationItem.fromApi(StationCandidate c) {
+    // kIndexは最近傍解決済みだが、駅名がkStationsと一致しない場合は
+    // ピン座標に別の駅の座標が使われてしまうのでnullにする
+    final isRealMatch = c.kIndex < kStations.length && kStations[c.kIndex] == c.name;
     return _StationItem(
       name: c.name,
       lat: c.lat,
       lng: c.lng,
       line: c.line,
-      kIndex: c.kIndex,
+      kIndex: isRealMatch ? c.kIndex : null,
     );
   }
 

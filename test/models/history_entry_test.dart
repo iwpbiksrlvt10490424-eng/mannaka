@@ -9,6 +9,8 @@ void main() {
         stationIndex: 0,
         stationName: '渋谷',
         stationEmoji: '🛍️',
+        lat: 35.6580,
+        lng: 139.7016,
         totalMinutes: 45,
         maxMinutes: 30,
         minMinutes: 15,

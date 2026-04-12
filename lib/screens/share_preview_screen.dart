@@ -90,9 +90,7 @@ class _SharePreviewScreenState extends ConsumerState<SharePreviewScreen> {
     // フォールバック：選択レストランのみ
     final r = widget.scored.restaurant;
     final names = widget.participants.map((p) => p.name).join('、');
-    // TODO(release): App Store公開後に実際のApp IDに置き換える
-    // '▶ App Store: https://apps.apple.com/jp/app/aima/id<実際のID>'
-    return '${r.emoji} ${r.name} に決まりました！\n\n📍 ${r.address}\n参加者: $names\n\nAimaアプリで計算しました\n#Aima #グルメ';
+    return '${r.name} に決まりました\n\n${r.address}\n参加者: $names\n\nAimachiで見つけました\n${ShareUtils.appStoreUrl}';
   }
 
   Future<void> _shareAsImage() async {
@@ -108,7 +106,7 @@ class _SharePreviewScreenState extends ConsumerState<SharePreviewScreen> {
       if (byteData == null) return;
       final bytes = byteData.buffer.asUint8List();
       final tempDir = await getTemporaryDirectory();
-      final file = File('${tempDir.path}/aima_share.png');
+      final file = File('${tempDir.path}/mannaka_share.png');
       await file.writeAsBytes(bytes);
 
       if (!mounted) return;

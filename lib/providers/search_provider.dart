@@ -332,10 +332,18 @@ class SearchNotifier extends Notifier<SearchState> {
 
   /// マイページでホーム駅が変更されたとき、自分（先頭参加者）の駅を更新する
   void setHomeStation(int stationIndex) {
-    if (stationIndex >= kStations.length) return;
     if (state.participants.isEmpty) return;
     final first = state.participants.first;
-    setStation(first.id, stationIndex, kStations[stationIndex]);
+    if (stationIndex < kStations.length) {
+      setStation(first.id, stationIndex, kStations[stationIndex]);
+    }
+  }
+
+  /// マイページでホーム駅が変更されたとき、座標付きで自分の駅を更新する（kStations外対応）
+  void setHomeStationWithCoords(String stationName, double lat, double lng) {
+    if (state.participants.isEmpty) return;
+    final first = state.participants.first;
+    setStationWithCoords(first.id, stationName, lat, lng);
   }
 
   void addParticipant() {
@@ -487,7 +495,9 @@ class SearchNotifier extends Notifier<SearchState> {
             : null;
 
         // Check Firebase cache first（ジャンルコードをキーに含める）
+        debugPrint('[Search] centroid: (${centroid.$1}, ${centroid.$2}), genre: $selectedGenre');
         final cached = await RestaurantCacheService.get(centroid.$1, centroid.$2, genre: selectedGenre);
+        debugPrint('[Search] cache: ${cached?.length ?? "null"}件');
         if (cached != null && cached.isNotEmpty) {
           hotpepperRestaurants = cached;
         } else {
@@ -563,7 +573,7 @@ class SearchNotifier extends Notifier<SearchState> {
       await Future.wait(prefetchFutures, eagerError: false);
       await NotificationService.recordSearch();
 
-      // Firestoreに検索ログを記録（Aima指数ランキング用）
+      // Firestoreに検索ログを記録（まんなか指数ランキング用）
       if (results.isNotEmpty) {
         final bestStation = results.first;
         unawaited(AnalyticsService.logSearch(

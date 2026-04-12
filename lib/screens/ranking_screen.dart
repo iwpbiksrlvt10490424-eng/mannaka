@@ -35,7 +35,7 @@ class RankingScreen extends ConsumerWidget {
             flexibleSpace: FlexibleSpaceBar(
               titlePadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
               title: const Text(
-                'Aima指数ランキング',
+                'Aimachi指数ランキング',
                 style: TextStyle(
                   color: AppColors.textPrimary,
                   fontSize: 20,
@@ -94,7 +94,7 @@ class _RankingContent extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Text(
-            'Aimaユーザーが最もよく集まった駅ランキング。人気エリアでお店を探してみよう！',
+            'Aimachiユーザーが最もよく集まった駅ランキング。人気エリアでお店を探してみよう！',
             style: TextStyle(
               fontSize: 13,
               color: Colors.grey.shade600,
@@ -104,7 +104,7 @@ class _RankingContent extends StatelessWidget {
         ),
         const SizedBox(height: 12),
 
-        // Aima指数の説明バナー
+        // Aimachi指数の説明バナー
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Container(
@@ -118,7 +118,7 @@ class _RankingContent extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '「Aima指数」について',
+                  '「Aimachi指数」について',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
@@ -127,7 +127,7 @@ class _RankingContent extends StatelessWidget {
                 ),
                 SizedBox(height: 4),
                 Text(
-                  '全員の移動時間バランスが最も良かった駅の選ばれた回数です。\nこのランキングはAimaアプリ全ユーザーの検索データに基づいています。',
+                  '全員の移動時間バランスが最も良かった駅の選ばれた回数です。\nこのランキングはまんなかアプリ全ユーザーの検索データに基づいています。',
                   style: TextStyle(
                     fontSize: 12,
                     color: AppColors.textSecondary,
@@ -401,12 +401,12 @@ class _ShareCardButtonState extends State<_ShareCardButton> {
       final xFile = XFile.fromData(
         pngBytes,
         mimeType: 'image/png',
-        name: 'aima_ranking.png',
+        name: 'mannaka_ranking.png',
       );
 
       await Share.shareXFiles(
         [xFile],
-        text: 'Aima指数ランキング🏆\nみんなの集合場所といえば${widget.entries.isNotEmpty ? widget.entries.first.stationName : ''}！\n#Aima #集合場所',
+        text: 'Aimachi指数ランキング🏆\nみんなの集合場所といえば${widget.entries.isNotEmpty ? widget.entries.first.stationName : ''}！\n#Aimachi #集合場所',
         sharePositionOrigin: origin,
       );
     } catch (e) {
@@ -499,7 +499,7 @@ class _ShareCard extends StatelessWidget {
                   color: Color(0xFFFFD700), size: 24),
               const SizedBox(width: 8),
               const Text(
-                'Aima指数ランキング',
+                'Aimachi指数ランキング',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
@@ -594,7 +594,7 @@ class _ShareCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: const Text(
-                  'Aima - 集合場所を決めるアプリ',
+                  'Aimachi - 集合場所を決めるアプリ',
                   style: TextStyle(
                     fontSize: 11,
                     color: Colors.white,

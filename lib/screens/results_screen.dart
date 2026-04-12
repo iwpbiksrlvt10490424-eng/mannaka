@@ -72,7 +72,7 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
         foregroundColor: AppColors.textPrimary,
         centerTitle: true,
         title: const Text(
-          'Aimaのお店',
+          'Aimachiのお店',
           style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
         ),
         actions: [

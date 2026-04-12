@@ -411,7 +411,7 @@ class _AreaCardWidget extends StatelessWidget {
       '${area.emoji} ${scene.label}するなら「${area.area}」がおすすめ！\n'
       '${area.copy}\n\n'
       '${area.tags.map((t) => '#$t').join(' ')}\n'
-      '#Aima #${scene.label} #${area.area}',
+      '#Aimachi #${scene.label} #${area.area}',
       sharePositionOrigin: origin,
     );
   }
@@ -464,12 +464,6 @@ class _AreaCardWidget extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 10),
-                // 絵文字 + エリア名
-                Text(
-                  area.emoji,
-                  style: const TextStyle(fontSize: 20),
-                ),
-                const SizedBox(width: 6),
                 Text(
                   '${area.area}エリア',
                   style: const TextStyle(

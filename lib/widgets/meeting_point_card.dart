@@ -69,7 +69,7 @@ class MeetingPointCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  ExcludeSemantics(child: Text(point.stationEmoji, style: const TextStyle(fontSize: 26))),
+                  Icon(Icons.train_rounded, size: 26, color: Colors.grey.shade600),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Column(

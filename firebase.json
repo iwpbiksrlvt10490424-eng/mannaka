@@ -1,1 +1,25 @@
-{"flutter":{"platforms":{"ios":{"default":{"projectId":"mannnaka","appId":"1:994245428850:ios:4c51cf2499ad18f97e24eb","uploadDebugSymbols":false,"fileOutput":"ios/Runner/GoogleService-Info.plist"}},"dart":{"lib/firebase_options.dart":{"projectId":"mannnaka","configurations":{"ios":"1:994245428850:ios:4c51cf2499ad18f97e24eb"}}}}}}
+{
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "flutter": {
+    "platforms": {
+      "ios": {
+        "default": {
+          "projectId": "mannnaka",
+          "appId": "1:994245428850:ios:753f7b122d9f9f507e24eb",
+          "uploadDebugSymbols": false,
+          "fileOutput": "ios/Runner/GoogleService-Info.plist"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "mannnaka",
+          "configurations": {
+            "ios": "1:994245428850:ios:753f7b122d9f9f507e24eb"
+          }
+        }
+      }
+    }
+  }
+}

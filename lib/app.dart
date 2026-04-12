@@ -6,17 +6,17 @@ import 'screens/onboarding_screen.dart';
 import 'screens/main_screen.dart';
 import 'main.dart' show navigatorKey;
 
-class AimaApp extends StatelessWidget {
-  const AimaApp({super.key});
+class AimachiApp extends StatelessWidget {
+  const AimachiApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Aima',
+      title: 'Aimachi',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
-      themeMode: ThemeMode.system,
+      themeMode: ThemeMode.light,
       navigatorKey: navigatorKey,
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       supportedLocales: const [Locale('ja', 'JP'), Locale('en', 'US')],

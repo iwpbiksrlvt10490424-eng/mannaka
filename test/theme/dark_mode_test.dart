@@ -148,7 +148,7 @@ void main() {
   // ─────────────────────────────────────────────────────
   // グループ2: AimaApp への darkTheme / themeMode 設定
   // ─────────────────────────────────────────────────────
-  group('AimaApp ダークモード設定', () {
+  group('AimachiApp ダークモード設定', () {
     test(
       'app.dart に darkTheme が設定されているとき ダークモード時に dark テーマが適用される',
       () {
@@ -175,7 +175,7 @@ void main() {
     );
 
     test(
-      'app.dart に ThemeMode.system が設定されているとき iOS のシステム設定に自動追従する',
+      'app.dart に ThemeMode.light が設定されているとき ライトモード固定になる',
       () {
         final file = File('lib/app.dart');
         if (!file.existsSync()) {
@@ -184,14 +184,10 @@ void main() {
         final content = file.readAsStringSync();
 
         expect(
-          content.contains('ThemeMode.system'),
+          content.contains('ThemeMode.light'),
           isTrue,
-          reason: 'lib/app.dart に `ThemeMode.system` が見つかりません。\n'
-              '\n'
-              '実装: MaterialApp に themeMode を追加してください:\n'
-              '  themeMode: ThemeMode.system,\n'
-              '\n'
-              'これにより iOS の設定 > 画面表示と明るさ > ダーク に追従します。',
+          reason: 'lib/app.dart に `ThemeMode.light` が見つかりません。\n'
+              'ダークモードの色崩れ防止のためライトモード固定にしています。',
         );
       },
     );

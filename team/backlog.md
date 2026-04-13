@@ -8,7 +8,7 @@
 ## 🔴 高優先度
 
 - [✅] **App Store URL修正** — `ShareUtils.appStoreUrl` に `id6743108270` で一元管理済み（2026-04-09 完了）
-- [ ] **Google Maps APIキー本番化** — `ios/Runner/Info.plist` のキーを本番用に差し替え
+- [🚧] **Google Maps APIキー本番化** — `ios/Runner/Info.plist` のハードコード除去 & ビルド時注入化（Info.plistにAPIキーリテラルが残るセキュリティリスク解消）
 - [ ] **support@mannaka.app 受信確認** — メール設定を確認してサポートメールが届くことを確認
 - [✅] **flutter analyze 完全クリーン化** — 現在のwarning/infoをすべて0にする
 - [✅] **flutter test 全パス確認** — 既存テストが全て通ることを確認し、不足テストを追加

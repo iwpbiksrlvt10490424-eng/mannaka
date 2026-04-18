@@ -178,7 +178,9 @@ class MidpointService {
           anyUnreachable = true;
           break;
         }
-        times[p.id] = t;
+        // 表示・シェア用に氏名をキーにする（空のときは id にフォールバック）
+        final label = p.name.isNotEmpty ? p.name : p.id;
+        times[label] = t;
       }
 
       if (anyUnreachable || times.isEmpty) continue;

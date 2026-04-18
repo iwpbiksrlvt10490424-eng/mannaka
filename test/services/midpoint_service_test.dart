@@ -77,7 +77,7 @@ void main() {
       ];
       final results = MidpointService.calculate(participants);
       for (final r in results) {
-        expect(r.participantTimes.keys, containsAll(['1', '2']));
+        expect(r.participantTimes.keys, containsAll(['Alice', 'Bob']));
       }
     });
   });

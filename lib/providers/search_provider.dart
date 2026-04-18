@@ -163,9 +163,12 @@ class SearchState {
   bool get canCalculate => participants.where((p) => p.hasStation).length >= 2;
   bool get hasCentroid => centroidLat != null && centroidLng != null;
 
-  bool get _effectiveFemale => showFemaleFriendly || occasion.filterFemale;
-  bool get _effectivePrivate => showPrivateRoom || occasion.filterPrivate;
-  bool get _effectiveFreeDrink => showFreeDrink || occasion.filterFreeDrink;
+  // ハードフィルタ判定はユーザーが明示的にトグルしたものだけを反映。
+  // シーン由来の好み（女子会→個室など）は scoreRestaurants 内で
+  // occasion ラベル経由のソフトな優遇として扱われる。
+  bool get _effectiveFemale => showFemaleFriendly;
+  bool get _effectivePrivate => showPrivateRoom;
+  bool get _effectiveFreeDrink => showFreeDrink;
   TimeSlot get _effectiveTimeSlot =>
       occasion.filterLunch ? TimeSlot.lunch : timeSlot;
 

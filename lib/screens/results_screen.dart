@@ -328,9 +328,12 @@ class _MeetingPointTabState extends ConsumerState<_MeetingPointTab> {
               : state.restaurantCategories,
           occasion: state.occasion != Occasion.none ? state.occasion.label : null,
           groupRelation: state.groupRelation,
-          femaleFriendly: state.showFemaleFriendly || state.occasion.filterFemale,
-          hasPrivateRoom: state.showPrivateRoom || state.occasion.filterPrivate,
-          hasFreeDrink: state.showFreeDrink || state.occasion.filterFreeDrink,
+          // ハードフィルタはユーザーが明示的にトグルしたものだけ。
+          // シーン由来の好み（女子会→個室など）は occasion 経由の
+          // スコアリング側に任せる。ハード化すると 0 件になりやすい。
+          femaleFriendly: state.showFemaleFriendly,
+          hasPrivateRoom: state.showPrivateRoom,
+          hasFreeDrink: state.showFreeDrink,
           timeSlot: state.occasion.filterLunch ? TimeSlot.lunch : state.timeSlot,
           maxBudget: state.maxBudget,
           selectedDate: state.selectedDate,

@@ -10,8 +10,6 @@ import '../models/scored_restaurant.dart';
 import '../data/station_data.dart';
 import '../services/midpoint_service.dart';
 import '../services/hotpepper_service.dart';
-import '../services/overpass_service.dart';
-import '../services/foursquare_service.dart';
 import '../config/api_config.dart';
 import '../data/restaurant_data.dart';
 import '../services/notification_service.dart';
@@ -518,6 +516,16 @@ class SearchNotifier extends Notifier<SearchState> {
             ? HotpepperService.categoryToGenreCode(state.restaurantCategories.first)
             : null;
 
+        // Hotpepper API が未設定なら検索不可
+        if (ApiConfig.hotpepperApiKey.isEmpty) {
+          state = state.copyWith(
+            isCalculating: false,
+            errorMessage: '検索APIキーが設定されていません',
+            clearLoadingMessage: true,
+          );
+          return;
+        }
+
         // Check Firebase cache first（ジャンルコードをキーに含める）
         debugPrint('[Search] centroid: (${centroid.$1}, ${centroid.$2}), genre: $selectedGenre');
         final cached = await RestaurantCacheService.get(centroid.$1, centroid.$2, genre: selectedGenre);
@@ -525,35 +533,17 @@ class SearchNotifier extends Notifier<SearchState> {
         if (cached != null && cached.isNotEmpty) {
           hotpepperRestaurants = cached;
         } else {
-          // Fire Hotpepper and Foursquare in parallel
-          final foursquare = ref.read(foursquareServiceProvider);
-          final hotpepperFuture = ApiConfig.hotpepperApiKey.isNotEmpty
-              ? HotpepperService.searchNearCentroid(
-                  apiKey: ApiConfig.hotpepperApiKey,
-                  lat: centroid.$1,
-                  lng: centroid.$2,
-                  genre: selectedGenre, // ジャンルコードをAPIに渡す
-                )
-              : Future.value(<Restaurant>[]);
-          final foursquareFuture = foursquare.searchNearby(centroid.$1, centroid.$2);
-
-          // Start Overpass in background (slower, only used as last resort)
-          final overpassFuture = OverpassService.searchNearby(
+          // Hotpepper一本化: 全フィルタをサーバーサイドで絞り込む
+          hotpepperRestaurants = await HotpepperService.searchNearCentroid(
+            apiKey: ApiConfig.hotpepperApiKey,
             lat: centroid.$1,
             lng: centroid.$2,
+            genre: selectedGenre,
+            maxBudget: state.maxBudget,
+            privateRoom: state.showPrivateRoom || state.occasion.filterPrivate,
+            freeDrink: state.showFreeDrink || state.occasion.filterFreeDrink,
+            lunch: state.occasion.filterLunch || state.timeSlot == TimeSlot.lunch,
           );
-
-          // Wait for the two fast APIs first
-          final primaryResults = await Future.wait([hotpepperFuture, foursquareFuture]);
-          hotpepperRestaurants = primaryResults[0].isNotEmpty
-              ? primaryResults[0]
-              : primaryResults[1];
-
-          // Only wait for Overpass if primary APIs returned nothing
-          if (hotpepperRestaurants.isEmpty) {
-            state = state.copyWith(loadingMessage: 'マップデータから検索中...');
-            hotpepperRestaurants = await overpassFuture;
-          }
 
           // Store in Firebase cache for future searches (fire and forget)
           if (hotpepperRestaurants.isNotEmpty) {
@@ -570,25 +560,21 @@ class SearchNotifier extends Notifier<SearchState> {
       }
 
       // Pre-fetch for remaining candidates in parallel (2〜5位すべて対象, 8s timeout)
+      // Hotpepper一本化: 同じフィルタ条件を使う
       final remaining = results.skip(1).toList();
-      final foursquare = ref.read(foursquareServiceProvider);
-      final hasHotpepper = ApiConfig.hotpepperApiKey.isNotEmpty;
       final prefetchFutures = remaining.map((point) async {
         final latLng = (point.lat, point.lng);
         List<Restaurant> restaurants = [];
         try {
-          if (hasHotpepper) {
-            restaurants = await HotpepperService.searchNearCentroid(
-              apiKey: ApiConfig.hotpepperApiKey,
-              lat: latLng.$1,
-              lng: latLng.$2,
-            ).timeout(const Duration(seconds: 8));
-          }
-          if (restaurants.isEmpty) {
-            restaurants = await foursquare.searchNearby(
-              latLng.$1, latLng.$2, limit: 30,
-            ).timeout(const Duration(seconds: 8));
-          }
+          restaurants = await HotpepperService.searchNearCentroid(
+            apiKey: ApiConfig.hotpepperApiKey,
+            lat: latLng.$1,
+            lng: latLng.$2,
+            maxBudget: state.maxBudget,
+            privateRoom: state.showPrivateRoom || state.occasion.filterPrivate,
+            freeDrink: state.showFreeDrink || state.occasion.filterFreeDrink,
+            lunch: state.occasion.filterLunch || state.timeSlot == TimeSlot.lunch,
+          ).timeout(const Duration(seconds: 8));
         } catch (e) {
           debugPrint('prefetch: ${point.stationName} failed - ${e.runtimeType}');
         }
@@ -675,14 +661,27 @@ class SearchNotifier extends Notifier<SearchState> {
       isCalculating: true,
     );
     try {
-      List<Restaurant> restaurants = await ref.read(foursquareServiceProvider).searchNearby(
-        lat, lng,
-      );
-      if (restaurants.isEmpty) {
-        restaurants = await OverpassService.searchNearby(
-          lat: lat, lng: lng,
+      if (ApiConfig.hotpepperApiKey.isEmpty) {
+        state = state.copyWith(
+          isCalculating: false,
+          errorMessage: '検索APIキーが設定されていません',
         );
+        return;
       }
+      // カテゴリが1つだけ選択されていればサーバーサイド絞り込み
+      final selectedGenre = state.restaurantCategories.length == 1
+          ? HotpepperService.categoryToGenreCode(state.restaurantCategories.first)
+          : null;
+      final restaurants = await HotpepperService.searchNearCentroid(
+        apiKey: ApiConfig.hotpepperApiKey,
+        lat: lat,
+        lng: lng,
+        genre: selectedGenre,
+        maxBudget: state.maxBudget,
+        privateRoom: state.showPrivateRoom || state.occasion.filterPrivate,
+        freeDrink: state.showFreeDrink || state.occasion.filterFreeDrink,
+        lunch: state.occasion.filterLunch || state.timeSlot == TimeSlot.lunch,
+      );
       // Add to cache
       final newCache = Map<String, List<Restaurant>>.from(state.restaurantCache);
       newCache[point.stationName] = restaurants;

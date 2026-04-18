@@ -29,14 +29,56 @@ class HotpepperService {
   static String? categoryToGenreCode(String category) =>
       _categoryToGenre[category];
 
+  /// Hotpepper予算コード（budget param 用）
+  /// 参考: https://webservice.recruit.co.jp/doc/hotpepper/reference.html#budget
+  /// - B010: 〜500円 / B009: 501〜1000円 / B011: 1001〜1500円
+  /// - B001: 1501〜2000円 / B002: 2001〜3000円 / B003: 3001〜4000円
+  /// - B008: 4001〜5000円 / B004: 5001〜7000円 / B005: 7001〜10000円
+  /// - B006: 10001〜15000円 / B012: 15001〜20000円 / B013: 20001〜30000円 / B014: 30001円〜
+  ///
+  /// [maxBudget] は UI の選択値（円）で、以下の規約:
+  /// - 正の数 → その金額以下を意味（例: 3000 → 3000円以下のバンドを全て含める）
+  /// - 負の数 → その絶対値以上を意味（例: -10000 → 10000円以上）
+  /// - 0 → 指定なし
+  static String? maxBudgetToCodes(int maxBudget) {
+    if (maxBudget == 0) return null;
+    if (maxBudget > 0) {
+      // 以下: 低価格帯から maxBudget を含むバンドまで
+      if (maxBudget <= 1500) return 'B010,B009,B011';
+      if (maxBudget <= 3000) return 'B010,B009,B011,B001,B002';
+      if (maxBudget <= 5000) return 'B010,B009,B011,B001,B002,B003,B008';
+      if (maxBudget <= 10000) {
+        return 'B010,B009,B011,B001,B002,B003,B008,B004,B005';
+      }
+      // それ以上は全帯
+      return null;
+    }
+    // 以上（maxBudget = -10000 は 10000円以上）
+    final minBudget = maxBudget.abs();
+    if (minBudget >= 30000) return 'B014';
+    if (minBudget >= 20000) return 'B013,B014';
+    if (minBudget >= 15000) return 'B012,B013,B014';
+    if (minBudget >= 10000) return 'B006,B012,B013,B014';
+    return null;
+  }
+
   static Future<List<Restaurant>> searchNearCentroid({
     required String apiKey,
     required double lat,
     required double lng,
     int range = 5,    // 5 = 3km（1:300m 2:500m 3:1km 4:2km 5:3km）
     int count = 100,  // 最大100件取得
-    String? genre,    // Hotpepperジャンルコード（指定するとサーバーサイド絞り込み）
+    String? genre,         // カテゴリ（Hotpepperジャンルコード）
+    int maxBudget = 0,     // 予算（円、上記 maxBudgetToCodes 参照）
+    bool privateRoom = false,  // 個室あり
+    bool freeDrink = false,    // 飲み放題あり
+    bool freeFood = false,     // 食べ放題あり
+    bool lunch = false,        // ランチあり
+    bool nonSmoking = false,   // 禁煙席あり
+    bool course = false,       // コースあり
+    bool card = false,         // カード可
   }) async {
+    final budgetCodes = maxBudgetToCodes(maxBudget);
     final params = <String, String>{
       'key': apiKey,
       'lat': lat.toString(),
@@ -45,6 +87,14 @@ class HotpepperService {
       'count': count.toString(),
       'format': 'json',
       if (genre != null) 'genre': genre,
+      if (budgetCodes != null) 'budget': budgetCodes,
+      if (privateRoom) 'private_room': '1',
+      if (freeDrink) 'free_drink': '1',
+      if (freeFood) 'free_food': '1',
+      if (lunch) 'lunch': '1',
+      if (nonSmoking) 'non_smoking': '1',
+      if (course) 'course': '1',
+      if (card) 'card': '1',
     };
     final uri = Uri.parse(_base).replace(queryParameters: params);
 

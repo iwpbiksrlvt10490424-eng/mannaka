@@ -533,15 +533,20 @@ class SearchNotifier extends Notifier<SearchState> {
         if (cached != null && cached.isNotEmpty) {
           hotpepperRestaurants = cached;
         } else {
-          // Hotpepper一本化: 全フィルタをサーバーサイドで絞り込む
+          // Hotpepper一本化: フィルタをサーバーサイドで絞り込む。
+          // ただし「ユーザーが明示的にトグルしたもの」だけをハード条件にする。
+          // シーン由来の好み（女子会 → 個室、飲み会 → 飲み放題 等）は
+          // スコアリング側でソフトな優遇として扱う。こうしないと狭いエリアで
+          // すぐに 0 件になってしまう。
+          // ランチ/時間帯だけは元々強い制約なのでハード条件のまま。
           hotpepperRestaurants = await HotpepperService.searchNearCentroid(
             apiKey: ApiConfig.hotpepperApiKey,
             lat: centroid.$1,
             lng: centroid.$2,
             genre: selectedGenre,
             maxBudget: state.maxBudget,
-            privateRoom: state.showPrivateRoom || state.occasion.filterPrivate,
-            freeDrink: state.showFreeDrink || state.occasion.filterFreeDrink,
+            privateRoom: state.showPrivateRoom,
+            freeDrink: state.showFreeDrink,
             lunch: state.occasion.filterLunch || state.timeSlot == TimeSlot.lunch,
           );
 
@@ -571,8 +576,8 @@ class SearchNotifier extends Notifier<SearchState> {
             lat: latLng.$1,
             lng: latLng.$2,
             maxBudget: state.maxBudget,
-            privateRoom: state.showPrivateRoom || state.occasion.filterPrivate,
-            freeDrink: state.showFreeDrink || state.occasion.filterFreeDrink,
+            privateRoom: state.showPrivateRoom,
+            freeDrink: state.showFreeDrink,
             lunch: state.occasion.filterLunch || state.timeSlot == TimeSlot.lunch,
           ).timeout(const Duration(seconds: 8));
         } catch (e) {
@@ -678,8 +683,8 @@ class SearchNotifier extends Notifier<SearchState> {
         lng: lng,
         genre: selectedGenre,
         maxBudget: state.maxBudget,
-        privateRoom: state.showPrivateRoom || state.occasion.filterPrivate,
-        freeDrink: state.showFreeDrink || state.occasion.filterFreeDrink,
+        privateRoom: state.showPrivateRoom,
+        freeDrink: state.showFreeDrink,
         lunch: state.occasion.filterLunch || state.timeSlot == TimeSlot.lunch,
       );
       // Add to cache

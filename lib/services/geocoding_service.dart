@@ -36,7 +36,7 @@ class GeocodingService {
       debugPrint('[Geocoding] $stationName → ($lat, $lng)');
       return (lat, lng);
     } catch (e) {
-      debugPrint('[Geocoding] 例外: $e');
+      debugPrint('[Geocoding] 例外: ${e.runtimeType}');
       return null;
     }
   }

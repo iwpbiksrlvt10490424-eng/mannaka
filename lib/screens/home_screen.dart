@@ -132,18 +132,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final homeStationName = prefs.getString('home_station_name');
     final homeStationLat = prefs.getDouble('home_station_lat');
     final homeStationLng = prefs.getDouble('home_station_lng');
-    if (homeStation < kStationLatLng.length) {
-      final fallback = kStationLatLng[homeStation];
-      final lat = homeStationLat ?? fallback.$1;
-      final lng = homeStationLng ?? fallback.$2;
-      if (!mounted) return;
-      ref.read(homeStationProvider.notifier).state = homeStation;
-      ref.read(homeStationDataProvider.notifier).state = HomeStationData(
-        name: homeStationName ?? kStations[homeStation],
-        lat: lat,
-        lng: lng,
-      );
+    double? lat = homeStationLat;
+    double? lng = homeStationLng;
+    String? name = homeStationName;
+    if (lat == null || lng == null) {
+      if (homeStation < kStationLatLng.length) {
+        final fallback = kStationLatLng[homeStation];
+        lat = fallback.$1;
+        lng = fallback.$2;
+      } else {
+        return;
+      }
     }
+    name ??= homeStation < kStations.length ? kStations[homeStation] : '最寄り駅';
+    if (!mounted) return;
+    ref.read(homeStationProvider.notifier).state = homeStation;
+    ref.read(homeStationDataProvider.notifier).state = HomeStationData(
+      name: name, lat: lat, lng: lng,
+    );
   }
 
   @override

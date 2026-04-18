@@ -1,6 +1,7 @@
 # Secret keys — never commit to version control
 lib/config/secrets.dart
 lib/firebase_options.dart
+ios/Flutter/Secrets.xcconfig
 
 # Miscellaneous
 *.class

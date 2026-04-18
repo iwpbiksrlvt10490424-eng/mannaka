@@ -1621,7 +1621,7 @@ class _TimeSlotSheetState extends State<_TimeSlotSheet> {
   Widget build(BuildContext context) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final dates = List.generate(7, (i) => today.add(Duration(days: i)));
+    final dates = List.generate(30, (i) => today.add(Duration(days: i)));
     final size = MediaQuery.of(context).size;
 
     return Container(

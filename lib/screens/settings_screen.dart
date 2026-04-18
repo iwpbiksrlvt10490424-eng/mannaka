@@ -58,17 +58,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       _nameCtrl.text = name;
       ref.read(nicknameProvider.notifier).state = name;
       ref.read(homeStationProvider.notifier).state = homeStation;
-      if (homeStation != null && homeStation < kStationLatLng.length) {
-        final stationName = homeStationName ?? kStations[homeStation];
-        // kStationLatLng が正（Google Maps とズレない）。
-        // index が実際に選択した駅と一致する場合のみ kStationLatLng を使う。
-        final isRealKIndex = homeStation < kStations.length &&
-            stationName == kStations[homeStation];
-        final canonical = kStationLatLng[homeStation];
-        final lat = isRealKIndex ? canonical.$1 : (homeStationLat ?? canonical.$1);
-        final lng = isRealKIndex ? canonical.$2 : (homeStationLng ?? canonical.$2);
-        ref.read(homeStationDataProvider.notifier).state = HomeStationData(
-          name: stationName, lat: lat, lng: lng);
+      if (homeStation != null) {
+        double? lat = homeStationLat;
+        double? lng = homeStationLng;
+        String? stationName = homeStationName;
+        if ((lat == null || lng == null) && homeStation < kStationLatLng.length) {
+          final fallback = kStationLatLng[homeStation];
+          lat ??= fallback.$1;
+          lng ??= fallback.$2;
+        }
+        stationName ??= homeStation < kStations.length ? kStations[homeStation] : '最寄り駅';
+        if (lat != null && lng != null) {
+          ref.read(homeStationDataProvider.notifier).state = HomeStationData(
+            name: stationName, lat: lat, lng: lng);
+        }
       }
       ref.read(ageGroupProvider.notifier).state = ageGroup;
       ref.read(profileImagePathProvider.notifier).state = imagePath;
@@ -681,7 +684,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         MaterialPageRoute(builder: (_) => const TermsScreen()),
                       ),
                     ),
-                    _InfoItem(label: 'バージョン', value: '1.0.0'),
+                    _InfoItem(label: 'バージョン', value: '1.0.3'),
                   ],
                 ),
 

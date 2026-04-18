@@ -618,7 +618,6 @@ class SearchNotifier extends Notifier<SearchState> {
         geoCentroidLng: geoCentLng,
         hotpepperRestaurants: hotpepperRestaurants,
         restaurantCache: cache,
-        clearCategory: true,
         clearError: true,
         clearLoadingMessage: true,
       );
@@ -647,23 +646,23 @@ class SearchNotifier extends Notifier<SearchState> {
   }
 
   void selectMeetingPoint(MeetingPoint point) {
-    state = state.copyWith(selectedMeetingPoint: point, clearCategory: true);
+    state = state.copyWith(selectedMeetingPoint: point);
   }
 
-  Future<void> selectMeetingPointAndFetch(MeetingPoint point) async {
+  Future<void> selectMeetingPointAndFetch(MeetingPoint point,
+      {bool forceRefresh = false}) async {
     // 選択中駅の座標を centroid として更新する
     // （distanceKm・scoreRestaurants の基準点を選択駅に合わせる）
     final lat = point.lat;
     final lng = point.lng;
 
-    // Check cache first — instant if cached
-    if (state.restaurantCache.containsKey(point.stationName)) {
+    // Check cache first — instant if cached（forceRefresh=false のときのみ）
+    if (!forceRefresh && state.restaurantCache.containsKey(point.stationName)) {
       state = state.copyWith(
         selectedMeetingPoint: point,
         hotpepperRestaurants: state.restaurantCache[point.stationName]!,
         centroidLat: lat,
         centroidLng: lng,
-        clearCategory: true,
       );
       return; // instant, no network call
     }
@@ -673,7 +672,6 @@ class SearchNotifier extends Notifier<SearchState> {
       selectedMeetingPoint: point,
       centroidLat: lat,
       centroidLng: lng,
-      clearCategory: true,
       isCalculating: true,
     );
     try {
@@ -692,7 +690,6 @@ class SearchNotifier extends Notifier<SearchState> {
         hotpepperRestaurants: restaurants.isNotEmpty ? restaurants : state.hotpepperRestaurants,
         restaurantCache: newCache,
         isCalculating: false,
-        clearCategory: true,
       );
     } on SocketException catch (e) {
       debugPrint('SearchNotifier: selectMeetingPointAndFetch ネットワークエラー - ${e.runtimeType}');

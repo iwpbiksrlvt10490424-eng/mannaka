@@ -90,7 +90,9 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
                     HapticFeedback.lightImpact();
                     final point = state.selectedMeetingPoint;
                     if (point != null) {
-                      await notifier.selectMeetingPointAndFetch(point);
+                      // forceRefresh=true: キャッシュをスキップして再取得
+                      await notifier.selectMeetingPointAndFetch(point,
+                          forceRefresh: true);
                     } else {
                       await notifier.calculate();
                     }
@@ -204,6 +206,17 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
                 ),
               ),
             ),
+          // 集合場所モード切替（まんなか重視 / 主要駅重視）
+          if (!state.isCalculating && results.isNotEmpty)
+            _MeetingPreferenceBar(
+              preferMajor: state.preferMajorStations,
+              onChanged: (value) async {
+                if (value == state.preferMajorStations) return;
+                HapticFeedback.selectionClick();
+                notifier.setPreferMajorStations(value);
+                await notifier.calculate();
+              },
+            ),
           // メインコンテンツ
           Expanded(
             child: state.isCalculating
@@ -315,9 +328,12 @@ class _MeetingPointTabState extends ConsumerState<_MeetingPointTab> {
               : state.restaurantCategories,
           occasion: state.occasion != Occasion.none ? state.occasion.label : null,
           groupRelation: state.groupRelation,
+          femaleFriendly: state.showFemaleFriendly || state.occasion.filterFemale,
           hasPrivateRoom: state.showPrivateRoom || state.occasion.filterPrivate,
           hasFreeDrink: state.showFreeDrink || state.occasion.filterFreeDrink,
+          timeSlot: state.occasion.filterLunch ? TimeSlot.lunch : state.timeSlot,
           maxBudget: state.maxBudget,
+          selectedDate: state.selectedDate,
         );
       } else {
         // centroid なしのフォールバック
@@ -1077,4 +1093,76 @@ Widget _filterChip(String label, bool sel, VoidCallback onTap) {
       ),
     ),
   );
+}
+
+/// 結果画面の上部に出す、まんなか重視 / 主要駅重視 の切替バー。
+/// タップで即座に再計算がかかる（notifier.calculate()）。
+class _MeetingPreferenceBar extends StatelessWidget {
+  const _MeetingPreferenceBar({
+    required this.preferMajor,
+    required this.onChanged,
+  });
+  final bool preferMajor;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      color: AppColors.surface,
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '集合場所の選び方',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade500,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(
+                  child: _pill('まんなか重視', !preferMajor, () => onChanged(false))),
+              const SizedBox(width: 8),
+              Expanded(
+                  child: _pill('主要駅重視', preferMajor, () => onChanged(true))),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _pill(String label, bool sel, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        decoration: BoxDecoration(
+          color: sel ? AppColors.chipSelectedBg : Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: sel ? AppColors.chipSelectedBg : AppColors.divider,
+            width: 1,
+          ),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
+            color:
+                sel ? AppColors.chipSelectedText : AppColors.textSecondary,
+          ),
+        ),
+      ),
+    );
+  }
 }

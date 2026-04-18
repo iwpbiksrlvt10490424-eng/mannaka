@@ -2081,7 +2081,8 @@ class _SaveGroupDialogState extends State<_SaveGroupDialog> {
   }
 }
 
-/// 集合場所の選び方（真ん中重視 / 主要駅重視）の切替トグル
+/// 集合場所の選び方（まんなか重視 / 主要駅重視）の切替トグル。
+/// 縦並び・絵文字なし・各選択肢の下に短い説明を添える。
 class _MeetingPreferenceToggle extends StatelessWidget {
   const _MeetingPreferenceToggle({
     required this.preferMajor,
@@ -2113,14 +2114,20 @@ class _MeetingPreferenceToggle extends StatelessWidget {
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: Row(
+            child: Column(
               children: [
-                Expanded(
-                  child: _segment('⚖️ 真ん中重視', !preferMajor, () => onChanged(false)),
+                _segment(
+                  'まんなか重視',
+                  '全員の移動時間が一番近くなる駅を選ぶ',
+                  !preferMajor,
+                  () => onChanged(false),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _segment('🚉 主要駅重視', preferMajor, () => onChanged(true)),
+                const SizedBox(height: 8),
+                _segment(
+                  '主要駅重視',
+                  '乗換しやすい有名な駅の中からまんなかそうな場所を選ぶ',
+                  preferMajor,
+                  () => onChanged(true),
                 ),
               ],
             ),
@@ -2130,12 +2137,14 @@ class _MeetingPreferenceToggle extends StatelessWidget {
     );
   }
 
-  Widget _segment(String label, bool isSelected, VoidCallback onTap) {
+  Widget _segment(
+      String label, String description, bool isSelected, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
           color: isSelected ? AppColors.chipSelectedBg : Colors.white,
           borderRadius: BorderRadius.circular(12),
@@ -2144,16 +2153,32 @@ class _MeetingPreferenceToggle extends StatelessWidget {
             width: 1,
           ),
         ),
-        alignment: Alignment.center,
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-            color: isSelected
-                ? AppColors.chipSelectedText
-                : AppColors.textSecondary,
-          ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                color: isSelected
+                    ? AppColors.chipSelectedText
+                    : AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              description,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w400,
+                color: isSelected
+                    ? AppColors.chipSelectedText.withValues(alpha: 0.8)
+                    : AppColors.textSecondary,
+                height: 1.3,
+              ),
+            ),
+          ],
         ),
       ),
     );

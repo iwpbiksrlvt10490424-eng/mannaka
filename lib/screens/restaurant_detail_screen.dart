@@ -875,20 +875,27 @@ class _LineShareSheet extends StatelessWidget {
                               size: 32, color: Colors.blue.shade700),
                         ),
                         const SizedBox(width: 10),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(r.name,
-                                style: const TextStyle(
-                                    fontSize: 12, fontWeight: FontWeight.w600),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis),
-                            const SizedBox(height: 2),
-                            Text('maps.google.com',
-                                style: TextStyle(
-                                    fontSize: 10, color: Colors.grey.shade500)),
-                          ],
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.only(right: 10),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(r.name,
+                                    style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis),
+                                const SizedBox(height: 2),
+                                Text('maps.google.com',
+                                    style: TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.grey.shade500)),
+                              ],
+                            ),
+                          ),
                         ),
                       ],
                     ),

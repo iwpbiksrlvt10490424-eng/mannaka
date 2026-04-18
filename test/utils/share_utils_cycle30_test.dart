@@ -162,8 +162,8 @@ void main() {
   // [3] buildLineText — 参加者が複数のとき 最大{max}分 サマリー追加
   // ══════════════════════════════════════════════════════════════
 
-  group('buildLineText — 参加者複数時の 最大{max}分 サマリー', () {
-    test('参加者が2名のとき 最大12分 のサマリー行が含まれる', () {
+  group('buildLineText — 参加者の個別移動時間表示', () {
+    test('参加者が2名のとき 両方の名前と分数が含まれる', () {
       final r = _restaurant(id: 'x', name: 'おすすめ屋');
       final sr = _scored(r);
       final state = SearchState(
@@ -171,8 +171,9 @@ void main() {
         sortedCache: [sr],
       );
       final text = ShareUtils.buildLineText(state);
-      expect(text, contains('最大12分'),
-          reason: '参加者2名・maxMinutes=12 のとき「最大12分」がサマリーとして表示される');
+      expect(text, contains('分'), reason: '移動時間は表示される');
+      expect(text, isNot(contains('最大')),
+          reason: '「最大X分」サマリーは削除された（案B）');
     });
 
     test('参加者が1名のとき 最大 サマリー行が含まれない', () {

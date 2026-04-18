@@ -201,47 +201,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ?? searchState.centroidLng
         ?? _nearestStationLatLng?.longitude
         ?? 139.7671;
-    final scored = searchState.sortedRestaurants;
 
     // Google Maps SDK for iOS: $7/1,000 map loads.
     // $200/month free credit → ~28,500 loads/month.
     // API key should be restricted to iOS bundle ID `com.example.mannaka`
     // in Google Cloud Console → APIs & Services → Credentials.
 
-    // Build Google Maps markers
+    // Build Google Maps markers — ホーム画面では検索結果のピン/文字は出さない方針
     final gmapMarkers = <gmap.Marker>{};
-    // ホーム駅ピン（実際に選択した駅の座標を使用）
     final effectiveHomeMarker = homeStationData != null
         ? gmap.Marker(
             markerId: const gmap.MarkerId('home_station'),
             position: gmap.LatLng(homeStationData.lat, homeStationData.lng),
-            infoWindow: gmap.InfoWindow(title: '🏠 ${homeStationData.name}'),
             icon: gmap.BitmapDescriptor.defaultMarker,
           )
         : null;
     if (effectiveHomeMarker != null) gmapMarkers.add(effectiveHomeMarker);
-    if (hasResult) {
-      // Centroid marker
-      gmapMarkers.add(gmap.Marker(
-        markerId: const gmap.MarkerId('centroid'),
-        position: gmap.LatLng(lat, lng),
-        infoWindow: const gmap.InfoWindow(title: 'Aimachi'),
-        icon: gmap.BitmapDescriptor.defaultMarkerWithHue(
-            gmap.BitmapDescriptor.hueRose),
-      ));
-      // Restaurant markers (top 5)
-      for (final sr in scored.take(5)) {
-        final sLat = sr.restaurant.lat;
-        final sLng = sr.restaurant.lng;
-        if (sLat != null && sLng != null) {
-          gmapMarkers.add(gmap.Marker(
-            markerId: gmap.MarkerId(sr.restaurant.id),
-            position: gmap.LatLng(sLat, sLng),
-            infoWindow: gmap.InfoWindow(title: sr.restaurant.name),
-          ));
-        }
-      }
-    }
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -486,6 +461,8 @@ class _OccasionGrid extends StatelessWidget {
   final NavigateCallback? onNavigate;
 
   static const _items = [
+    (Occasion.dinner, 'ごはん会'),
+    (Occasion.drinking, '飲み会'),
     (Occasion.girlsNight, '女子会'),
     (Occasion.birthday, '誕生日'),
     (Occasion.lunch, 'ランチ'),
@@ -979,37 +956,37 @@ class _MascotSheet extends ConsumerWidget {
             ),
 
             // ─── お店からのお知らせ（広告）───────────────────
-            if (ads.isNotEmpty) ...[
-              const SizedBox(height: 24),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-                child: Row(
-                  children: [
-                    const Icon(Icons.campaign_rounded,
-                        size: 14, color: AppColors.textSecondary),
-                    const SizedBox(width: 5),
-                    Text(
-                      'お店からのお知らせ',
-                      style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey.shade500),
-                    ),
-                  ],
-                ),
+            const SizedBox(height: 24),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+              child: Row(
+                children: [
+                  const Icon(Icons.campaign_rounded,
+                      size: 14, color: AppColors.textSecondary),
+                  const SizedBox(width: 5),
+                  Text(
+                    'お店からのお知らせ',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade500),
+                  ),
+                ],
               ),
-              const SizedBox(height: 8),
-              SizedBox(
-                height: 160,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: ads.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 12),
-                  itemBuilder: (_, i) => _AdCard(ad: ads[i]),
-                ),
-              ),
-            ],
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 160,
+              child: ads.isNotEmpty
+                  ? ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: ads.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 12),
+                      itemBuilder: (_, i) => _AdCard(ad: ads[i]),
+                    )
+                  : const _AdPlaceholder(),
+            ),
             const SizedBox(height: 24),
           ],
         ),
@@ -1106,6 +1083,86 @@ class _AdCard extends StatelessWidget {
                         fontSize: 12, fontWeight: FontWeight.w700),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 広告スロット未契約時の告知プレースホルダー。
+/// 将来的に飲食店と提携してここにおすすめ店舗を掲載する予定であることをユーザーに伝え、
+/// 同時に店舗オーナーには掲載枠があることを示す。
+class _AdPlaceholder extends StatelessWidget {
+  const _AdPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+              color: AppColors.primary.withValues(alpha: 0.25),
+              width: 1,
+              style: BorderStyle.solid),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: AppColors.primaryLight,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(Icons.storefront_rounded,
+                  color: AppColors.primary, size: 28),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text('まもなく おすすめ店舗 掲載開始',
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textPrimary)),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Aimachi 厳選のお店情報をこの枠でお届けします',
+                    style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey.shade600,
+                        height: 1.4),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text(
+                      '飲食店オーナー様 掲載のご相談受付中',
+                      style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.primary),
+                    ),
                   ),
                 ],
               ),

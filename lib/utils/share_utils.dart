@@ -93,30 +93,49 @@ class ShareUtils {
     if (point == null) return '';
 
     final topRestaurants = state.sortedRestaurants.take(3).toList();
-    final restaurantLines = topRestaurants
-        .map((sr) =>
-            '${sr.restaurant.name}（${sr.restaurant.priceStr}）')
-        .join('\n');
+    final top = topRestaurants.isNotEmpty ? topRestaurants.first : null;
+    final topRestaurant = top?.restaurant;
+
+    final topName = topRestaurant?.name ?? '${point.stationName}駅周辺のお店';
+    final address = topRestaurant?.address ?? '';
+
+    final mapsUrl = (topRestaurant?.lat != null && topRestaurant?.lng != null)
+        ? 'https://maps.google.com/maps?q=${topRestaurant!.lat},${topRestaurant.lng}'
+        : '';
 
     final participantLines = point.participantTimes.entries
         .map((e) => '${e.key} ${e.value}分')
         .join(' / ');
 
-    final topName = topRestaurants.isNotEmpty
-        ? topRestaurants.first.restaurant.name
-        : '${point.stationName}駅周辺のお店';
+    final otherCandidates = topRestaurants
+        .skip(1)
+        .map((sr) => '・${sr.restaurant.name}（${sr.restaurant.priceStr}）')
+        .join('\n');
 
-    final maxSummary = point.participantTimes.length > 1
-        ? '最大${point.maxMinutes}分でアクセス可能\n'
-        : '';
-
-    return '$topNameに決まったよ\n\n'
-        '${point.stationName}駅周辺\n'
-        '$maxSummary'
-        '移動時間：$participantLines\n\n'
-        '他のおすすめ\n$restaurantLines\n\n'
-        'Aimachiで見つけたよ（無料）\n'
-        '$appStoreUrl';
+    final sb = StringBuffer();
+    sb.writeln('お店決まりました！');
+    sb.writeln('');
+    sb.writeln('📍 $topName');
+    sb.writeln('${point.stationName}駅周辺');
+    if (address.isNotEmpty) sb.writeln(address);
+    if (mapsUrl.isNotEmpty) {
+      sb.writeln('');
+      sb.writeln(mapsUrl);
+    }
+    if (participantLines.isNotEmpty) {
+      sb.writeln('');
+      sb.writeln('⏱ 移動時間');
+      sb.writeln(participantLines);
+    }
+    if (otherCandidates.isNotEmpty) {
+      sb.writeln('');
+      sb.writeln('他の候補');
+      sb.writeln(otherCandidates);
+    }
+    sb.writeln('');
+    sb.writeln('Aimachiで決めました');
+    sb.write(appStoreUrl);
+    return sb.toString();
   }
 
   /// ネイティブ共有シートを開く

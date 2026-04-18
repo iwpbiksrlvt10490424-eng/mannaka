@@ -74,6 +74,28 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
           style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
         ),
         actions: [
+          // 再取得ボタン: 電波復帰後に画像/結果を更新
+          IconButton(
+            icon: state.isCalculating
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.refresh_rounded, size: 22),
+            tooltip: '更新',
+            onPressed: state.isCalculating
+                ? null
+                : () async {
+                    HapticFeedback.lightImpact();
+                    final point = state.selectedMeetingPoint;
+                    if (point != null) {
+                      await notifier.selectMeetingPointAndFetch(point);
+                    } else {
+                      await notifier.calculate();
+                    }
+                  },
+          ),
           if (state.selectedMeetingPoint != null) ...[
             Padding(
               padding: const EdgeInsets.only(right: 4),
@@ -100,13 +122,6 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
                   ),
                 ),
               ),
-            ),
-            IconButton(
-              icon: const Icon(Icons.ios_share, size: 22),
-              onPressed: () {
-                HapticFeedback.lightImpact();
-                ShareUtils.share(context, state);
-              },
             ),
           ],
         ],
@@ -284,6 +299,7 @@ class _MeetingPointTabState extends ConsumerState<_MeetingPointTab> {
       state.groupRelation ?? '',
       state.maxBudget,
       state.showPrivateRoom,
+      state.showFreeDrink,
     ]);
 
     if (_cachedScored == null || _cachedHash != hash) {
@@ -300,6 +316,7 @@ class _MeetingPointTabState extends ConsumerState<_MeetingPointTab> {
           occasion: state.occasion != Occasion.none ? state.occasion.label : null,
           groupRelation: state.groupRelation,
           hasPrivateRoom: state.showPrivateRoom || state.occasion.filterPrivate,
+          hasFreeDrink: state.showFreeDrink || state.occasion.filterFreeDrink,
           maxBudget: state.maxBudget,
         );
       } else {

@@ -27,6 +27,8 @@ enum Occasion {
   mixer,
   welcome,
   date,
+  dinner,    // ごはん会（普通に友達と食事、カジュアル）
+  drinking,  // 飲み会（居酒屋優先・飲み放題優遇）
 }
 
 extension OccasionExt on Occasion {
@@ -38,6 +40,8 @@ extension OccasionExt on Occasion {
         Occasion.mixer => '合コン',
         Occasion.welcome => '歓迎会',
         Occasion.date => 'デート',
+        Occasion.dinner => 'ごはん会',
+        Occasion.drinking => '飲み会',
       };
   String get emoji => switch (this) {
         Occasion.none => '',
@@ -47,12 +51,15 @@ extension OccasionExt on Occasion {
         Occasion.mixer => '🥂',
         Occasion.welcome => '🎉',
         Occasion.date => '💕',
+        Occasion.dinner => '🍽',
+        Occasion.drinking => '🍻',
       };
   bool get filterFemale =>
       this == Occasion.girlsNight || this == Occasion.mixer || this == Occasion.date;
   bool get filterPrivate =>
       this == Occasion.birthday || this == Occasion.girlsNight || this == Occasion.welcome;
   bool get filterLunch => this == Occasion.lunch;
+  bool get filterFreeDrink => this == Occasion.drinking || this == Occasion.welcome;
 }
 
 enum TimeSlot { all, lunch, cafe, dinner, drinking }
@@ -102,6 +109,8 @@ class SearchState {
     this.restaurantCategories = const {},
     this.showFemaleFriendly = false,
     this.showPrivateRoom = false,
+    this.showFreeDrink = false,
+    this.preferMajorStations = false,
     this.occasion = Occasion.none,
     this.timeSlot = TimeSlot.all,
     this.maxBudget = 0,
@@ -132,6 +141,10 @@ class SearchState {
   final Set<String> restaurantCategories;
   final bool showFemaleFriendly;
   final bool showPrivateRoom;
+  final bool showFreeDrink;
+  /// 真ん中重視(false) か 主要駅重視(true) か。
+  /// true のときは `kStations`（35の主要駅）のみを集合候補に絞る
+  final bool preferMajorStations;
   final Occasion occasion;
   final TimeSlot timeSlot;
   final int maxBudget;
@@ -154,6 +167,7 @@ class SearchState {
 
   bool get _effectiveFemale => showFemaleFriendly || occasion.filterFemale;
   bool get _effectivePrivate => showPrivateRoom || occasion.filterPrivate;
+  bool get _effectiveFreeDrink => showFreeDrink || occasion.filterFreeDrink;
   TimeSlot get _effectiveTimeSlot =>
       occasion.filterLunch ? TimeSlot.lunch : timeSlot;
 
@@ -190,6 +204,7 @@ class SearchState {
       categories: restaurantCategories,
       femaleFriendly: _effectiveFemale,
       hasPrivateRoom: _effectivePrivate,
+      hasFreeDrink: _effectiveFreeDrink,
       timeSlot: _effectiveTimeSlot,
       maxBudget: maxBudget,
       occasion: occasion != Occasion.none ? occasion.label : null,
@@ -238,6 +253,8 @@ class SearchState {
     Set<String>? restaurantCategories,
     bool? showFemaleFriendly,
     bool? showPrivateRoom,
+    bool? showFreeDrink,
+    bool? preferMajorStations,
     Occasion? occasion,
     TimeSlot? timeSlot,
     int? maxBudget,
@@ -271,6 +288,8 @@ class SearchState {
         !clearCategory &&
         showFemaleFriendly == null &&
         showPrivateRoom == null &&
+        showFreeDrink == null &&
+        preferMajorStations == null &&
         occasion == null &&
         timeSlot == null &&
         maxBudget == null &&
@@ -291,6 +310,8 @@ class SearchState {
       restaurantCategories: clearCategory ? const {} : (restaurantCategories ?? this.restaurantCategories),
       showFemaleFriendly: showFemaleFriendly ?? this.showFemaleFriendly,
       showPrivateRoom: showPrivateRoom ?? this.showPrivateRoom,
+      showFreeDrink: showFreeDrink ?? this.showFreeDrink,
+      preferMajorStations: preferMajorStations ?? this.preferMajorStations,
       occasion: occasion ?? this.occasion,
       timeSlot: timeSlot ?? this.timeSlot,
       maxBudget: maxBudget ?? this.maxBudget,
@@ -472,7 +493,10 @@ class SearchNotifier extends Notifier<SearchState> {
     state = state.copyWith(isCalculating: true, clearError: true, loadingMessage: '移動時間を計算中...');
 
     try {
-      final results = MidpointService.calculate(state.participants);
+      final results = MidpointService.calculate(
+        state.participants,
+        preferMajorStations: state.preferMajorStations,
+      );
       state = state.copyWith(loadingMessage: 'ちょうどいい場所を探しています...');
       // Uber Eats式: 交通最適駅の座標を集合地点として使用
       final centroid = MidpointService.calcCentroid(state.participants, meetingPoints: results);
@@ -711,6 +735,14 @@ class SearchNotifier extends Notifier<SearchState> {
 
   void setPrivateRoom(bool value) {
     state = state.copyWith(showPrivateRoom: value);
+  }
+
+  void setFreeDrink(bool value) {
+    state = state.copyWith(showFreeDrink: value);
+  }
+
+  void setPreferMajorStations(bool value) {
+    state = state.copyWith(preferMajorStations: value);
   }
 
   void setSortOption(SortOption option) {

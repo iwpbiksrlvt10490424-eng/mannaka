@@ -121,6 +121,7 @@ class MidpointService {
   static List<MeetingPoint> calculate(
     List<Participant> participants, {
     ScoringMode mode = ScoringMode.balanced,
+    bool preferMajorStations = false,
   }) {
     // stationIndex がなくても stationName か座標があれば参加者として含める
     final active = participants
@@ -155,8 +156,13 @@ class MidpointService {
 
     final results = <MeetingPoint>[];
 
-    // 集合場所の候補は全kTransitGraph駅（~415駅）
-    for (final candidateName in kTransitGraph.keys) {
+    // 集合場所の候補
+    // preferMajorStations=true のときは主要35駅(kStations)に限定し、
+    // 知名度の高い・乗換しやすい駅だけを提案する
+    final candidateNames = preferMajorStations
+        ? kStations.where((s) => kTransitGraph.containsKey(s))
+        : kTransitGraph.keys;
+    for (final candidateName in candidateNames) {
       final coords = kAllStationCoords[candidateName];
       if (coords == null) continue;
 
@@ -512,6 +518,7 @@ class MidpointService {
     Set<String>? categories,
     bool femaleFriendly = false,
     bool hasPrivateRoom = false,
+    bool hasFreeDrink = false,
     TimeSlot timeSlot = TimeSlot.all,
     int maxBudget = 0,
     String? occasion,
@@ -535,6 +542,9 @@ class MidpointService {
     }
     if (hasPrivateRoom) {
       restaurants = restaurants.where((r) => r.hasPrivateRoom).toList();
+    }
+    if (hasFreeDrink) {
+      restaurants = restaurants.where((r) => r.freeDrink).toList();
     }
     if (timeSlot == TimeSlot.lunch) {
       restaurants = restaurants.where((r) => r.isLunchAvailable).toList();

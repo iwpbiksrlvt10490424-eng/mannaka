@@ -381,6 +381,22 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                         budget == state.maxBudget ? 0 : budget),
                   ),
 
+                  // ─── 集合場所の選び方（真ん中重視 / 主要駅重視）───
+                  const SizedBox(height: 8),
+                  _MeetingPreferenceToggle(
+                    preferMajor: state.preferMajorStations,
+                    onChanged: notifier.setPreferMajorStations,
+                  ),
+
+                  // ─── こだわり（個室・飲み放題）─────────────────────
+                  const SizedBox(height: 8),
+                  _RequestToggles(
+                    privateRoom: state.showPrivateRoom,
+                    freeDrink: state.showFreeDrink,
+                    onPrivateRoomChanged: notifier.setPrivateRoom,
+                    onFreeDrinkChanged: notifier.setFreeDrink,
+                  ),
+
                   // ─── シーン選択 ───────────────────────────────────────
                   const SizedBox(height: 8),
                   _OccasionChips(
@@ -1243,6 +1259,8 @@ class _OccasionChips extends StatelessWidget {
   final ValueChanged<Occasion> onSelect;
 
   static const _options = [
+    (Occasion.dinner, 'ごはん会'),
+    (Occasion.drinking, '飲み会'),
     (Occasion.girlsNight, '女子会'),
     (Occasion.birthday, '誕生日'),
     (Occasion.lunch, 'ランチ'),
@@ -2059,6 +2077,166 @@ class _SaveGroupDialogState extends State<_SaveGroupDialog> {
               : const Text('保存'),
         ),
       ],
+    );
+  }
+}
+
+/// 集合場所の選び方（真ん中重視 / 主要駅重視）の切替トグル
+class _MeetingPreferenceToggle extends StatelessWidget {
+  const _MeetingPreferenceToggle({
+    required this.preferMajor,
+    required this.onChanged,
+  });
+  final bool preferMajor;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      color: AppColors.surface,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 1, child: ColoredBox(color: Color(0xFFEEEEEE))),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Text(
+              '集合場所の選び方',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade500,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _segment('⚖️ 真ん中重視', !preferMajor, () => onChanged(false)),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _segment('🚉 主要駅重視', preferMajor, () => onChanged(true)),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _segment(String label, bool isSelected, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.chipSelectedBg : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? AppColors.chipSelectedBg : AppColors.divider,
+            width: 1,
+          ),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+            color: isSelected
+                ? AppColors.chipSelectedText
+                : AppColors.textSecondary,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 個室・飲み放題 のトグル（要望指定）
+class _RequestToggles extends StatelessWidget {
+  const _RequestToggles({
+    required this.privateRoom,
+    required this.freeDrink,
+    required this.onPrivateRoomChanged,
+    required this.onFreeDrinkChanged,
+  });
+  final bool privateRoom;
+  final bool freeDrink;
+  final ValueChanged<bool> onPrivateRoomChanged;
+  final ValueChanged<bool> onFreeDrinkChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      color: AppColors.surface,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 1, child: ColoredBox(color: Color(0xFFEEEEEE))),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Text(
+              'こだわり',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade500,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _toggleChip('個室あり', privateRoom,
+                    () => onPrivateRoomChanged(!privateRoom)),
+                _toggleChip('飲み放題あり', freeDrink,
+                    () => onFreeDrinkChanged(!freeDrink)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _toggleChip(String label, bool isSelected, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.chipSelectedBg : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected ? AppColors.chipSelectedBg : AppColors.divider,
+            width: 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+            color: isSelected
+                ? AppColors.chipSelectedText
+                : AppColors.textSecondary,
+          ),
+        ),
+      ),
     );
   }
 }

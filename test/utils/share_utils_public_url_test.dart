@@ -21,9 +21,9 @@ void main() {
           reason: 'appStoreUrl は https:// で始まるべき');
     });
 
-    test('appStoreUrl にアプリID id6743108270 が含まれるとき', () {
+    test('appStoreUrl にアプリID id6761008332 が含まれるとき', () {
       final url = ShareUtils.appStoreUrl;
-      expect(url, contains('id6743108270'),
+      expect(url, contains('id6761008332'),
           reason: 'appStoreUrl にアプリID が含まれるべき');
     });
   });

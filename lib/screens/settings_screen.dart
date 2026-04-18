@@ -640,11 +640,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       label: 'レビューを書いて応援する',
                       color: const Color(0xFFF59E0B),
                       onTap: () async {
-                        final url = Uri.parse(
-                          '${ShareUtils.appStoreUrl}?action=write-review',
-                        );
-                        if (await canLaunchUrl(url)) {
-                          await launchUrl(url, mode: LaunchMode.externalApplication);
+                        // 優先: itms-apps スキームで App Store を直接開く
+                        final nativeUrl =
+                            Uri.parse(ShareUtils.appStoreReviewUrl);
+                        if (await canLaunchUrl(nativeUrl)) {
+                          await launchUrl(nativeUrl,
+                              mode: LaunchMode.externalApplication);
+                          return;
+                        }
+                        // フォールバック: https URL
+                        final fallback = Uri.parse(
+                            '${ShareUtils.appStoreUrl}?action=write-review');
+                        if (await canLaunchUrl(fallback)) {
+                          await launchUrl(fallback,
+                              mode: LaunchMode.externalApplication);
                         }
                       },
                     ),

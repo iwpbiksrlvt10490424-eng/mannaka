@@ -5,8 +5,12 @@ import '../models/scored_restaurant.dart';
 import '../providers/search_provider.dart';
 
 class ShareUtils {
+  static const appStoreId = '6761008332';
   static const appStoreUrl =
-      'https://apps.apple.com/jp/app/aimachi/id6743108270';
+      'https://apps.apple.com/jp/app/aimachi/id$appStoreId';
+  /// レビューを直接書き込むダイアログを開く iOS ネイティブURL
+  static const appStoreReviewUrl =
+      'itms-apps://itunes.apple.com/app/id$appStoreId?action=write-review';
 
   /// メインのシェアテキスト（レストラン決定後）
   /// [includeBackup]: trueのとき代替案も含める

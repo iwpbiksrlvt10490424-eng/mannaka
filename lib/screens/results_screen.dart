@@ -478,8 +478,16 @@ class _MeetingPointTabState extends ConsumerState<_MeetingPointTab> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                 children: [
-                  _filterChip('すべて', _selectedCategories.isEmpty,
-                      () => setState(() => _selectedCategories.clear())),
+                  _filterChip(
+                      'すべて',
+                      _selectedCategories.isEmpty &&
+                          widget.state.restaurantCategories.isEmpty,
+                      () {
+                        // 結果画面のローカル絞り込みと、探す画面側の絞り込みの
+                        // 両方を解除する（「すべて表示」を文字通り意味する）
+                        widget.notifier.clearRestaurantCategories();
+                        setState(() => _selectedCategories.clear());
+                      }),
                   ...categories.map((c) => _filterChip(
                         c,
                         _selectedCategories.contains(c),

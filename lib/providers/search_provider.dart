@@ -555,6 +555,9 @@ class SearchNotifier extends Notifier<SearchState> {
             apiKey: ApiConfig.placesApiKey,
             lat: centroid.$1,
             lng: centroid.$2,
+            category: state.restaurantCategories.length == 1
+                ? state.restaurantCategories.first
+                : null,
           );
           final results2 = await Future.wait([hotpepperFuture, googleFuture]);
           hotpepperRestaurants =
@@ -594,6 +597,9 @@ class SearchNotifier extends Notifier<SearchState> {
             apiKey: ApiConfig.placesApiKey,
             lat: latLng.$1,
             lng: latLng.$2,
+            category: state.restaurantCategories.length == 1
+                ? state.restaurantCategories.first
+                : null,
           ).timeout(const Duration(seconds: 8));
           final merged = await Future.wait([hpFuture, gpFuture]);
           restaurants = _mergeRestaurants(merged[0], merged[1]);
@@ -709,6 +715,9 @@ class SearchNotifier extends Notifier<SearchState> {
         apiKey: ApiConfig.placesApiKey,
         lat: lat,
         lng: lng,
+        category: state.restaurantCategories.length == 1
+            ? state.restaurantCategories.first
+            : null,
       );
       final both = await Future.wait([hpFuture, gpFuture]);
       final restaurants = _mergeRestaurants(both[0], both[1]);

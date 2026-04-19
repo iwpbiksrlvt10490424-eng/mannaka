@@ -22,15 +22,19 @@ class GooglePlacesService {
       'places.formattedAddress,places.photos';
 
   /// 指定座標周辺のお店を検索。最大 20 件返る。
+  /// [category] を渡すと Places API (New) の includedTypes で
+  /// 細かいジャンル（italian_restaurant 等）に絞る。
   static Future<List<Restaurant>> searchNearby({
     required String apiKey,
     required double lat,
     required double lng,
     int radiusMeters = 3000,
+    String? category,
   }) async {
     if (apiKey.isEmpty) return [];
+    final includedTypes = _categoryToIncludedTypes(category);
     final body = jsonEncode({
-      'includedTypes': ['restaurant'],
+      'includedTypes': includedTypes,
       'maxResultCount': 20,
       'locationRestriction': {
         'circle': {
@@ -159,14 +163,56 @@ class GooglePlacesService {
 
   /// Google Places の types から日本語カテゴリ名へマップする
   static String _typeToCategory(List<String> types) {
-    if (types.contains('cafe')) return 'カフェ';
-    if (types.contains('bakery')) return 'カフェ';
+    // cuisine-specific 優先
+    if (types.contains('italian_restaurant')) return 'イタリアン';
+    if (types.contains('french_restaurant')) return 'フレンチ';
+    if (types.contains('japanese_restaurant') ||
+        types.contains('sushi_restaurant') ||
+        types.contains('ramen_restaurant')) {
+      return '和食';
+    }
+    if (types.contains('chinese_restaurant')) return '中華';
+    if (types.contains('korean_restaurant') ||
+        types.contains('barbecue_restaurant')) {
+      return '焼肉';
+    }
+    if (types.contains('cafe') || types.contains('bakery')) return 'カフェ';
     if (types.contains('bar') || types.contains('night_club')) return 'バー';
     if (types.contains('meal_takeaway') || types.contains('meal_delivery')) {
       return '洋食';
     }
     if (types.contains('restaurant')) return 'レストラン';
     return 'その他';
+  }
+
+  /// 日本語カテゴリ名 → Places API (New) の includedTypes 配列
+  /// 指定なしや未対応カテゴリは広く 'restaurant' で検索する。
+  static List<String> _categoryToIncludedTypes(String? category) {
+    switch (category) {
+      case 'イタリアン':
+        return ['italian_restaurant'];
+      case 'フレンチ':
+        return ['french_restaurant'];
+      case '和食':
+        return ['japanese_restaurant', 'sushi_restaurant', 'ramen_restaurant'];
+      case 'ラーメン':
+        return ['ramen_restaurant'];
+      case '中華':
+        return ['chinese_restaurant'];
+      case '焼肉':
+      case '韓国料理':
+        return ['korean_restaurant', 'barbecue_restaurant'];
+      case 'カフェ':
+        return ['cafe', 'coffee_shop'];
+      case 'バー':
+        return ['bar'];
+      case '居酒屋':
+        return ['bar', 'restaurant']; // Google に 居酒屋 type がないので近似
+      case '洋食':
+      case 'レストラン':
+      default:
+        return ['restaurant'];
+    }
   }
 
   static String _categoryEmoji(String category) => switch (category) {

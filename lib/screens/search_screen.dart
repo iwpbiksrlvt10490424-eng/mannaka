@@ -15,6 +15,7 @@ import '../services/location_session_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/station_search_sheet.dart';
 import 'results_screen.dart';
+import '../utils/share_utils.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
@@ -600,8 +601,14 @@ class _ParticipantRowState extends State<_ParticipantRow> {
       return;
     }
 
-    final shareText =
-        '📍 出発エリアを教えてください！\n（正確な現在地は共有されません。エリア情報のみ使用します）\nmannaka://location?session=$sessionId';
+    // LINEで送る時にいきなり「出発エリアを教えて」だと何のアプリか分からず
+    // 警戒されるため、Aimachi の説明とアプリ導線も添える。
+    final shareText = '【Aimachi】$hostNameさんがみんなに合うお店を探しています🍽\n'
+        '$participantNameさんの出発エリアを教えてください。\n\n'
+        '▼ タップしてエリアを送信\n'
+        'mannaka://location?session=$sessionId\n\n'
+        '※正確な現在地は共有されず、エリア情報のみ使用します\n'
+        '※アプリ未インストールの場合: ${ShareUtils.appStoreUrl}';
 
     await Share.share(shareText, sharePositionOrigin: shareOrigin);
 

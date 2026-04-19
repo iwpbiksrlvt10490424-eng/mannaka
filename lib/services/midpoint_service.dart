@@ -553,10 +553,10 @@ class MidpointService {
     } else if (timeSlot == TimeSlot.dinner) {
       restaurants = restaurants.where((r) => r.isDinnerAvailable).toList();
     }
-    // 日付指定時: 予約可能な店舗のみ（その日程で予約できるところ）
-    if (selectedDate != null) {
-      restaurants = restaurants.where((r) => r.isReservable).toList();
-    }
+    // 日付指定時はハード除外にしない。
+    // isReservable は「Hotpepperで予約リンクがあるか」というフラグで、
+    // Google Places の店は全て false になるため、ハード除外すると Google 由来の
+    // 店が全消えしてしまう。予約可否はスコアリングと UI バッジで示す設計。
 
     if (restaurants.isEmpty) return [];
 

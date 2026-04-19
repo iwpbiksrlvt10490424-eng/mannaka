@@ -10,4 +10,7 @@ class ApiConfig {
 
   /// Google Maps / Places API キー
   static final String googleMapsApiKey = Secrets.googleMapsApiKey;
+
+  /// Places API (Legacy) 専用キー（HTTPリクエスト用）
+  static final String placesApiKey = Secrets.placesApiKey;
 }

@@ -552,7 +552,7 @@ class SearchNotifier extends Notifier<SearchState> {
             lunch: state.occasion.filterLunch || state.timeSlot == TimeSlot.lunch,
           );
           final googleFuture = GooglePlacesService.searchNearby(
-            apiKey: ApiConfig.googleMapsApiKey,
+            apiKey: ApiConfig.placesApiKey,
             lat: centroid.$1,
             lng: centroid.$2,
           );
@@ -591,7 +591,7 @@ class SearchNotifier extends Notifier<SearchState> {
             lunch: state.occasion.filterLunch || state.timeSlot == TimeSlot.lunch,
           ).timeout(const Duration(seconds: 8));
           final gpFuture = GooglePlacesService.searchNearby(
-            apiKey: ApiConfig.googleMapsApiKey,
+            apiKey: ApiConfig.placesApiKey,
             lat: latLng.$1,
             lng: latLng.$2,
           ).timeout(const Duration(seconds: 8));
@@ -706,7 +706,7 @@ class SearchNotifier extends Notifier<SearchState> {
         lunch: state.occasion.filterLunch || state.timeSlot == TimeSlot.lunch,
       );
       final gpFuture = GooglePlacesService.searchNearby(
-        apiKey: ApiConfig.googleMapsApiKey,
+        apiKey: ApiConfig.placesApiKey,
         lat: lat,
         lng: lng,
       );

@@ -122,9 +122,10 @@ class HotpepperService {
     final genreName = (s['genre'] as Map?)?['name'] ?? 'その他';
     final category = _genreToCategory(genreCode, genreName);
 
-    final budgetAvg = int.tryParse(
-            ((s['budget'] as Map?)?['average'] ?? '').toString()) ??
-        3000;
+    // Hotpepper budget.code → 円換算平均値（各レンジの中央値）
+    final budgetCode =
+        (s['budget'] as Map?)?['code']?.toString() ?? '';
+    final budgetAvg = _budgetCodeToAvg(budgetCode);
     final budgetName =
         (s['budget'] as Map?)?['name']?.toString() ?? '';
 
@@ -233,6 +234,26 @@ class HotpepperService {
         'G025' => '和食',
         'G036' => 'フレンチ',
         _ => name.length > 6 ? name.substring(0, 6) : name,
+      };
+
+  /// budget.code (B001〜B014) を円換算の中央値に変換する。
+  /// `budget.average` フィールドは "夜10000〜14999円(税込)" のような
+  /// フリーテキストで int としてパースできないため、安定したコードから算出する。
+  static int _budgetCodeToAvg(String code) => switch (code) {
+        'B010' => 300,     // 〜500円
+        'B009' => 750,     // 501〜1000円
+        'B011' => 1250,    // 1001〜1500円
+        'B001' => 1750,    // 1501〜2000円
+        'B002' => 2500,    // 2001〜3000円
+        'B003' => 3500,    // 3001〜4000円
+        'B008' => 4500,    // 4001〜5000円
+        'B004' => 6000,    // 5001〜7000円
+        'B005' => 8500,    // 7001〜10000円
+        'B006' => 12500,   // 10001〜15000円
+        'B012' => 17500,   // 15001〜20000円
+        'B013' => 25000,   // 20001〜30000円
+        'B014' => 35000,   // 30001円〜
+        _ => 0,            // 不明時は 0（フィルタで素通り）
       };
 
   static String _genreEmoji(String code) => switch (code) {

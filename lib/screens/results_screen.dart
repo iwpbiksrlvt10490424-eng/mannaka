@@ -222,7 +222,8 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
             child: state.isCalculating
                 ? const _SkeletonTab()
                 : results.isEmpty
-                    ? _EmptyState(onReset: () {})
+                    ? _EmptyState(
+                        onReset: () => notifier.clearRestaurantCategories())
                     : TabBarView(
                         controller: tab,
                         children: results.take(5).toList().map((point) {

@@ -1254,16 +1254,17 @@ class _MeetingPreferenceBar extends StatelessWidget {
 
 /// 結果画面で条件を編集するボトムシート。
 /// 探す画面に戻らずに主要フィルタを変更でき、閉じた時に自動で再検索がかかる。
-class _ConditionEditSheet extends StatefulWidget {
+class _ConditionEditSheet extends ConsumerStatefulWidget {
   const _ConditionEditSheet({required this.state, required this.notifier});
   final SearchState state;
   final SearchNotifier notifier;
 
   @override
-  State<_ConditionEditSheet> createState() => _ConditionEditSheetState();
+  ConsumerState<_ConditionEditSheet> createState() =>
+      _ConditionEditSheetState();
 }
 
-class _ConditionEditSheetState extends State<_ConditionEditSheet> {
+class _ConditionEditSheetState extends ConsumerState<_ConditionEditSheet> {
   static const _budgetOptions = [
     (1500, '〜¥1,500'),
     (3000, '〜¥3,000'),
@@ -1279,7 +1280,7 @@ class _ConditionEditSheetState extends State<_ConditionEditSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final state = widget.notifier.ref.watch(searchProvider);
+    final state = ref.watch(searchProvider);
     final viewInsets = MediaQuery.of(context).viewInsets;
     return Padding(
       padding: EdgeInsets.fromLTRB(0, 0, 0, viewInsets.bottom),

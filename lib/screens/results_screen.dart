@@ -503,7 +503,11 @@ class _MeetingPointTabState extends ConsumerState<_MeetingPointTab> {
               ? const _SkeletonTab()
               : scored.isEmpty
                   ? _EmptyState(
-                      onReset: () => setState(() => _selectedCategories.clear()))
+                      onReset: () {
+                        // 探す画面側と結果画面側の両方のカテゴリ絞り込みを解除
+                        widget.notifier.clearRestaurantCategories();
+                        setState(() => _selectedCategories.clear());
+                      })
                   : Stack(
                       children: [
                         ListView.builder(

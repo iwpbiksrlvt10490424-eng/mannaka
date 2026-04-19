@@ -733,6 +733,13 @@ class SearchNotifier extends Notifier<SearchState> {
     );
   }
 
+  /// 結果画面の「ジャンルを絞り込み解除」ボタン用。
+  /// 探す画面で設定した restaurantCategories と、結果画面のローカル絞り込み
+  /// を合わせて解除することで、0 件時にリセットする導線として機能させる。
+  void clearRestaurantCategories() {
+    state = state.copyWith(clearCategory: true);
+  }
+
   void setFemaleFriendly(bool value) {
     state = state.copyWith(showFemaleFriendly: value);
   }

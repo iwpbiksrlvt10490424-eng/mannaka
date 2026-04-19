@@ -10,6 +10,7 @@ import '../models/scored_restaurant.dart';
 import '../data/station_data.dart';
 import '../services/midpoint_service.dart';
 import '../services/hotpepper_service.dart';
+import '../services/google_places_service.dart';
 import '../config/api_config.dart';
 import '../data/restaurant_data.dart';
 import '../services/notification_service.dart';
@@ -536,13 +537,11 @@ class SearchNotifier extends Notifier<SearchState> {
         if (cached != null && cached.isNotEmpty) {
           hotpepperRestaurants = cached;
         } else {
-          // Hotpepper一本化: フィルタをサーバーサイドで絞り込む。
-          // ただし「ユーザーが明示的にトグルしたもの」だけをハード条件にする。
-          // シーン由来の好み（女子会 → 個室、飲み会 → 飲み放題 等）は
-          // スコアリング側でソフトな優遇として扱う。こうしないと狭いエリアで
-          // すぐに 0 件になってしまう。
-          // ランチ/時間帯だけは元々強い制約なのでハード条件のまま。
-          hotpepperRestaurants = await HotpepperService.searchNearCentroid(
+          // Hotpepper と Google Places を並列取得してマージする。
+          // Hotpepper: 有料掲載店のみ・詳細フィルタ可（個室/飲み放題/予算）
+          // Google Places: 全店舗網羅・日本特有フィルタ不可・有料API
+          // 両方のお店を同時に見せるための設計。
+          final hotpepperFuture = HotpepperService.searchNearCentroid(
             apiKey: ApiConfig.hotpepperApiKey,
             lat: centroid.$1,
             lng: centroid.$2,
@@ -552,6 +551,14 @@ class SearchNotifier extends Notifier<SearchState> {
             freeDrink: state.showFreeDrink,
             lunch: state.occasion.filterLunch || state.timeSlot == TimeSlot.lunch,
           );
+          final googleFuture = GooglePlacesService.searchNearby(
+            apiKey: ApiConfig.googleMapsApiKey,
+            lat: centroid.$1,
+            lng: centroid.$2,
+          );
+          final results2 = await Future.wait([hotpepperFuture, googleFuture]);
+          hotpepperRestaurants =
+              _mergeRestaurants(results2[0], results2[1]);
 
           // Store in Firebase cache for future searches (fire and forget)
           if (hotpepperRestaurants.isNotEmpty) {
@@ -568,13 +575,13 @@ class SearchNotifier extends Notifier<SearchState> {
       }
 
       // Pre-fetch for remaining candidates in parallel (2〜5位すべて対象, 8s timeout)
-      // Hotpepper一本化: 同じフィルタ条件を使う
+      // Hotpepper と Google Places を並列で呼んでマージ。
       final remaining = results.skip(1).toList();
       final prefetchFutures = remaining.map((point) async {
         final latLng = (point.lat, point.lng);
         List<Restaurant> restaurants = [];
         try {
-          restaurants = await HotpepperService.searchNearCentroid(
+          final hpFuture = HotpepperService.searchNearCentroid(
             apiKey: ApiConfig.hotpepperApiKey,
             lat: latLng.$1,
             lng: latLng.$2,
@@ -583,6 +590,13 @@ class SearchNotifier extends Notifier<SearchState> {
             freeDrink: state.showFreeDrink,
             lunch: state.occasion.filterLunch || state.timeSlot == TimeSlot.lunch,
           ).timeout(const Duration(seconds: 8));
+          final gpFuture = GooglePlacesService.searchNearby(
+            apiKey: ApiConfig.googleMapsApiKey,
+            lat: latLng.$1,
+            lng: latLng.$2,
+          ).timeout(const Duration(seconds: 8));
+          final merged = await Future.wait([hpFuture, gpFuture]);
+          restaurants = _mergeRestaurants(merged[0], merged[1]);
         } catch (e) {
           debugPrint('prefetch: ${point.stationName} failed - ${e.runtimeType}');
         }
@@ -680,7 +694,8 @@ class SearchNotifier extends Notifier<SearchState> {
       final selectedGenre = state.restaurantCategories.length == 1
           ? HotpepperService.categoryToGenreCode(state.restaurantCategories.first)
           : null;
-      final restaurants = await HotpepperService.searchNearCentroid(
+      // Hotpepper と Google Places を並列取得してマージ
+      final hpFuture = HotpepperService.searchNearCentroid(
         apiKey: ApiConfig.hotpepperApiKey,
         lat: lat,
         lng: lng,
@@ -690,6 +705,13 @@ class SearchNotifier extends Notifier<SearchState> {
         freeDrink: state.showFreeDrink,
         lunch: state.occasion.filterLunch || state.timeSlot == TimeSlot.lunch,
       );
+      final gpFuture = GooglePlacesService.searchNearby(
+        apiKey: ApiConfig.googleMapsApiKey,
+        lat: lat,
+        lng: lng,
+      );
+      final both = await Future.wait([hpFuture, gpFuture]);
+      final restaurants = _mergeRestaurants(both[0], both[1]);
       // Add to cache
       final newCache = Map<String, List<Restaurant>>.from(state.restaurantCache);
       newCache[point.stationName] = restaurants;
@@ -830,6 +852,32 @@ class SearchNotifier extends Notifier<SearchState> {
       setStation(first.id, homeIdx, kStations[homeIdx]);
     }
   }
+}
+
+/// Hotpepper と Google Places の検索結果をマージして重複を除去する。
+/// Hotpepper の結果を優先（予約URL・個室などの詳細情報を持つため）し、
+/// 同一店（名称＋おおよその座標）がある場合 Google 側は捨てる。
+List<Restaurant> _mergeRestaurants(
+  List<Restaurant> hotpepper,
+  List<Restaurant> googlePlaces,
+) {
+  String key(Restaurant r) {
+    final name = r.name.trim();
+    // 座標を小数 3 桁（約 100m 粒度）に丸めて名前と組み合わせる
+    final lat = r.lat?.toStringAsFixed(3) ?? '';
+    final lng = r.lng?.toStringAsFixed(3) ?? '';
+    return '$name|$lat|$lng';
+  }
+
+  final seen = <String>{};
+  final merged = <Restaurant>[];
+  for (final r in hotpepper) {
+    if (seen.add(key(r))) merged.add(r);
+  }
+  for (final r in googlePlaces) {
+    if (seen.add(key(r))) merged.add(r);
+  }
+  return merged;
 }
 
 final searchProvider = NotifierProvider<SearchNotifier, SearchState>(SearchNotifier.new);

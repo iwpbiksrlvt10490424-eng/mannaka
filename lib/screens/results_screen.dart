@@ -688,6 +688,25 @@ class _HeroCard extends StatelessWidget {
                       height: 1.2,
                     ),
                   ),
+                  if (r.sourceApi == 'google_places') ...[
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF4285F4).withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text(
+                        'Googleマップより',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF4285F4),
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 6),
                   // カテゴリ · 価格 · 評価
                   Row(

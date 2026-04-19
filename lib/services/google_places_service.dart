@@ -34,7 +34,9 @@ class GooglePlacesService {
     if (apiKey.isEmpty) return [];
     final includedTypes = _categoryToIncludedTypes(category);
     final body = jsonEncode({
-      'includedTypes': includedTypes,
+      // includedPrimaryTypes: 主要分類が restaurant 系の店だけに絞る。
+      // includedTypes だと、ホテル（ロビーにレストランを持つ）等も混ざる。
+      'includedPrimaryTypes': includedTypes,
       'maxResultCount': 20,
       'locationRestriction': {
         'circle': {

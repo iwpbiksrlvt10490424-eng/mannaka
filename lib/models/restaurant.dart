@@ -93,7 +93,10 @@ class Restaurant {
       (reviewCount > 0 || confidenceLevel == 'high');
 
   String get ratingStr => rating.toStringAsFixed(1);
-  String get priceStr => '¥${_formatNumber(priceAvg)}〜';
+  // priceAvg==0 は情報なし（Hotpepperで budget.code が無いか、
+  // Google Places で priceLevel 未設定）なので金額を出さない
+  String get priceStr =>
+      priceAvg == 0 ? '予算情報なし' : '¥${_formatNumber(priceAvg)}〜';
 
   bool isOpenNow(DateTime now) {
     if (openHours.isEmpty) return false;

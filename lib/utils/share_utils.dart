@@ -82,7 +82,7 @@ class ShareUtils {
         ? topRestaurants.first.restaurant.name
         : '${point.stationName}駅周辺のお店';
 
-    return 'お店が決まりました\n\n'
+    return 'お店の候補を共有します\n\n'
         '$topName\n'
         '${point.stationName}駅周辺\n\n'
         '各自の移動時間\n'
@@ -117,7 +117,8 @@ class ShareUtils {
         .join('\n');
 
     final sb = StringBuffer();
-    sb.writeln('お店決まりました！');
+    // まだ予約前（候補の提示）なので「決まった」と断定しない文言にする
+    sb.writeln('🍽 ちょうどいいお店の候補が見つかりました');
     sb.writeln('');
     sb.writeln('📍 $topName');
     sb.writeln('${point.stationName}駅周辺');

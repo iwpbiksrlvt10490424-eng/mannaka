@@ -4,19 +4,24 @@ import 'package:http/http.dart' as http;
 import '../models/restaurant.dart';
 import '../services/location_service.dart';
 
-/// Google Places API (Nearby Search legacy) を使ったレストラン検索。
-/// Hotpepper が少ない駅・地域で「0件になる」のを防ぐためのフォールバック。
+/// Google Places API (New) Nearby Search を使ったレストラン検索。
+/// Hotpepper 未掲載店（個人経営・町の名店）を補うために並列取得する。
 ///
 /// 注意:
-///  - 従量課金（基本 $32/1000req、月 $200 の無料枠あり）
-///  - GCP Billing の有効化と Places API の有効化が必要
-///  - 予約URL・個室・飲み放題などの日本特有の情報は取れない
+///  - 従量課金（Places API (New) は legacy より安く、field mask によって変動）
+///  - GCP Billing の有効化と Places API (New) の有効化が必要
+///  - キーの API 制限に Places API (New) を含めること
 class GooglePlacesService {
   static const _endpoint =
-      'https://maps.googleapis.com/maps/api/place/nearbysearch/json';
+      'https://places.googleapis.com/v1/places:searchNearby';
+
+  /// 返してほしいフィールドを絞って課金を最小化する（field mask）。
+  static const _fieldMask =
+      'places.id,places.displayName,places.location,places.rating,'
+      'places.userRatingCount,places.priceLevel,places.types,'
+      'places.formattedAddress,places.photos';
 
   /// 指定座標周辺のお店を検索。最大 20 件返る。
-  /// [radiusMeters] は検索半径（m）。デフォルト 3000m（Hotpepper の range=5 と揃える）
   static Future<List<Restaurant>> searchNearby({
     required String apiKey,
     required double lat,
@@ -24,30 +29,38 @@ class GooglePlacesService {
     int radiusMeters = 3000,
   }) async {
     if (apiKey.isEmpty) return [];
-    final params = <String, String>{
-      'location': '$lat,$lng',
-      'radius': radiusMeters.toString(),
-      'type': 'restaurant',
-      'language': 'ja',
-      'key': apiKey,
-    };
-    final uri = Uri.parse(_endpoint).replace(queryParameters: params);
+    final body = jsonEncode({
+      'includedTypes': ['restaurant'],
+      'maxResultCount': 20,
+      'locationRestriction': {
+        'circle': {
+          'center': {'latitude': lat, 'longitude': lng},
+          'radius': radiusMeters.toDouble(),
+        },
+      },
+      'languageCode': 'ja',
+    });
     try {
-      final res = await http.get(uri).timeout(const Duration(seconds: 8));
+      final res = await http
+          .post(
+            Uri.parse(_endpoint),
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Goog-Api-Key': apiKey,
+              'X-Goog-FieldMask': _fieldMask,
+            },
+            body: body,
+          )
+          .timeout(const Duration(seconds: 8));
       if (res.statusCode != 200) {
         debugPrint('[GooglePlaces] HTTP ${res.statusCode}');
         return [];
       }
       final json = jsonDecode(res.body) as Map<String, dynamic>;
-      final status = json['status'] as String? ?? '';
-      if (status != 'OK' && status != 'ZERO_RESULTS') {
-        debugPrint('[GooglePlaces] status=$status');
-        return [];
-      }
-      final results = (json['results'] as List?) ?? [];
-      debugPrint('[GooglePlaces] 取得: ${results.length}件 (lat=$lat, lng=$lng)');
-      return results
-          .map((r) => _mapPlace(r as Map<String, dynamic>))
+      final places = (json['places'] as List?) ?? [];
+      debugPrint('[GooglePlaces] 取得: ${places.length}件 (lat=$lat, lng=$lng)');
+      return places
+          .map((p) => _mapPlace(p as Map<String, dynamic>, apiKey))
           .whereType<Restaurant>()
           .toList();
     } catch (e) {
@@ -56,37 +69,38 @@ class GooglePlacesService {
     }
   }
 
-  static Restaurant? _mapPlace(Map<String, dynamic> p) {
-    final placeId = p['place_id']?.toString();
-    final name = p['name']?.toString();
-    if (placeId == null || name == null || name.isEmpty) return null;
+  static Restaurant? _mapPlace(Map<String, dynamic> p, String apiKey) {
+    final id = p['id']?.toString();
+    final displayName = (p['displayName'] as Map?)?['text']?.toString();
+    if (id == null || displayName == null || displayName.isEmpty) {
+      return null;
+    }
 
-    final geometry = p['geometry'] as Map?;
-    final location = geometry?['location'] as Map?;
-    final lat = (location?['lat'] as num?)?.toDouble();
-    final lng = (location?['lng'] as num?)?.toDouble();
+    final loc = p['location'] as Map?;
+    final lat = (loc?['latitude'] as num?)?.toDouble();
+    final lng = (loc?['longitude'] as num?)?.toDouble();
 
-    // price_level: 0=Free, 1=Inexpensive, 2=Moderate, 3=Expensive, 4=Very Expensive
-    final priceLevel = (p['price_level'] as num?)?.toInt();
+    // priceLevel は enum 文字列で返る
+    final priceLevel = p['priceLevel']?.toString() ?? '';
     final priceAvg = switch (priceLevel) {
-      0 => 500,
-      1 => 1500,
-      2 => 3000,
-      3 => 5000,
-      4 => 10000,
-      _ => 3000, // 不明時はデフォルト
+      'PRICE_LEVEL_FREE' => 500,
+      'PRICE_LEVEL_INEXPENSIVE' => 1500,
+      'PRICE_LEVEL_MODERATE' => 3000,
+      'PRICE_LEVEL_EXPENSIVE' => 5000,
+      'PRICE_LEVEL_VERY_EXPENSIVE' => 10000,
+      _ => 0, // 不明時は 0（フィルタで素通り）
     };
     final priceLabel = switch (priceLevel) {
-      0 => '¥〜500',
-      1 => '¥〜1,500',
-      2 => '¥1,500〜3,000',
-      3 => '¥3,000〜5,000',
-      4 => '¥5,000〜',
+      'PRICE_LEVEL_FREE' => '¥〜500',
+      'PRICE_LEVEL_INEXPENSIVE' => '¥〜1,500',
+      'PRICE_LEVEL_MODERATE' => '¥1,500〜3,000',
+      'PRICE_LEVEL_EXPENSIVE' => '¥3,000〜5,000',
+      'PRICE_LEVEL_VERY_EXPENSIVE' => '¥5,000〜',
       _ => '',
     };
 
     final rating = (p['rating'] as num?)?.toDouble() ?? 0.0;
-    final reviewCount = (p['user_ratings_total'] as num?)?.toInt() ?? 0;
+    final reviewCount = (p['userRatingCount'] as num?)?.toInt() ?? 0;
     final types = (p['types'] as List?)?.cast<String>() ?? [];
     final category = _typeToCategory(types);
     final emoji = _categoryEmoji(category);
@@ -95,19 +109,22 @@ class GooglePlacesService {
         ? LocationService.nearestStationIndex(lat, lng)
         : 0;
 
+    // photos は `name` フィールドが "places/PLACE_ID/photos/PHOTO_NAME" 形式
+    // media エンドポイントで画像取得できる
     final photos = p['photos'] as List?;
-    String? photoRef;
+    String? imageUrl;
     if (photos != null && photos.isNotEmpty) {
       final first = photos.first as Map?;
-      photoRef = first?['photo_reference']?.toString();
+      final photoName = first?['name']?.toString();
+      if (photoName != null && photoName.isNotEmpty) {
+        imageUrl =
+            'https://places.googleapis.com/v1/$photoName/media?maxWidthPx=800&key=$apiKey';
+      }
     }
-    final imageUrl = photoRef != null
-        ? 'https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=$photoRef'
-        : null;
 
     return Restaurant(
-      id: 'gp_$placeId',
-      name: name,
+      id: 'gp_$id',
+      name: displayName,
       stationIndex: stationIdx,
       category: category,
       rating: rating,
@@ -117,10 +134,10 @@ class GooglePlacesService {
       tags: const [],
       emoji: emoji,
       description: '',
-      distanceMinutes: 5, // 徒歩時間は推定5分
-      address: p['vicinity']?.toString() ?? '',
+      distanceMinutes: 5,
+      address: p['formattedAddress']?.toString() ?? '',
       openHours: '',
-      isReservable: false, // Google Places からは予約できない
+      isReservable: false,
       isFemalePopular: category == 'カフェ' ||
           category == 'イタリアン' ||
           category == 'フレンチ',
@@ -136,11 +153,11 @@ class GooglePlacesService {
       confidenceLevel: 'medium',
       ratingConfidence: reviewCount > 0 ? 'known' : 'unknown',
       reviewConfidence: reviewCount > 0 ? 'known' : 'unknown',
-      planInfoConfidence: 'unknown', // 飲み放題等は取れない
+      planInfoConfidence: 'unknown',
     );
   }
 
-  /// Google Places の `types` から日本語カテゴリ名へマップする
+  /// Google Places の types から日本語カテゴリ名へマップする
   static String _typeToCategory(List<String> types) {
     if (types.contains('cafe')) return 'カフェ';
     if (types.contains('bakery')) return 'カフェ';
@@ -148,7 +165,6 @@ class GooglePlacesService {
     if (types.contains('meal_takeaway') || types.contains('meal_delivery')) {
       return '洋食';
     }
-    // 細かいジャンルは Google では取れないので restaurant 共通として返す
     if (types.contains('restaurant')) return 'レストラン';
     return 'その他';
   }

@@ -82,7 +82,10 @@ class HotpepperService {
     bool course = false,       // コースあり
     bool card = false,         // カード可
   }) async {
-    final budgetCodes = maxBudgetToCodes(maxBudget);
+    // maxBudget は Hotpepper API に渡さず、クライアント側 priceAvg で絞る。
+    // Hotpepper の budget パラメータは複数コードを並べると 0 件を返すバグ
+    // （例: B010,B009,B011,B001,B002 → 0件）があるため、
+    // 使わずに取得しクライアント側で priceAvg <= maxBudget で除外する。
     final params = <String, String>{
       'key': apiKey,
       'lat': lat.toString(),
@@ -91,7 +94,6 @@ class HotpepperService {
       'count': count.toString(),
       'format': 'json',
       if (genre != null) 'genre': genre,
-      if (budgetCodes != null) 'budget': budgetCodes,
       if (privateRoom) 'private_room': '1',
       if (freeDrink) 'free_drink': '1',
       if (freeFood) 'free_food': '1',

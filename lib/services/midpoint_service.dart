@@ -542,16 +542,29 @@ class MidpointService {
       final minB = maxBudget.abs();
       restaurants = restaurants.where((r) => r.priceAvg == 0 || r.priceAvg >= minB).toList();
     }
+    // 情報未確認データソース（Google Places 等）は、該当情報フィールドを
+    // 持たないため、ハード除外するとその店が全消えになる。
+    // A 案: 情報未確認の店は通し、UI 側でバッジ等で伝える。
+    bool isInfoUnknown(Restaurant r) => r.sourceApi == 'google_places';
+
     if (hasPrivateRoom) {
-      restaurants = restaurants.where((r) => r.hasPrivateRoom).toList();
+      restaurants = restaurants
+          .where((r) => r.hasPrivateRoom || isInfoUnknown(r))
+          .toList();
     }
     if (hasFreeDrink) {
-      restaurants = restaurants.where((r) => r.freeDrink).toList();
+      restaurants = restaurants
+          .where((r) => r.freeDrink || isInfoUnknown(r))
+          .toList();
     }
     if (timeSlot == TimeSlot.lunch) {
-      restaurants = restaurants.where((r) => r.isLunchAvailable).toList();
+      restaurants = restaurants
+          .where((r) => r.isLunchAvailable || isInfoUnknown(r))
+          .toList();
     } else if (timeSlot == TimeSlot.dinner) {
-      restaurants = restaurants.where((r) => r.isDinnerAvailable).toList();
+      restaurants = restaurants
+          .where((r) => r.isDinnerAvailable || isInfoUnknown(r))
+          .toList();
     }
     // 日付指定時はハード除外にしない。
     // isReservable は「Hotpepperで予約リンクがあるか」というフラグで、

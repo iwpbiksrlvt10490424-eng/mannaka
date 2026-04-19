@@ -11,9 +11,11 @@ class AnalyticsService {
   static const _optInKey = 'analytics_opt_in';
 
   // ── オプトイン状態の確認 ────────────────────────────────────────────────
+  // デフォルト true（プライバシーポリシーで開示済みの分析データ収集を有効にする）。
+  // マイページからユーザーがオプトアウト可能（setOptIn(false)）。
   static Future<bool> isOptedIn() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_optInKey) ?? false;
+    return prefs.getBool(_optInKey) ?? true;
   }
 
   static Future<void> setOptIn(bool value) async {

@@ -29,5 +29,55 @@ service cloud.firestore {
       allow delete: if request.auth != null
           && request.auth.uid == resource.data.ownerUid;
     }
+    // 飲食店検索結果のキャッシュ（公開情報）
+    match /restaurant_cache/{document=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+    // 集計データ（まんなか指数ランキング・時間帯需要等）
+    // 読み取りは公開（ランキング表示用）、書き込みは認証済みユーザー
+    match /station_counts/{document=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+    match /station_demand/{document=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+    match /category_demand/{document=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+    match /reservation_leads/{document=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+    match /decided_restaurants/{document=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+    // 個別行動ログ（書き込みのみ、読みは Admin SDK 経由）
+    // create のみ許可、read/update/delete はクライアントからは不可
+    match /search_logs/{document=**} {
+      allow create: if request.auth != null;
+    }
+    match /restaurant_clicks/{document=**} {
+      allow create: if request.auth != null;
+    }
+    match /reservation_logs/{document=**} {
+      allow create: if request.auth != null;
+    }
+    match /share_logs/{document=**} {
+      allow create: if request.auth != null;
+    }
+    match /filter_logs/{document=**} {
+      allow create: if request.auth != null;
+    }
+    match /sort_logs/{document=**} {
+      allow create: if request.auth != null;
+    }
+    match /decision_logs/{document=**} {
+      allow create: if request.auth != null;
+    }
   }
 }

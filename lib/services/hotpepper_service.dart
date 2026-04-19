@@ -66,10 +66,11 @@ class HotpepperService {
     required String apiKey,
     required double lat,
     required double lng,
-    // 2 = 500m（徒歩6-7分）。駅を選んだとき、隣接する駅の店まで
-    // 入らないようにする（例: 大崎検索で 852m 先の五反田の店は除外）。
-    // その駅エリアに絞る目的で、最もタイトな徒歩圏に限定。
-    int range = 2,
+    // 3 = 1km。Hotpepper は有料掲載のみで店舗密度が低いため、
+    // 500m だと予約可能な店が極端に少なくなる。1km の徒歩圏を取り
+    // 予約動線のあるお店を確保する。Google 側はエリア純度のため 500m に
+    // 絞っており、役割分担で両立させる設計。
+    int range = 3,
     int count = 100,  // 最大100件取得
     String? genre,         // カテゴリ（Hotpepperジャンルコード）
     int maxBudget = 0,     // 予算（円、上記 maxBudgetToCodes 参照）

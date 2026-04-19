@@ -603,8 +603,9 @@ class _ParticipantRowState extends State<_ParticipantRow> {
 
     // LINEで送る時にいきなり「出発エリアを教えて」だと何のアプリか分からず
     // 警戒されるため、Aimachi の説明とアプリ導線も添える。
+    // 相手の名前は LINE のトーク画面で既に分かっているので入れない。
     final shareText = '【Aimachi】$hostNameさんがみんなに合うお店を探しています🍽\n'
-        '$participantNameさんの出発エリアを教えてください。\n\n'
+        '出発エリアを教えてもらえると、ちょうど良い集合場所を提案できます。\n\n'
         '▼ タップしてエリアを送信\n'
         'mannaka://location?session=$sessionId\n\n'
         '※正確な現在地は共有されず、エリア情報のみ使用します\n'

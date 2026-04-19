@@ -66,7 +66,9 @@ class HotpepperService {
     required String apiKey,
     required double lat,
     required double lng,
-    int range = 5,    // 5 = 3km（1:300m 2:500m 3:1km 4:2km 5:3km）
+    // 3 = 1km（徒歩15分以内）。都会で駅を選んだとき、3km だと数駅先まで
+    // 含まれてしまう（例: 品川検索で広尾の店が出る）。徒歩圏に限定。
+    int range = 3,
     int count = 100,  // 最大100件取得
     String? genre,         // カテゴリ（Hotpepperジャンルコード）
     int maxBudget = 0,     // 予算（円、上記 maxBudgetToCodes 参照）

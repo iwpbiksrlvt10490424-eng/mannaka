@@ -28,7 +28,9 @@ class GooglePlacesService {
     required String apiKey,
     required double lat,
     required double lng,
-    int radiusMeters = 3000,
+    // 1000m = 徒歩15分以内。都会で駅を選んだとき、3km だと別駅の店まで
+    // 混ざる（例: 品川検索で広尾の店が出る）。徒歩圏に限定。
+    int radiusMeters = 1000,
     String? category,
   }) async {
     if (apiKey.isEmpty) return [];

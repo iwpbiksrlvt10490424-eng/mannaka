@@ -109,6 +109,7 @@ class SearchState {
     this.showFemaleFriendly = false,
     this.showPrivateRoom = false,
     this.showFreeDrink = false,
+    this.excludeChains = false,
     this.preferMajorStations = false,
     this.occasion = Occasion.none,
     this.timeSlot = TimeSlot.all,
@@ -141,6 +142,8 @@ class SearchState {
   final bool showFemaleFriendly;
   final bool showPrivateRoom;
   final bool showFreeDrink;
+  /// チェーン店を除外するかどうか
+  final bool excludeChains;
   /// 真ん中重視(false) か 主要駅重視(true) か。
   /// true のときは `kStations`（35の主要駅）のみを集合候補に絞る
   final bool preferMajorStations;
@@ -207,6 +210,7 @@ class SearchState {
       femaleFriendly: _effectiveFemale,
       hasPrivateRoom: _effectivePrivate,
       hasFreeDrink: _effectiveFreeDrink,
+      excludeChains: excludeChains,
       timeSlot: _effectiveTimeSlot,
       maxBudget: maxBudget,
       occasion: occasion != Occasion.none ? occasion.label : null,
@@ -256,6 +260,7 @@ class SearchState {
     bool? showFemaleFriendly,
     bool? showPrivateRoom,
     bool? showFreeDrink,
+    bool? excludeChains,
     bool? preferMajorStations,
     Occasion? occasion,
     TimeSlot? timeSlot,
@@ -291,6 +296,7 @@ class SearchState {
         showFemaleFriendly == null &&
         showPrivateRoom == null &&
         showFreeDrink == null &&
+        excludeChains == null &&
         preferMajorStations == null &&
         occasion == null &&
         timeSlot == null &&
@@ -313,6 +319,7 @@ class SearchState {
       showFemaleFriendly: showFemaleFriendly ?? this.showFemaleFriendly,
       showPrivateRoom: showPrivateRoom ?? this.showPrivateRoom,
       showFreeDrink: showFreeDrink ?? this.showFreeDrink,
+      excludeChains: excludeChains ?? this.excludeChains,
       preferMajorStations: preferMajorStations ?? this.preferMajorStations,
       occasion: occasion ?? this.occasion,
       timeSlot: timeSlot ?? this.timeSlot,
@@ -781,6 +788,10 @@ class SearchNotifier extends Notifier<SearchState> {
 
   void setFreeDrink(bool value) {
     state = state.copyWith(showFreeDrink: value);
+  }
+
+  void setExcludeChains(bool value) {
+    state = state.copyWith(excludeChains: value);
   }
 
   void setPreferMajorStations(bool value) {

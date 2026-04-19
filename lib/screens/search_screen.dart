@@ -393,8 +393,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   _RequestToggles(
                     privateRoom: state.showPrivateRoom,
                     freeDrink: state.showFreeDrink,
+                    excludeChains: state.excludeChains,
                     onPrivateRoomChanged: notifier.setPrivateRoom,
                     onFreeDrinkChanged: notifier.setFreeDrink,
+                    onExcludeChainsChanged: notifier.setExcludeChains,
                   ),
 
                   // ─── シーン選択 ───────────────────────────────────────
@@ -2190,13 +2192,17 @@ class _RequestToggles extends StatelessWidget {
   const _RequestToggles({
     required this.privateRoom,
     required this.freeDrink,
+    required this.excludeChains,
     required this.onPrivateRoomChanged,
     required this.onFreeDrinkChanged,
+    required this.onExcludeChainsChanged,
   });
   final bool privateRoom;
   final bool freeDrink;
+  final bool excludeChains;
   final ValueChanged<bool> onPrivateRoomChanged;
   final ValueChanged<bool> onFreeDrinkChanged;
+  final ValueChanged<bool> onExcludeChainsChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -2229,6 +2235,8 @@ class _RequestToggles extends StatelessWidget {
                     () => onPrivateRoomChanged(!privateRoom)),
                 _toggleChip('飲み放題あり', freeDrink,
                     () => onFreeDrinkChanged(!freeDrink)),
+                _toggleChip('チェーン店を除く', excludeChains,
+                    () => onExcludeChainsChanged(!excludeChains)),
               ],
             ),
           ),

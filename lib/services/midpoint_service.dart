@@ -3,6 +3,7 @@ import '../data/station_data.dart';
 import '../data/station_coords.dart';
 import '../data/transit_graph_data.dart';
 import '../data/restaurant_data.dart';
+import '../data/chain_store_data.dart';
 import '../models/meeting_point.dart';
 import '../models/participant.dart';
 import '../models/restaurant.dart';
@@ -521,6 +522,7 @@ class MidpointService {
     bool femaleFriendly = false,
     bool hasPrivateRoom = false,
     bool hasFreeDrink = false,
+    bool excludeChains = false,
     TimeSlot timeSlot = TimeSlot.all,
     int maxBudget = 0,
     String? occasion,
@@ -546,6 +548,13 @@ class MidpointService {
     // 持たないため、ハード除外するとその店が全消えになる。
     // A 案: 情報未確認の店は通し、UI 側でバッジ等で伝える。
     bool isInfoUnknown(Restaurant r) => r.sourceApi == 'google_places';
+
+    // チェーン店除外
+    if (excludeChains) {
+      restaurants = restaurants
+          .where((r) => !isChainStoreName(r.name))
+          .toList();
+    }
 
     if (hasPrivateRoom) {
       restaurants = restaurants

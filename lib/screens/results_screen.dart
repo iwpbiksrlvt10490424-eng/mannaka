@@ -47,6 +47,46 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
     super.dispose();
   }
 
+  /// 条件変更シートを表示し、ユーザーが適用したら検索条件を更新して再検索する。
+  Future<void> _showConditionEditSheet(
+      BuildContext context, SearchState state, SearchNotifier notifier) async {
+    HapticFeedback.lightImpact();
+    // シート表示前の server-side filter 関連値を控えておく
+    final prevCategories = Set<String>.from(state.restaurantCategories);
+    final prevMaxBudget = state.maxBudget;
+    final prevPrivateRoom = state.showPrivateRoom;
+    final prevFreeDrink = state.showFreeDrink;
+    final prevTimeSlot = state.timeSlot;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => _ConditionEditSheet(state: state, notifier: notifier),
+    );
+
+    // シート閉じた後の最新 state
+    final newState = ref.read(searchProvider);
+    // server-side に投げる条件が変わっていたら再取得が必要
+    final serverSideChanged =
+        !_setEquals(newState.restaurantCategories, prevCategories) ||
+            newState.maxBudget != prevMaxBudget ||
+            newState.showPrivateRoom != prevPrivateRoom ||
+            newState.showFreeDrink != prevFreeDrink ||
+            newState.timeSlot != prevTimeSlot;
+    if (serverSideChanged) {
+      await notifier.calculate();
+    }
+  }
+
+  bool _setEquals(Set<String> a, Set<String> b) {
+    if (a.length != b.length) return false;
+    return a.every(b.contains);
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(searchProvider);
@@ -74,6 +114,14 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
           style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
         ),
         actions: [
+          // 条件変更ボタン: 探す画面に戻らず、結果画面上で条件を編集できる
+          IconButton(
+            icon: const Icon(Icons.tune_rounded, size: 22),
+            tooltip: '条件を変更',
+            onPressed: state.isCalculating
+                ? null
+                : () => _showConditionEditSheet(context, state, notifier),
+          ),
           // 再取得ボタン: 電波復帰後に画像/結果を更新
           IconButton(
             icon: state.isCalculating
@@ -314,6 +362,7 @@ class _MeetingPointTabState extends ConsumerState<_MeetingPointTab> {
       state.maxBudget,
       state.showPrivateRoom,
       state.showFreeDrink,
+      state.excludeChains,
     ]);
 
     if (_cachedScored == null || _cachedHash != hash) {
@@ -335,6 +384,7 @@ class _MeetingPointTabState extends ConsumerState<_MeetingPointTab> {
           femaleFriendly: state.showFemaleFriendly,
           hasPrivateRoom: state.showPrivateRoom,
           hasFreeDrink: state.showFreeDrink,
+          excludeChains: state.excludeChains,
           timeSlot: state.occasion.filterLunch ? TimeSlot.lunch : state.timeSlot,
           maxBudget: state.maxBudget,
           selectedDate: state.selectedDate,
@@ -1195,6 +1245,179 @@ class _MeetingPreferenceBar extends StatelessWidget {
             fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
             color:
                 sel ? AppColors.chipSelectedText : AppColors.textSecondary,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 結果画面で条件を編集するボトムシート。
+/// 探す画面に戻らずに主要フィルタを変更でき、閉じた時に自動で再検索がかかる。
+class _ConditionEditSheet extends StatefulWidget {
+  const _ConditionEditSheet({required this.state, required this.notifier});
+  final SearchState state;
+  final SearchNotifier notifier;
+
+  @override
+  State<_ConditionEditSheet> createState() => _ConditionEditSheetState();
+}
+
+class _ConditionEditSheetState extends State<_ConditionEditSheet> {
+  static const _budgetOptions = [
+    (1500, '〜¥1,500'),
+    (3000, '〜¥3,000'),
+    (5000, '〜¥5,000'),
+    (10000, '〜¥10,000'),
+    (-10000, '¥10,000以上'),
+  ];
+
+  static const _categoryOptions = [
+    '居酒屋', 'カフェ', 'イタリアン', 'フレンチ', '和食', '洋食',
+    '中華', '焼肉', '韓国料理', 'ラーメン', 'バー',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final state = widget.notifier.ref.watch(searchProvider);
+    final viewInsets = MediaQuery.of(context).viewInsets;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(0, 0, 0, viewInsets.bottom),
+      child: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 12),
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20),
+                child: Text('条件を変更',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+              ),
+              const SizedBox(height: 16),
+
+              _sectionTitle('ジャンル'),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _categoryOptions.map((c) {
+                    final selected = state.restaurantCategories.contains(c);
+                    return _chip(c, selected, () {
+                      widget.notifier.toggleRestaurantCategory(c);
+                    });
+                  }).toList(),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+              _sectionTitle('予算'),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _budgetOptions.map((opt) {
+                    final (budget, label) = opt;
+                    final selected = state.maxBudget == budget;
+                    return _chip(label, selected, () {
+                      widget.notifier.setMaxBudget(selected ? 0 : budget);
+                    });
+                  }).toList(),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+              _sectionTitle('こだわり'),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _chip('個室あり', state.showPrivateRoom,
+                        () => widget.notifier.setPrivateRoom(!state.showPrivateRoom)),
+                    _chip('飲み放題あり', state.showFreeDrink,
+                        () => widget.notifier.setFreeDrink(!state.showFreeDrink)),
+                    _chip('チェーン店を除く', state.excludeChains,
+                        () => widget.notifier.setExcludeChains(!state.excludeChains)),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 24),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text('適用して再検索',
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _sectionTitle(String label) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey.shade500,
+          ),
+        ),
+      );
+
+  Widget _chip(String label, bool selected, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.chipSelectedBg : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selected ? AppColors.chipSelectedBg : AppColors.divider,
+            width: 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+            color: selected ? AppColors.chipSelectedText : AppColors.textSecondary,
           ),
         ),
       ),

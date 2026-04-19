@@ -64,7 +64,7 @@ class GooglePlacesService {
       final places = (json['places'] as List?) ?? [];
       debugPrint('[GooglePlaces] 取得: ${places.length}件 (lat=$lat, lng=$lng)');
       return places
-          .map((p) => _mapPlace(p as Map<String, dynamic>, apiKey))
+          .map((p) => _mapPlace(p as Map<String, dynamic>, apiKey, category))
           .whereType<Restaurant>()
           .toList();
     } catch (e) {
@@ -73,7 +73,11 @@ class GooglePlacesService {
     }
   }
 
-  static Restaurant? _mapPlace(Map<String, dynamic> p, String apiKey) {
+  static Restaurant? _mapPlace(
+    Map<String, dynamic> p,
+    String apiKey,
+    String? requestedCategory,
+  ) {
     final id = p['id']?.toString();
     final displayName = (p['displayName'] as Map?)?['text']?.toString();
     if (id == null || displayName == null || displayName.isEmpty) {
@@ -106,7 +110,10 @@ class GooglePlacesService {
     final rating = (p['rating'] as num?)?.toDouble() ?? 0.0;
     final reviewCount = (p['userRatingCount'] as num?)?.toInt() ?? 0;
     final types = (p['types'] as List?)?.cast<String>() ?? [];
-    final category = _typeToCategory(types);
+    // ユーザーが指定したカテゴリ（例: 居酒屋）があればそれを優先する。
+    // Google の types からの自動マッピングだと「居酒屋」のような日本特有カテゴリに
+    // マップできず、結果的にクライアント側の category フィルタで除外されてしまうため。
+    final category = requestedCategory ?? _typeToCategory(types);
     final emoji = _categoryEmoji(category);
 
     final stationIdx = (lat != null && lng != null)

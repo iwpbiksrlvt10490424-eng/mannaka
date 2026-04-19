@@ -111,7 +111,8 @@ class RestaurantCard extends StatelessWidget {
                       children: [
                         if (restaurant.isReservable &&
                             restaurant.hotpepperUrl != null)
-                          _badge('ネット予約できます', const Color(0xFF22C55E))
+                          _badge('ホットペッパーで予約できます',
+                              const Color(0xFFE67E22))
                         else if (restaurant.sourceApi == 'google_places')
                           _badge('Googleマップより（予約不可）',
                               const Color(0xFF4285F4))

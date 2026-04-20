@@ -57,3 +57,6 @@ CLAUDE.md
 screenshots/
 scripts/*.log
 scripts/*.pid
+
+# 自動開発ログ（コミット不要）
+team/reports/

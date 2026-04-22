@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -13,6 +14,7 @@ import '../providers/profile_provider.dart';
 import '../providers/nav_provider.dart';
 import '../providers/search_provider.dart';
 import '../data/station_data.dart';
+import '../services/analytics_service.dart';
 import '../services/geocoding_service.dart';
 import '../services/location_service.dart';
 import '../widgets/station_search_sheet.dart';
@@ -37,12 +39,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   late final TextEditingController _nameCtrl;
   final _picker = ImagePicker();
   bool _isNavigating = false;
+  bool _analyticsOptIn = true;
 
   @override
   void initState() {
     super.initState();
     _nameCtrl = TextEditingController();
     _loadPrefs();
+    _loadAnalyticsOptIn();
+  }
+
+  Future<void> _loadAnalyticsOptIn() async {
+    final value = await AnalyticsService.isOptedIn();
+    if (mounted) setState(() => _analyticsOptIn = value);
   }
 
   Future<void> _loadPrefs() async {
@@ -81,6 +90,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   Future<void> _saveName(String value) async {
     ref.read(nicknameProvider.notifier).state = value;
+    // 探す画面の先頭参加者（自分）の表示名も同期
+    ref.read(searchProvider.notifier).setHomeNickname(value);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('user_nickname', value);
   }
@@ -141,6 +152,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     ref.read(profileImagePathProvider.notifier).state = picked.path;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('profile_image_path', picked.path);
+    if (!mounted) return;
     setState(() {});
   }
 
@@ -541,6 +553,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         await Geolocator.openAppSettings();
                       },
                     ),
+                    AnalyticsOptInTile(
+                      value: _analyticsOptIn,
+                      onChanged: (v) async {
+                        HapticFeedback.lightImpact();
+                        await AnalyticsService.setOptIn(v);
+                        if (mounted) setState(() => _analyticsOptIn = v);
+                      },
+                    ),
                   ],
                 ),
 
@@ -554,12 +574,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       icon: Icons.send_rounded,
                       label: 'LINEで紹介する',
                       color: const Color(0xFF06C755),
-                      subtitle: '友達にAimachiを教えよう',
+                      subtitle: '友達にまんなかを教えよう',
                       onTap: () async {
                         final text =
                             'お店選び、もう迷わない\n\n'
                             'みんなの駅を入れるだけで、全員が行きやすいお店を自動で提案してくれるよ\n\n'
-                            'Aimachi（無料）\n${ShareUtils.appStoreUrl}';
+                            'まんなか（無料）\n${ShareUtils.appStoreUrl}';
                         final encoded = Uri.encodeComponent(text);
                         final lineUrl =
                             Uri.parse('https://line.me/R/share?text=$encoded');
@@ -592,7 +612,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         await Share.share(
                           'お店選び、もう迷わない\n\n'
                           'みんなの駅を入れるだけで、全員が行きやすいお店を自動で提案してくれるよ\n\n'
-                          'Aimachi（無料）\n${ShareUtils.appStoreUrl}',
+                          'まんなか（無料）\n${ShareUtils.appStoreUrl}',
                           sharePositionOrigin: Rect.fromCenter(
                             center: Offset(
                               size.width / 2,
@@ -619,7 +639,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       color: const Color(0xFF3B82F6),
                       onTap: () => launchUrl(
                         Uri.parse(
-                          'mailto:support@mannaka.app?subject=Aimachi%20%E3%81%8A%E5%95%8F%E3%81%84%E5%90%88%E3%82%8F%E3%81%9B',
+                          'mailto:support@mannaka.app?subject=%E3%81%BE%E3%82%93%E3%81%AA%E3%81%8B%20%E3%81%8A%E5%95%8F%E3%81%84%E5%90%88%E3%82%8F%E3%81%9B',
                         ),
                         mode: LaunchMode.externalApplication,
                       ),
@@ -795,17 +815,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       // ピン座標:
       //   kStations 内の駅 (kIndex 有効) → kStationLatLng（精度高）
       // GeocodingAPIで正確な座標を取得してからホームに遷移
-      debugPrint('[HomeStation] 選択: ${result.name}, kIndex: ${result.kIndex}');
+      developer.log(
+        '[HomeStation] 選択: ${result.name}, kIndex: ${result.kIndex}',
+        name: 'SettingsScreen',
+      );
       double finalLat = result.lat;
       double finalLng = result.lng;
       final coords = await GeocodingService.getStationLatLng(result.name);
       if (coords != null) {
         final (gLat, gLng) = coords;
-        debugPrint('[HomeStation] Geocoding成功: ${result.name} → ($gLat, $gLng)');
+        developer.log(
+          '[HomeStation] Geocoding成功: ${result.name} → ($gLat, $gLng)',
+          name: 'SettingsScreen',
+        );
         finalLat = gLat;
         finalLng = gLng;
       } else {
-        debugPrint('[HomeStation] Geocoding失敗、暫定座標使用');
+        developer.log(
+          '[HomeStation] Geocoding失敗、暫定座標使用',
+          name: 'SettingsScreen',
+        );
       }
       if (!mounted) return;
       ref.read(homeStationDataProvider.notifier).state = HomeStationData(
@@ -1125,6 +1154,94 @@ class _NavItem extends StatelessWidget {
                     color: Colors.grey.shade300, size: 20),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ─── 利用統計提供トグル ───────────────────────────────────────────────────────
+class AnalyticsOptInTile extends StatefulWidget {
+  const AnalyticsOptInTile({
+    super.key,
+    required this.value,
+    required this.onChanged,
+  });
+  final bool value;
+  final Future<void> Function(bool) onChanged;
+
+  @override
+  State<AnalyticsOptInTile> createState() => _AnalyticsOptInTileState();
+}
+
+class _AnalyticsOptInTileState extends State<AnalyticsOptInTile> {
+  late bool _value = widget.value;
+  bool _busy = false;
+
+  @override
+  void didUpdateWidget(covariant AnalyticsOptInTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.value != widget.value) {
+      _value = widget.value;
+    }
+  }
+
+  Future<void> _handleChanged(bool next) async {
+    if (_busy) return;
+    _busy = true;
+    final previous = _value;
+    setState(() => _value = next);
+    try {
+      await widget.onChanged(next);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _value = previous);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('設定の保存に失敗しました。時間をおいて再度お試しください。'),
+        ),
+      );
+    } finally {
+      _busy = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.insights_rounded,
+                size: 20, color: AppColors.primary),
+          ),
+          const SizedBox(width: 14),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('利用統計の提供',
+                    style: TextStyle(
+                        fontSize: 15, color: AppColors.textPrimary)),
+                SizedBox(height: 2),
+                Text('匿名データでアプリを改善します',
+                    style: TextStyle(
+                        fontSize: 12, color: AppColors.textSecondary)),
+              ],
+            ),
+          ),
+          Switch.adaptive(
+            value: _value,
+            onChanged: _handleChanged,
+            activeThumbColor: AppColors.primary,
+          ),
+        ],
       ),
     );
   }

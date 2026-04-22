@@ -1,6 +1,6 @@
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:math';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import '../models/restaurant.dart';
@@ -107,15 +107,25 @@ class HotpepperService {
     try {
       final res = await http.get(uri).timeout(const Duration(seconds: 10));
       if (res.statusCode != 200) {
-        debugPrint('[HotpepperService] HTTP ${res.statusCode}: ${res.body.substring(0, min(200, res.body.length))}');
+        developer.log(
+          '[HotpepperService] HTTP ${res.statusCode}: ${res.body.substring(0, min(200, res.body.length))}',
+          name: 'HotpepperService',
+        );
         return [];
       }
       final json = jsonDecode(res.body) as Map<String, dynamic>;
       final shops = ((json['results'] as Map?)?['shop'] as List?) ?? [];
-      debugPrint('[HotpepperService] 取得: ${shops.length}件 (lat=$lat, lng=$lng, range=$range)');
+      developer.log(
+        '[HotpepperService] 取得: ${shops.length}件 (lat=$lat, lng=$lng, range=$range)',
+        name: 'HotpepperService',
+      );
       return shops.map((s) => _mapShop(s as Map<String, dynamic>)).toList();
     } catch (e) {
-      debugPrint('HotpepperService: searchNearCentroid failed - ${e.runtimeType}');
+      developer.log(
+        'HotpepperService: searchNearCentroid failed - ${e.runtimeType}',
+        name: 'HotpepperService',
+        error: e,
+      );
       return [];
     }
   }
@@ -236,6 +246,7 @@ class HotpepperService {
         'G008' => '焼肉',
         'G009' => '韓国料理',
         'G013' => 'ラーメン',
+        'G015' => 'お好み焼き', // Hotpepper: お好み焼き・もんじゃ
         'G016' => 'カフェ',
         'G025' => '和食',
         'G036' => 'フレンチ',

@@ -602,9 +602,9 @@ class _ParticipantRowState extends State<_ParticipantRow> {
     }
 
     // LINEで送る時にいきなり「出発エリアを教えて」だと何のアプリか分からず
-    // 警戒されるため、Aimachi の説明とアプリ導線も添える。
+    // 警戒されるため、まんなか の説明とアプリ導線も添える。
     // 相手の名前は LINE のトーク画面で既に分かっているので入れない。
-    final shareText = '【Aimachi】$hostNameさんがみんなに合うお店を探しています🍽\n'
+    final shareText = '【まんなか】$hostNameさんがみんなに合うお店を探しています🍽\n'
         '出発エリアを教えてもらえると、ちょうど良い集合場所を提案できます。\n\n'
         '▼ タップしてエリアを送信\n'
         'mannaka://location?session=$sessionId\n\n'
@@ -1183,6 +1183,9 @@ class _DateTimeChip extends StatelessWidget {
   final SearchState state;
   final VoidCallback onTap;
 
+  // 日曜始まりで weekday(1=Mon..7=Sun) を 日本式の「日月火水木金土」に変換
+  static const _jaWeekdays = ['月', '火', '水', '木', '金', '土', '日'];
+
   String get _dateLabel {
     final date = state.selectedDate;
     if (date == null) return '今日';
@@ -1190,9 +1193,10 @@ class _DateTimeChip extends StatelessWidget {
     final today = DateTime(now.year, now.month, now.day);
     final tomorrow = today.add(const Duration(days: 1));
     final d = DateTime(date.year, date.month, date.day);
-    if (d == today) return '今日';
-    if (d == tomorrow) return '明日';
-    return '${date.month}/${date.day}';
+    final w = _jaWeekdays[date.weekday - 1];
+    if (d == today) return '今日($w)';
+    if (d == tomorrow) return '明日($w)';
+    return '${date.month}/${date.day}($w)';
   }
 
   String get _slotLabel {
@@ -1684,16 +1688,26 @@ class _TimeSlotSheetState extends State<_TimeSlotSheet> {
                 final d = dates[i];
                 final isSelected = _isSameDay(_date, d) ||
                     (_date == null && i == 0);
-                final label = i == 0
+                // 日本式カレンダーの曜日色：日=赤 / 土=青 / 平日=通常
+                const jaWeekdays = ['月', '火', '水', '木', '金', '土', '日'];
+                final weekday = jaWeekdays[d.weekday - 1];
+                final topLabel = i == 0
                     ? '今日'
                     : i == 1
                         ? '明日'
                         : '${d.month}/${d.day}';
+                final Color weekdayColor = isSelected
+                    ? Colors.white.withValues(alpha: 0.85)
+                    : d.weekday == DateTime.sunday
+                        ? const Color(0xFFD14A44)
+                        : d.weekday == DateTime.saturday
+                            ? const Color(0xFF394B8A)
+                            : AppColors.textSecondary;
                 return GestureDetector(
                   onTap: () => setState(() => _date = i == 0 ? null : d),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 150),
-                    width: 56,
+                    width: 60,
                     decoration: BoxDecoration(
                       color: isSelected
                           ? AppColors.primary
@@ -1706,13 +1720,29 @@ class _TimeSlotSheetState extends State<_TimeSlotSheet> {
                       ),
                     ),
                     alignment: Alignment.center,
-                    child: Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: isSelected ? Colors.white : AppColors.textSecondary,
-                      ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          topLabel,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: isSelected
+                                ? Colors.white
+                                : AppColors.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          weekday,
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: weekdayColor,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 );
@@ -1900,7 +1930,7 @@ class _HowToSheet extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            '準備は駅の名前だけ。あとはAimachiにおまかせ。',
+            '準備は駅の名前だけ。あとはまんなかにおまかせ。',
             style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
             textAlign: TextAlign.center,
           ),

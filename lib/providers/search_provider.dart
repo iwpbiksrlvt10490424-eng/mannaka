@@ -1,6 +1,6 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'dart:io';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/participant.dart';
@@ -345,6 +345,7 @@ class SearchNotifier extends Notifier<SearchState> {
   @override
   SearchState build() {
     Future.microtask(_autoFillHomeStation);
+    Future.microtask(_autoFillNickname);
     return SearchState(
       participants: const [Participant(id: '1', name: '自分')],
     );
@@ -358,6 +359,26 @@ class SearchNotifier extends Notifier<SearchState> {
     final first = state.participants.first;
     if (first.stationIndex != null) return; // 既にセット済み
     setStation(first.id, homeIdx, kStations[homeIdx]);
+  }
+
+  /// マイページで設定されたニックネームを「自分」の名前に反映。
+  /// 理由: マイページと探す画面で同じ表示名を使う（不整合解消）
+  Future<void> _autoFillNickname() async {
+    final prefs = await SharedPreferences.getInstance();
+    final nickname = prefs.getString('user_nickname') ?? '';
+    if (nickname.isEmpty) return;
+    setHomeNickname(nickname);
+  }
+
+  /// マイページで名前が変更されたとき、先頭参加者（自分）の名前を更新
+  void setHomeNickname(String nickname) {
+    if (state.participants.isEmpty) return;
+    if (nickname.isEmpty) return;
+    final first = state.participants.first;
+    final updated = first.copyWith(name: nickname);
+    state = state.copyWith(
+      participants: [updated, ...state.participants.skip(1)],
+    );
   }
 
   /// マイページでホーム駅が変更されたとき、自分（先頭参加者）の駅を更新する
@@ -538,9 +559,15 @@ class SearchNotifier extends Notifier<SearchState> {
         }
 
         // Check Firebase cache first（ジャンルコードをキーに含める）
-        debugPrint('[Search] centroid: (${centroid.$1}, ${centroid.$2}), genre: $selectedGenre');
+        developer.log(
+          '[Search] centroid: (${centroid.$1}, ${centroid.$2}), genre: $selectedGenre',
+          name: 'SearchNotifier',
+        );
         final cached = await RestaurantCacheService.get(centroid.$1, centroid.$2, genre: selectedGenre);
-        debugPrint('[Search] cache: ${cached?.length ?? "null"}件');
+        developer.log(
+          '[Search] cache: ${cached?.length ?? "null"}件',
+          name: 'SearchNotifier',
+        );
         if (cached != null && cached.isNotEmpty) {
           hotpepperRestaurants = cached;
         } else {
@@ -611,7 +638,11 @@ class SearchNotifier extends Notifier<SearchState> {
           final merged = await Future.wait([hpFuture, gpFuture]);
           restaurants = _mergeRestaurants(merged[0], merged[1]);
         } catch (e) {
-          debugPrint('prefetch: ${point.stationName} failed - ${e.runtimeType}');
+          developer.log(
+            'prefetch: ${point.stationName} failed - ${e.runtimeType}',
+            name: 'SearchNotifier',
+            error: e,
+          );
         }
         cache[point.stationName] = restaurants;
       });
@@ -643,21 +674,33 @@ class SearchNotifier extends Notifier<SearchState> {
         clearLoadingMessage: true,
       );
     } on SocketException catch (e) {
-      debugPrint('SearchNotifier: ネットワークエラー - ${e.runtimeType}');
+      developer.log(
+        'SearchNotifier: ネットワークエラー - ${e.runtimeType}',
+        name: 'SearchNotifier',
+        error: e,
+      );
       state = state.copyWith(
         isCalculating: false,
         errorMessage: 'オフラインです。ネット接続を確認してください。',
         clearLoadingMessage: true,
       );
     } on TimeoutException catch (e) {
-      debugPrint('SearchNotifier: タイムアウト - ${e.runtimeType}');
+      developer.log(
+        'SearchNotifier: タイムアウト - ${e.runtimeType}',
+        name: 'SearchNotifier',
+        error: e,
+      );
       state = state.copyWith(
         isCalculating: false,
         errorMessage: '通信がタイムアウトしました。もう一度お試しください。',
         clearLoadingMessage: true,
       );
     } catch (e) {
-      debugPrint('SearchNotifier: calculate failed - ${e.runtimeType}');
+      developer.log(
+        'SearchNotifier: calculate failed - ${e.runtimeType}',
+        name: 'SearchNotifier',
+        error: e,
+      );
       state = state.copyWith(
         isCalculating: false,
         errorMessage: 'エラーが発生しました。もう一度お試しください。',
@@ -737,19 +780,31 @@ class SearchNotifier extends Notifier<SearchState> {
         isCalculating: false,
       );
     } on SocketException catch (e) {
-      debugPrint('SearchNotifier: selectMeetingPointAndFetch ネットワークエラー - ${e.runtimeType}');
+      developer.log(
+        'SearchNotifier: selectMeetingPointAndFetch ネットワークエラー - ${e.runtimeType}',
+        name: 'SearchNotifier',
+        error: e,
+      );
       state = state.copyWith(
         isCalculating: false,
         errorMessage: 'オフラインです。ネット接続を確認してください。',
       );
     } on TimeoutException catch (e) {
-      debugPrint('SearchNotifier: selectMeetingPointAndFetch タイムアウト - ${e.runtimeType}');
+      developer.log(
+        'SearchNotifier: selectMeetingPointAndFetch タイムアウト - ${e.runtimeType}',
+        name: 'SearchNotifier',
+        error: e,
+      );
       state = state.copyWith(
         isCalculating: false,
         errorMessage: '通信がタイムアウトしました。もう一度お試しください。',
       );
     } catch (e) {
-      debugPrint('SearchNotifier: selectMeetingPointAndFetch failed - ${e.runtimeType}');
+      developer.log(
+        'SearchNotifier: selectMeetingPointAndFetch failed - ${e.runtimeType}',
+        name: 'SearchNotifier',
+        error: e,
+      );
       state = state.copyWith(
         isCalculating: false,
         errorMessage: 'エラーが発生しました。もう一度お試しください。',

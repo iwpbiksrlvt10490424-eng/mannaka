@@ -454,9 +454,16 @@ class MidpointService {
   /// 表示ジャンルごとのグローバル除外リスト
   /// キー = 表示カテゴリ名, 値 = そのカテゴリ選択時に除外すべきカテゴリSet
   static const Map<String, Set<String>> _kGenreExclusions = {
-    'カフェ':  {'居酒屋', 'バー', '焼肉', '韓国料理', 'ラーメン', '中華'},
+    'カフェ':  {'居酒屋', 'バー', '焼肉', '韓国料理', 'ラーメン', '中華', 'お好み焼き'},
     '居酒屋':  {'カフェ'},
     '焼肉':    {'カフェ', 'バー'},
+  };
+
+  /// カテゴリ名に関係なく、名前ベースで「カフェ」選択時に除外すべき語。
+  /// 理由: Hotpepper がマルチジャンル店を G016(カフェ) で返すことがあり、
+  /// カテゴリが「カフェ」と判定されても実態はお好み焼き/焼肉/ラーメン等のケース。
+  static const Set<String> _kCafeNameExclusions = {
+    'お好み焼き', 'お好み焼', 'もんじゃ', '焼肉', 'ラーメン',
   };
 
   /// スコアリング前の除外フィルタ
@@ -500,6 +507,17 @@ class MidpointService {
       if (blocked.isNotEmpty) {
         result = result.where((r) => !blocked.contains(r.category)).toList();
       }
+    }
+
+    // ── カフェ選択時は店名ベースでも追加除外 ──────────────────────────────
+    // Hotpepper が G016(カフェ) でマルチジャンル店を返すケースに対応
+    if (selectedCategories.contains('カフェ')) {
+      result = result.where((r) {
+        for (final kw in _kCafeNameExclusions) {
+          if (r.name.contains(kw)) return false;
+        }
+        return true;
+      }).toList();
     }
 
     return result;

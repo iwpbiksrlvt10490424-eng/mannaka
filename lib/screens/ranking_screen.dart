@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -35,7 +36,7 @@ class RankingScreen extends ConsumerWidget {
             flexibleSpace: FlexibleSpaceBar(
               titlePadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
               title: const Text(
-                'Aimachi指数ランキング',
+                'まんなか指数ランキング',
                 style: TextStyle(
                   color: AppColors.textPrimary,
                   fontSize: 20,
@@ -94,7 +95,7 @@ class _RankingContent extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Text(
-            'Aimachiユーザーが最もよく集まった駅ランキング。人気エリアでお店を探してみよう！',
+            'まんなかユーザーが最もよく集まった駅ランキング。人気エリアでお店を探してみよう！',
             style: TextStyle(
               fontSize: 13,
               color: Colors.grey.shade600,
@@ -104,7 +105,7 @@ class _RankingContent extends StatelessWidget {
         ),
         const SizedBox(height: 12),
 
-        // Aimachi指数の説明バナー
+        // まんなか指数の説明バナー
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Container(
@@ -118,7 +119,7 @@ class _RankingContent extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '「Aimachi指数」について',
+                  '「まんなか指数」について',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
@@ -127,7 +128,7 @@ class _RankingContent extends StatelessWidget {
                 ),
                 SizedBox(height: 4),
                 Text(
-                  '全員の移動時間バランスが最も良かった駅の選ばれた回数です。\nこのランキングはAimachi全ユーザーの検索データに基づいています。',
+                  '全員の移動時間バランスが最も良かった駅の選ばれた回数です。\nこのランキングはまんなか全ユーザーの検索データに基づいています。',
                   style: TextStyle(
                     fontSize: 12,
                     color: AppColors.textSecondary,
@@ -406,11 +407,15 @@ class _ShareCardButtonState extends State<_ShareCardButton> {
 
       await Share.shareXFiles(
         [xFile],
-        text: 'Aimachi指数ランキング🏆\nみんなの集合場所といえば${widget.entries.isNotEmpty ? widget.entries.first.stationName : ''}！\n#Aimachi #集合場所',
+        text: 'まんなか指数ランキング🏆\nみんなの集合場所といえば${widget.entries.isNotEmpty ? widget.entries.first.stationName : ''}！\n#まんなか #集合場所',
         sharePositionOrigin: origin,
       );
     } catch (e) {
-      debugPrint('ShareCard error: ${e.runtimeType}');
+      developer.log(
+        'ShareCard error: ${e.runtimeType}',
+        name: 'RankingScreen',
+        error: e,
+      );
     } finally {
       if (mounted) setState(() => _sharing = false);
     }
@@ -499,7 +504,7 @@ class _ShareCard extends StatelessWidget {
                   color: Color(0xFFFFD700), size: 24),
               const SizedBox(width: 8),
               const Text(
-                'Aimachi指数ランキング',
+                'まんなか指数ランキング',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
@@ -594,7 +599,7 @@ class _ShareCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: const Text(
-                  'Aimachi - 集合場所を決めるアプリ',
+                  'まんなか - 集合場所を決めるアプリ',
                   style: TextStyle(
                     fontSize: 11,
                     color: Colors.white,

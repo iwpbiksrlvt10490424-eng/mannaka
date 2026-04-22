@@ -1,5 +1,6 @@
+import 'dart:developer' as developer;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/meeting_point.dart';
 import 'auth_provider.dart';
@@ -106,7 +107,11 @@ class HistoryNotifier extends Notifier<List<HistoryEntry>> {
           .map((d) => HistoryEntry.fromJson(d.data()))
           .toList();
     } catch (e) {
-      debugPrint('HistoryNotifier: _load failed - ${e.runtimeType}');
+      developer.log(
+        'HistoryNotifier: _load failed - ${e.runtimeType}',
+        name: 'HistoryNotifier',
+        error: e,
+      );
     }
   }
 
@@ -130,7 +135,11 @@ class HistoryNotifier extends Notifier<List<HistoryEntry>> {
           .set(entry.toJson());
       state = [entry, ...state];
     } catch (e) {
-      debugPrint('HistoryNotifier: add failed - ${e.runtimeType}');
+      developer.log(
+        'HistoryNotifier: add failed - ${e.runtimeType}',
+        name: 'HistoryNotifier',
+        error: e,
+      );
     }
   }
 
@@ -143,7 +152,11 @@ class HistoryNotifier extends Notifier<List<HistoryEntry>> {
           .delete();
       state = state.where((e) => e.id != id).toList();
     } catch (e) {
-      debugPrint('HistoryNotifier: remove failed - ${e.runtimeType}');
+      developer.log(
+        'HistoryNotifier: remove failed - ${e.runtimeType}',
+        name: 'HistoryNotifier',
+        error: e,
+      );
     }
   }
 }

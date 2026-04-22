@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
@@ -161,7 +162,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // ホーム駅の変更を監視してカメラを移動（マーカーはbuild()内のwatchで自動更新）
     _homeStationSub = ref.listenManual<HomeStationData?>(homeStationDataProvider, (prev, next) {
       if (next == null) return;
-      debugPrint('[HomeScreen] homeStationData変更: ${next.name} (${next.lat}, ${next.lng})');
+      developer.log(
+        '[HomeScreen] homeStationData変更: ${next.name} (${next.lat}, ${next.lng})',
+        name: 'HomeScreen',
+      );
       final target = gmap.LatLng(next.lat, next.lng);
       // カメラ移動を複数回リトライ（IndexedStackのOffstage対策）
       for (final delay in [300, 800, 1500]) {
@@ -299,7 +303,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       ],
                     ),
                     child: const Text(
-                      'Aimachi',
+                      'まんなか',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
@@ -1140,7 +1144,7 @@ class _AdPlaceholder extends StatelessWidget {
                           color: AppColors.textPrimary)),
                   const SizedBox(height: 4),
                   Text(
-                    'Aimachi 厳選のお店情報をこの枠でお届けします',
+                    'まんなか 厳選のお店情報をこの枠でお届けします',
                     style: TextStyle(
                         fontSize: 11,
                         color: Colors.grey.shade600,

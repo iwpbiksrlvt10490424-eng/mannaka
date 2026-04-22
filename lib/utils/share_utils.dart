@@ -184,7 +184,7 @@ class ShareUtils {
     final sb = StringBuffer();
     sb.writeln('🍽 お店の候補を共有します');
     sb.writeln('');
-    sb.writeln('📍 集合: ${point.stationName}駅周辺');
+    sb.writeln('📍 ${point.stationName}駅周辺');
     final date = state.selectedDate;
     final time = state.selectedMeetingTime;
     if (date != null || time != null) {

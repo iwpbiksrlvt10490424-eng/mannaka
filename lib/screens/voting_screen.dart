@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -35,7 +37,11 @@ class _VotingScreenState extends State<VotingScreen> {
         _voting = false;
       });
     } catch (e) {
-      debugPrint('VotingScreen: vote failed - ${e.runtimeType}');
+      developer.log(
+        'VotingScreen: vote failed - ${e.runtimeType}',
+        name: 'VotingScreen',
+        error: e,
+      );
       if (!mounted) return;
       setState(() => _voting = false);
       final message = e is ArgumentError
@@ -90,7 +96,11 @@ class _VotingScreenState extends State<VotingScreen> {
       );
       Navigator.pop(context);
     } catch (e) {
-      debugPrint('VotingScreen: closeSession failed - ${e.runtimeType}');
+      developer.log(
+        'VotingScreen: closeSession failed - ${e.runtimeType}',
+        name: 'VotingScreen',
+        error: e,
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

@@ -1,5 +1,6 @@
+import 'dart:developer' as developer;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/reserved_restaurant.dart';
 import 'auth_provider.dart';
@@ -23,7 +24,11 @@ class ReservedRestaurantsNotifier extends Notifier<List<ReservedRestaurant>> {
           .map((d) => ReservedRestaurant.fromJson(d.data()))
           .toList();
     } catch (e) {
-      debugPrint('ReservedRestaurantsNotifier: _load failed - ${e.runtimeType}');
+      developer.log(
+        'ReservedRestaurantsNotifier: _load failed - ${e.runtimeType}',
+        name: 'ReservedRestaurantsNotifier',
+        error: e,
+      );
       state = [];
     }
   }
@@ -38,7 +43,11 @@ class ReservedRestaurantsNotifier extends Notifier<List<ReservedRestaurant>> {
           .set(entry.toJson());
       state = [entry, ...state];
     } catch (e) {
-      debugPrint('ReservedRestaurantsNotifier: add failed - ${e.runtimeType}');
+      developer.log(
+        'ReservedRestaurantsNotifier: add failed - ${e.runtimeType}',
+        name: 'ReservedRestaurantsNotifier',
+        error: e,
+      );
     }
   }
 
@@ -51,7 +60,11 @@ class ReservedRestaurantsNotifier extends Notifier<List<ReservedRestaurant>> {
           .delete();
       state = state.where((e) => e.id != id).toList();
     } catch (e) {
-      debugPrint('ReservedRestaurantsNotifier: remove failed - ${e.runtimeType}');
+      developer.log(
+        'ReservedRestaurantsNotifier: remove failed - ${e.runtimeType}',
+        name: 'ReservedRestaurantsNotifier',
+        error: e,
+      );
     }
   }
 }

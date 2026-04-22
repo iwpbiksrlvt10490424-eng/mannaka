@@ -8,7 +8,20 @@
 ## 🔴 高優先度
 
 - [✅] **App Store URL修正** — `ShareUtils.appStoreUrl` に `id6743108270` で一元管理済み（2026-04-09 完了）
-- [🚧] **Google Maps APIキー本番化** — `ios/Runner/Info.plist` のハードコード除去 & ビルド時注入化（Info.plistにAPIキーリテラルが残るセキュリティリスク解消）
+- [✅] **Google Maps APIキー本番化** — `ios/Runner/Info.plist` は `$(GOOGLE_MAPS_API_KEY)` ビルド変数化済・`Secrets.xcconfig` は gitignore済・AppDelegate にプレースホルダ検知あり（2026-04-21 確認完了）
+- [✅] **分析データ収集のオプトイン整合性確保** — opt-out トグル追加・ポリシー第2条に新規6コレクション追記・クラスコメント整合（2026-04-21 Cycle 1 QA APPROVED）
+- [✅] **Cycle 2: 分析 opt-in UI の Critic 指摘修正** — `_AnalyticsOptInTile` padding整列(10→14)・`setOptIn` 失敗時ロールバック・Widget E2E テスト追加（2026-04-21 Cycle 2 QA APPROVED）
+- [✅] **Cycle 3: AnalyticsOptInTile 失敗フィードバック + 命名改善** — `catch (_)` サイレント解消（SnackBar 通知）・`initialValue` → `value` 改名（2026-04-21 Cycle 3 QA APPROVED）
+- [✅] **Cycle 4: AnalyticsOptInTile 残 WARNING 3件解消** — in-flight 再タップ直列化・Cycle 2 テストヘッダコメント更新・`pumpAndSettle` 4s タイマー待ち除去（2026-04-21 Cycle 4 QA APPROVED）
+- [✅] **Cycle 5: プライバシーポリシー最終改定日を 2026-04-21 に更新** — `policy_screen.dart:21` の改定日を 2026年4月10日 → 2026年4月21日 に更新し本文改定と整合化（2026-04-21 Cycle 5 QA APPROVED）
+- [✅] **Cycle 6: プライバシーポリシー第2条本文の回帰テスト整備** — 第2条 9 コレクション名・デフォルトON・オプトアウト・匿名ID・Firebase 送信先を静的に守る 16 ケースを追加（ミューテーション検証済）。2026-04-21 Cycle 6 QA APPROVED
+- [✅] **Cycle 7: location_share_screen エラー UI の生例外 `$e` 露出解消 + Widget 回帰テスト整備** — L43/L79 の `_error = '... $e'` を固定文言化、`location_share_screen_error_exposure_test.dart` 9 ケースで静的回帰保護（2026-04-22 QA APPROVED）
+- [✅] **Cycle 8: location_share_screen async setState の `mounted` ガード追加** — `_loadSession`/`_submit` の `await` 後 `setState` 6 箇所に `if (!mounted) return;` を追加し deactivated widget クラッシュを予防（2026-04-22 Cycle 8 QA APPROVED）
+- [✅] **Cycle 9: settings_screen.dart `_pickImage` の mounted ガード追加（Cycle 8 横展開）** — L152 の `setState(() {})` 直前に `if (!mounted) return;` を追加し、画像選択中の画面離脱クラッシュを予防。3 段階静的回帰テストで「同パターン全箇所一括修正」ルールを永続化（2026-04-22 Cycle 9 QA APPROVED）
+- [✅] **Cycle 10: lib/ 全域 `debugPrint` を `developer.log` 化（CLAUDE.md `kReleaseMode` ルール違反 43 箇所一括解消）** — `lib/` 配下 49 箇所を `developer.log(..., name: '<Scope>', error: e)` に置換、`location_share_screen.dart` の `catch (_)` → `catch (e, st)` + 診断ログ、`foundation.dart` dead import 8 ファイル除去。`test/lib_no_debug_print_test.dart` 9 ケースで静的回帰ガード（2026-04-22 Cycle 10 QA APPROVED）
+- [✅] **Cycle 11: Aimachi → まんなか ブランド残骸除去（UI/シェア/ポリシー 20+ 箇所一括統一）** — 11 ファイル 20 箇所置換・mailto subject URLエンコード・静的回帰 `test/lib_no_aimachi_in_ui_test.dart` 16/16 Green。`flutter test` 413 pass。`class AimachiApp`・`ranking_screen.dart` 全体は温存（2026-04-22 Cycle 11 QA APPROVED）
+- [✅] **Cycle 12: ranking_screen / search_screen Aimachi ブランド残骸の横展開除去** — 3 行置換（ranking_screen.dart:410/602・search_screen.dart:605）+ `_patternAllowlist` 方式へテスト進化。`flutter test` 415 pass / `flutter analyze` 0 issues（2026-04-22 Cycle 12 QA APPROVED）
+- [🚧] **Cycle 13: ranking_screen.dart 「Aimachi指数」/「Aimachiユーザー」/「Aimachi全ユーザー」6 箇所を「まんなか」系に最終統一** — Cycle 11/12 は「製品指標用語」として温存したが、再評価の結果これらは過去ブランド名を冠した legacy label に過ぎず、App Store 名称「まんなか」との分裂でユーザー混乱を招く。対象: L39 画面タイトル・L98 説明文・L122 バナー見出し・L131 バナー本文・L410 シェア文・L507 シェアカードヘッダ。`lib_no_aimachi_in_ui_test.dart` の `_patternAllowlist` を空にして完全除去を静的ガード。内部識別子 `class AimachiApp`（app.dart / main.dart）と App Store URL スラッグは引き続き温存（2026-04-22 着手）
 - [ ] **support@mannaka.app 受信確認** — メール設定を確認してサポートメールが届くことを確認
 - [✅] **flutter analyze 完全クリーン化** — 現在のwarning/infoをすべて0にする
 - [✅] **flutter test 全パス確認** — 既存テストが全て通ることを確認し、不足テストを追加

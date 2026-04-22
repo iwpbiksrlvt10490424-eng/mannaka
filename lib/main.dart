@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -28,7 +30,11 @@ void main() async {
   try {
     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   } catch (e) {
-    debugPrint('Firebase初期化エラー: ${e.runtimeType}');
+    developer.log(
+      'Firebase初期化エラー: ${e.runtimeType}',
+      name: 'main',
+      error: e,
+    );
   }
 
   // Deep link handler
@@ -41,7 +47,10 @@ void main() async {
           builder: (_) => LocationShareScreen(sessionId: sessionId),
         ));
       } else {
-        debugPrint('Deep link: 不正な sessionId を無視: $sessionId');
+        developer.log(
+          'Deep link: 不正な sessionId を無視: $sessionId',
+          name: 'main',
+        );
       }
     } else if (uri.scheme == 'mannaka' && uri.host == 'vote') {
       final sessionId = uri.queryParameters['session'];
@@ -52,7 +61,10 @@ void main() async {
           builder: (_) => VotingScreen(sessionId: sessionId, voterName: voterName),
         ));
       } else {
-        debugPrint('Deep link: 不正な sessionId を無視: $sessionId');
+        developer.log(
+          'Deep link: 不正な sessionId を無視: $sessionId',
+          name: 'main',
+        );
       }
     } else if (uri.scheme == 'mannaka' && uri.host == 'restaurant') {
       _handleRestaurantDeepLink(uri);

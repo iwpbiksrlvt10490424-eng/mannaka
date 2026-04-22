@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -1241,7 +1242,7 @@ class _DateTimeChip extends StatelessWidget {
                               ? _dateLabel
                               : _timeLabel == null
                                   ? _dateLabel
-                                  : '$_dateLabel・$_timeLabel 集合',
+                                  : '$_dateLabel・$_timeLabel 予約',
                           style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
@@ -1252,7 +1253,7 @@ class _DateTimeChip extends StatelessWidget {
                         ),
                         if (_isDefault)
                           const Text(
-                            '日程と集合時間を選択してください',
+                            '日程と予約時間を選択してください',
                             style: TextStyle(
                               fontSize: 11,
                               color: AppColors.textTertiary,
@@ -1654,59 +1655,12 @@ class _TimeSlotSheetState extends State<_TimeSlotSheet> {
   late DateTime? _date;
   TimeOfDay? _meetingTime;
 
-  static const _presetTimes = [
-    TimeOfDay(hour: 12, minute: 0),
-    TimeOfDay(hour: 18, minute: 0),
-    TimeOfDay(hour: 19, minute: 0),
-    TimeOfDay(hour: 19, minute: 30),
-    TimeOfDay(hour: 20, minute: 0),
-  ];
-
   @override
   void initState() {
     super.initState();
     _slot = widget.currentSlot;
     _date = widget.currentDate;
     _meetingTime = widget.currentMeetingTime;
-  }
-
-  Widget _timeChip(TimeOfDay t) {
-    final selected = _meetingTime != null &&
-        _meetingTime!.hour == t.hour &&
-        _meetingTime!.minute == t.minute;
-    final label =
-        '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
-    return GestureDetector(
-      onTap: () => setState(() => _meetingTime = t),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.primary : AppColors.background,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-              color: selected ? AppColors.primary : AppColors.divider),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-            color: selected ? Colors.white : AppColors.textSecondary,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _pickCustomTime() async {
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: _meetingTime ?? const TimeOfDay(hour: 19, minute: 0),
-    );
-    if (!mounted) return;
-    if (picked != null) setState(() => _meetingTime = picked);
   }
 
   bool _isSameDay(DateTime? a, DateTime? b) {
@@ -1738,7 +1692,7 @@ class _TimeSlotSheetState extends State<_TimeSlotSheet> {
             ),
           ),
           const SizedBox(height: 16),
-          const Text('日程・時間帯を選択',
+          const Text('日程・予約時間を選択',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
           const SizedBox(height: 16),
           // 日付選択
@@ -1815,75 +1769,53 @@ class _TimeSlotSheetState extends State<_TimeSlotSheet> {
             ),
           ),
           const SizedBox(height: 16),
-          // 集合時間選択（カフェ/ディナー 等の時間帯選択の代わり）
+          // 予約時間選択：Cupertino スタイルのホイールピッカーで直感的に
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
               children: [
-                const Text('集合時間',
-                    style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textSecondary)),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final t in _presetTimes)
-                      _timeChip(t),
-                    GestureDetector(
-                      onTap: _pickCustomTime,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: AppColors.background,
-                          borderRadius: BorderRadius.circular(999),
-                          border: Border.all(color: AppColors.divider),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.access_time, size: 15,
-                                color: AppColors.textSecondary),
-                            SizedBox(width: 4),
-                            Text('時間を指定',
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: [
+                      const Text('予約時間',
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textSecondary)),
+                      const Spacer(),
+                      if (_meetingTime != null)
+                        GestureDetector(
+                          onTap: () => setState(() => _meetingTime = null),
+                          child: const Padding(
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 4),
+                            child: Text('解除',
                                 style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.textSecondary)),
-                          ],
+                                    fontSize: 12,
+                                    color: AppColors.textTertiary)),
+                          ),
                         ),
-                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Expanded(
+                  child: CupertinoDatePicker(
+                    mode: CupertinoDatePickerMode.time,
+                    initialDateTime: DateTime(
+                      2024,
+                      1,
+                      1,
+                      _meetingTime?.hour ?? 19,
+                      _meetingTime?.minute ?? 0,
                     ),
-                    if (_meetingTime != null)
-                      GestureDetector(
-                        onTap: () =>
-                            setState(() => _meetingTime = null),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: AppColors.background,
-                            borderRadius: BorderRadius.circular(999),
-                            border: Border.all(color: AppColors.divider),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.close, size: 14,
-                                  color: AppColors.textTertiary),
-                              SizedBox(width: 4),
-                              Text('解除',
-                                  style: TextStyle(
-                                      fontSize: 13,
-                                      color: AppColors.textTertiary)),
-                            ],
-                          ),
-                        ),
-                      ),
-                  ],
+                    minuteInterval: 15,
+                    use24hFormat: true,
+                    onDateTimeChanged: (dt) => setState(
+                      () => _meetingTime =
+                          TimeOfDay(hour: dt.hour, minute: dt.minute),
+                    ),
+                  ),
                 ),
               ],
             ),

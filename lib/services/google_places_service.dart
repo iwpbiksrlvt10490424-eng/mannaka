@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
+import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
 import '../models/restaurant.dart';
 import '../services/location_service.dart';
@@ -61,18 +61,28 @@ class GooglePlacesService {
           )
           .timeout(const Duration(seconds: 8));
       if (res.statusCode != 200) {
-        debugPrint('[GooglePlaces] HTTP ${res.statusCode}');
+        developer.log(
+          '[GooglePlaces] HTTP ${res.statusCode}',
+          name: 'GooglePlacesService',
+        );
         return [];
       }
       final json = jsonDecode(res.body) as Map<String, dynamic>;
       final places = (json['places'] as List?) ?? [];
-      debugPrint('[GooglePlaces] 取得: ${places.length}件 (lat=$lat, lng=$lng)');
+      developer.log(
+        '[GooglePlaces] 取得: ${places.length}件 (lat=$lat, lng=$lng)',
+        name: 'GooglePlacesService',
+      );
       return places
           .map((p) => _mapPlace(p as Map<String, dynamic>, apiKey, category))
           .whereType<Restaurant>()
           .toList();
     } catch (e) {
-      debugPrint('[GooglePlaces] searchNearby failed - ${e.runtimeType}');
+      developer.log(
+        '[GooglePlaces] searchNearby failed - ${e.runtimeType}',
+        name: 'GooglePlacesService',
+        error: e,
+      );
       return [];
     }
   }

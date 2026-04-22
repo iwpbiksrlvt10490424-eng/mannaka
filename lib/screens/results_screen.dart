@@ -28,6 +28,22 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
   TabController? _tab;
   int _tabCount = 0;
   bool _autoSaved = false; // セッション単位で1回だけ自動保存
+  /// 駅タブを跨いでも保持される選択済み候補の ID 集合。
+  /// レストランオブジェクトは tab 間で共有されないため、選択されたレストラン本体も保持する。
+  final Map<String, ScoredRestaurant> _sharedSelected = {};
+
+  void _toggleSelection(ScoredRestaurant sr) {
+    final id = sr.restaurant.id;
+    setState(() {
+      if (_sharedSelected.containsKey(id)) {
+        _sharedSelected.remove(id);
+      } else {
+        _sharedSelected[id] = sr;
+      }
+    });
+  }
+
+  void _clearSelection() => setState(() => _sharedSelected.clear());
 
   void _rebuildTab(
       int count, List<MeetingPoint> results, SearchNotifier notifier) {
@@ -164,20 +180,14 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
                     color: const Color(0xFF06C755),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: const [
-                      LineIcon(size: 18, filled: false, iconColor: Colors.white),
-                      SizedBox(width: 6),
-                      Text(
-                        'シェア',
-                        style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                            height: 1.0),
-                      ),
-                    ],
+                  child: const Text(
+                    'LINE\nで共有',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        height: 1.2),
                   ),
                 ),
               ),
@@ -289,6 +299,8 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
                             point: point,
                             state: state,
                             notifier: notifier,
+                            selectedIds: _sharedSelected.keys.toSet(),
+                            onToggleSelect: _toggleSelection,
                             onFirstDetailOpen: (restaurant) {
                               if (!_autoSaved) {
                                 _autoSaved = true;
@@ -316,6 +328,94 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
           ),
         ],
       ),
+      bottomSheet: _sharedSelected.isEmpty
+          ? null
+          : _SelectionShareBar(
+              count: _sharedSelected.length,
+              onClear: _clearSelection,
+              onShare: () {
+                HapticFeedback.mediumImpact();
+                showCandidateShareSheet(context,
+                    candidates: _sharedSelected.values.toList());
+              },
+            ),
+    );
+  }
+}
+
+/// 選択中の候補をまとめて共有する固定フッタ。駅タブを跨いで常時表示。
+class _SelectionShareBar extends StatelessWidget {
+  const _SelectionShareBar({
+    required this.count,
+    required this.onClear,
+    required this.onShare,
+  });
+  final int count;
+  final VoidCallback onClear;
+  final VoidCallback onShare;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.08),
+              blurRadius: 10,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            GestureDetector(
+              onTap: onClear,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 10),
+                child: const Text('解除',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textTertiary)),
+              ),
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: GestureDetector(
+                onTap: onShare,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF06C755),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const LineIcon(
+                          size: 20, filled: false, iconColor: Colors.white),
+                      const SizedBox(width: 8),
+                      Text(
+                        '$count件をLINEで送る',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -328,11 +428,16 @@ class _MeetingPointTab extends ConsumerStatefulWidget {
     required this.point,
     required this.state,
     required this.notifier,
+    required this.selectedIds,
+    required this.onToggleSelect,
     required this.onFirstDetailOpen,
   });
   final MeetingPoint point;
   final SearchState state;
   final SearchNotifier notifier;
+  /// 親画面が保持する選択済み ID。駅タブを跨いでも維持される。
+  final Set<String> selectedIds;
+  final void Function(ScoredRestaurant) onToggleSelect;
   final void Function(Restaurant) onFirstDetailOpen; // 閲覧したお店のみ保存
 
   @override
@@ -341,9 +446,6 @@ class _MeetingPointTab extends ConsumerStatefulWidget {
 
 class _MeetingPointTabState extends ConsumerState<_MeetingPointTab> {
   final Set<String> _selectedCategories = {};
-  /// 候補選択モード。true で各カードにチェックボックスを表示しシェア対象を選べる
-  bool _selectMode = false;
-  final Set<String> _selectedRestaurantIds = {};
 
   // Score cache — invalidated when relevant state changes
   List<ScoredRestaurant>? _cachedScored;
@@ -523,102 +625,6 @@ class _MeetingPointTabState extends ConsumerState<_MeetingPointTab> {
         ),
         const SizedBox(height: 1, child: ColoredBox(color: Color(0xFFEEEEEE))),
 
-        // ─ 候補選択モード / LINE共有バー ────────────────────────────────
-        Container(
-          color: AppColors.surface,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            children: [
-              GestureDetector(
-                onTap: () => setState(() {
-                  _selectMode = !_selectMode;
-                  if (!_selectMode) _selectedRestaurantIds.clear();
-                }),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: _selectMode
-                        ? AppColors.primaryLight
-                        : AppColors.background,
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(
-                      color: _selectMode
-                          ? AppColors.primary
-                          : AppColors.divider,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        _selectMode
-                            ? Icons.check_box_outlined
-                            : Icons.check_box_outline_blank,
-                        size: 16,
-                        color: _selectMode
-                            ? AppColors.primary
-                            : AppColors.textSecondary,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        _selectMode ? '選択中' : '候補を選ぶ',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: _selectMode
-                              ? AppColors.primary
-                              : AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const Spacer(),
-              if (_selectMode && _selectedRestaurantIds.isNotEmpty)
-                GestureDetector(
-                  onTap: () {
-                    final scored = _scoredRestaurants
-                        .where((s) => _selectedRestaurantIds
-                            .contains(s.restaurant.id))
-                        .toList();
-                    if (scored.isEmpty) return;
-                    HapticFeedback.mediumImpact();
-                    showCandidateShareSheet(context, candidates: scored);
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF06C755),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const LineIcon(
-                            size: 16,
-                            filled: false,
-                            iconColor: Colors.white),
-                        const SizedBox(width: 6),
-                        Text(
-                          '${_selectedRestaurantIds.length}件をLINEで送る',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 1, child: ColoredBox(color: Color(0xFFEEEEEE))),
-
         // ─ ジャンルフィルター ────────────────────────────────────────────
         Container(
           color: AppColors.surface,
@@ -699,65 +705,58 @@ class _MeetingPointTabState extends ConsumerState<_MeetingPointTab> {
 
                             final id = s.restaurant.id;
                             final selected =
-                                _selectedRestaurantIds.contains(id);
+                                widget.selectedIds.contains(id);
                             final card = i == 0
-                                ? _HeroCard(
-                                    scored: s,
-                                    onTap: _selectMode
-                                        ? () => setState(() {
-                                              if (selected) {
-                                                _selectedRestaurantIds
-                                                    .remove(id);
-                                              } else {
-                                                _selectedRestaurantIds
-                                                    .add(id);
-                                              }
-                                            })
-                                        : openDetail,
-                                  )
+                                ? _HeroCard(scored: s, onTap: openDetail)
                                 : _CompactCard(
                                     scored: s,
                                     rank: i + 1,
-                                    onTap: _selectMode
-                                        ? () => setState(() {
-                                              if (selected) {
-                                                _selectedRestaurantIds
-                                                    .remove(id);
-                                              } else {
-                                                _selectedRestaurantIds
-                                                    .add(id);
-                                              }
-                                            })
-                                        : openDetail,
+                                    onTap: openDetail,
                                   );
-                            if (!_selectMode) return card;
+                            // カードは詳細を開く。右上の丸 + ボタンで選択。
                             return Stack(
                               children: [
-                                Opacity(
-                                    opacity: selected ? 1.0 : 0.85,
-                                    child: card),
+                                card,
                                 Positioned(
                                   top: 10,
                                   right: 10,
-                                  child: Container(
-                                    width: 28,
-                                    height: 28,
-                                    decoration: BoxDecoration(
-                                      color: selected
-                                          ? AppColors.primary
-                                          : Colors.white,
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
+                                  child: GestureDetector(
+                                    behavior: HitTestBehavior.opaque,
+                                    onTap: () {
+                                      HapticFeedback.selectionClick();
+                                      widget.onToggleSelect(s);
+                                    },
+                                    child: Container(
+                                      width: 34,
+                                      height: 34,
+                                      decoration: BoxDecoration(
                                         color: selected
-                                            ? AppColors.primary
-                                            : AppColors.divider,
-                                        width: 2,
+                                            ? const Color(0xFF06C755)
+                                            : Colors.white,
+                                        shape: BoxShape.circle,
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black
+                                                .withValues(alpha: 0.08),
+                                            blurRadius: 4,
+                                            offset: const Offset(0, 1),
+                                          ),
+                                        ],
+                                        border: Border.all(
+                                          color: selected
+                                              ? const Color(0xFF06C755)
+                                              : AppColors.divider,
+                                          width: 1.5,
+                                        ),
+                                      ),
+                                      child: Icon(
+                                        selected ? Icons.check : Icons.add,
+                                        color: selected
+                                            ? Colors.white
+                                            : AppColors.textSecondary,
+                                        size: 20,
                                       ),
                                     ),
-                                    child: selected
-                                        ? const Icon(Icons.check,
-                                            color: Colors.white, size: 18)
-                                        : null,
                                   ),
                                 ),
                               ],

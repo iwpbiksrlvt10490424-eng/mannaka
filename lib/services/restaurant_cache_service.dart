@@ -1,5 +1,6 @@
+import 'dart:developer' as developer;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
 import '../models/restaurant.dart';
 
 /// Firestore-based restaurant search result cache.
@@ -36,7 +37,11 @@ class RestaurantCacheService {
           .map((e) => Restaurant.fromJson(e as Map<String, dynamic>))
           .toList();
     } catch (e) {
-      debugPrint('RestaurantCacheService.get: ${e.runtimeType}');
+      developer.log(
+        'RestaurantCacheService.get: ${e.runtimeType}',
+        name: 'RestaurantCacheService',
+        error: e,
+      );
       return null;
     }
   }
@@ -52,7 +57,11 @@ class RestaurantCacheService {
           })
           .timeout(_writeTimeout);
     } catch (e) {
-      debugPrint('RestaurantCacheService.set: ${e.runtimeType}');
+      developer.log(
+        'RestaurantCacheService.set: ${e.runtimeType}',
+        name: 'RestaurantCacheService',
+        error: e,
+      );
     }
   }
 }

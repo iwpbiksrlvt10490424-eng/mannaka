@@ -105,7 +105,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                   ),
                   const SizedBox(height: 20),
                   const Text(
-                    'Aimachi',
+                    'まんなか',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 36,

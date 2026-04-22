@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
+import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
 import '../config/secrets.dart';
 
@@ -18,14 +18,23 @@ class GeocodingService {
       });
       final res = await http.get(uri).timeout(const Duration(seconds: 5));
       if (res.statusCode != 200) {
-        debugPrint('[Geocoding] HTTPエラー: ${res.statusCode}');
+        developer.log(
+          '[Geocoding] HTTPエラー: ${res.statusCode}',
+          name: 'GeocodingService',
+        );
         return null;
       }
       final json = jsonDecode(res.body) as Map<String, dynamic>;
       final googleStatus = json['status'] as String?;
-      debugPrint('[Geocoding] $stationName: googleStatus=$googleStatus');
+      developer.log(
+        '[Geocoding] $stationName: googleStatus=$googleStatus',
+        name: 'GeocodingService',
+      );
       if (googleStatus != 'OK') {
-        debugPrint('[Geocoding] エラー詳細: ${json['error_message'] ?? 'なし'}');
+        developer.log(
+          '[Geocoding] エラー詳細: ${json['error_message'] ?? 'なし'}',
+          name: 'GeocodingService',
+        );
         return null;
       }
       final results = json['results'] as List?;
@@ -33,10 +42,17 @@ class GeocodingService {
       final location = (results[0] as Map)['geometry']['location'] as Map;
       final lat = (location['lat'] as num).toDouble();
       final lng = (location['lng'] as num).toDouble();
-      debugPrint('[Geocoding] $stationName → ($lat, $lng)');
+      developer.log(
+        '[Geocoding] $stationName → ($lat, $lng)',
+        name: 'GeocodingService',
+      );
       return (lat, lng);
     } catch (e) {
-      debugPrint('[Geocoding] 例外: ${e.runtimeType}');
+      developer.log(
+        '[Geocoding] 例外: ${e.runtimeType}',
+        name: 'GeocodingService',
+        error: e,
+      );
       return null;
     }
   }

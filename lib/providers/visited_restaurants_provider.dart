@@ -1,5 +1,6 @@
+import 'dart:developer' as developer;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/visited_restaurant.dart';
 import 'auth_provider.dart';
@@ -23,7 +24,11 @@ class VisitedRestaurantsNotifier extends Notifier<List<VisitedRestaurant>> {
           .map((d) => VisitedRestaurant.fromJson(d.data()))
           .toList();
     } catch (e) {
-      debugPrint('VisitedRestaurantsNotifier: _load failed - ${e.runtimeType}');
+      developer.log(
+        'VisitedRestaurantsNotifier: _load failed - ${e.runtimeType}',
+        name: 'VisitedRestaurantsNotifier',
+        error: e,
+      );
     }
   }
 
@@ -37,7 +42,11 @@ class VisitedRestaurantsNotifier extends Notifier<List<VisitedRestaurant>> {
           .set(entry.toJson());
       state = [entry, ...state];
     } catch (e) {
-      debugPrint('VisitedRestaurantsNotifier: add failed - ${e.runtimeType}');
+      developer.log(
+        'VisitedRestaurantsNotifier: add failed - ${e.runtimeType}',
+        name: 'VisitedRestaurantsNotifier',
+        error: e,
+      );
     }
   }
 
@@ -50,7 +59,11 @@ class VisitedRestaurantsNotifier extends Notifier<List<VisitedRestaurant>> {
           .delete();
       state = state.where((e) => e.id != id).toList();
     } catch (e) {
-      debugPrint('VisitedRestaurantsNotifier: remove failed - ${e.runtimeType}');
+      developer.log(
+        'VisitedRestaurantsNotifier: remove failed - ${e.runtimeType}',
+        name: 'VisitedRestaurantsNotifier',
+        error: e,
+      );
     }
   }
 }

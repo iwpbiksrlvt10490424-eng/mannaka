@@ -12,7 +12,7 @@ class VoteInviteScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final link = 'mannaka://vote?session=$sessionId&voter=';
-    final shareText = '【Aimachi】お店を一緒に選んでください！\n\nリンクをタップして投票してね\n$link\n（24時間有効）';
+    final shareText = '【まんなか】お店を一緒に選んでください！\n\nリンクをタップして投票してね\n$link\n（24時間有効）';
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7F7F7),

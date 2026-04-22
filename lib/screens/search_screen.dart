@@ -141,7 +141,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             final hasCondition = state.groupRelation != null ||
                 state.restaurantCategories.isNotEmpty ||
                 state.occasion != Occasion.none ||
-                state.timeSlot != TimeSlot.all;
+                state.selectedDate != null ||
+                state.selectedMeetingTime != null;
             // activeStep は 1〜3 の進捗。step n は activeStep >= n のとき光る。
             // → ②が点灯するとき①も残ったまま、③が点灯するとき①②も残る。
             final activeStep = hasCondition ? 3 : (located >= 2 ? 2 : 1);
@@ -468,11 +469,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       builder: (_) => _TimeSlotSheet(
         currentSlot: ref.read(searchProvider).timeSlot,
         currentDate: ref.read(searchProvider).selectedDate,
+        currentMeetingTime: ref.read(searchProvider).selectedMeetingTime,
         onSlotSelected: (slot) {
           ref.read(searchProvider.notifier).setTimeSlot(slot);
         },
         onDateSelected: (date) {
           ref.read(searchProvider.notifier).setDate(date);
+        },
+        onMeetingTimeSelected: (time) {
+          ref.read(searchProvider.notifier).setMeetingTime(time);
         },
       ),
     );
@@ -1199,13 +1204,14 @@ class _DateTimeChip extends StatelessWidget {
     return '${date.month}/${date.day}($w)';
   }
 
-  String get _slotLabel {
-    if (state.timeSlot == TimeSlot.all) return 'ディナー';
-    return state.timeSlot.chipLabel;
+  String? get _timeLabel {
+    final t = state.selectedMeetingTime;
+    if (t == null) return null;
+    return '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
   }
 
   bool get _isDefault =>
-      state.timeSlot == TimeSlot.all && state.selectedDate == null;
+      state.selectedDate == null && state.selectedMeetingTime == null;
 
   @override
   Widget build(BuildContext context) {
@@ -1231,16 +1237,22 @@ class _DateTimeChip extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          _isDefault ? _dateLabel : '$_dateLabel・$_slotLabel',
+                          _isDefault
+                              ? _dateLabel
+                              : _timeLabel == null
+                                  ? _dateLabel
+                                  : '$_dateLabel・$_timeLabel 集合',
                           style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
-                            color: _isDefault ? AppColors.textPrimary : AppColors.primary,
+                            color: _isDefault
+                                ? AppColors.textPrimary
+                                : AppColors.primary,
                           ),
                         ),
                         if (_isDefault)
                           const Text(
-                            '日程・時間帯を選択してください',
+                            '日程と集合時間を選択してください',
                             style: TextStyle(
                               fontSize: 11,
                               color: AppColors.textTertiary,
@@ -1621,13 +1633,17 @@ class _TimeSlotSheet extends StatefulWidget {
   const _TimeSlotSheet({
     required this.currentSlot,
     required this.currentDate,
+    required this.currentMeetingTime,
     required this.onSlotSelected,
     required this.onDateSelected,
+    required this.onMeetingTimeSelected,
   });
   final TimeSlot currentSlot;
   final DateTime? currentDate;
+  final TimeOfDay? currentMeetingTime;
   final void Function(TimeSlot) onSlotSelected;
   final void Function(DateTime?) onDateSelected;
+  final void Function(TimeOfDay?) onMeetingTimeSelected;
 
   @override
   State<_TimeSlotSheet> createState() => _TimeSlotSheetState();
@@ -1636,12 +1652,61 @@ class _TimeSlotSheet extends StatefulWidget {
 class _TimeSlotSheetState extends State<_TimeSlotSheet> {
   late TimeSlot _slot;
   late DateTime? _date;
+  TimeOfDay? _meetingTime;
+
+  static const _presetTimes = [
+    TimeOfDay(hour: 12, minute: 0),
+    TimeOfDay(hour: 18, minute: 0),
+    TimeOfDay(hour: 19, minute: 0),
+    TimeOfDay(hour: 19, minute: 30),
+    TimeOfDay(hour: 20, minute: 0),
+  ];
 
   @override
   void initState() {
     super.initState();
     _slot = widget.currentSlot;
     _date = widget.currentDate;
+    _meetingTime = widget.currentMeetingTime;
+  }
+
+  Widget _timeChip(TimeOfDay t) {
+    final selected = _meetingTime != null &&
+        _meetingTime!.hour == t.hour &&
+        _meetingTime!.minute == t.minute;
+    final label =
+        '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+    return GestureDetector(
+      onTap: () => setState(() => _meetingTime = t),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primary : AppColors.background,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+              color: selected ? AppColors.primary : AppColors.divider),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: selected ? Colors.white : AppColors.textSecondary,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickCustomTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _meetingTime ?? const TimeOfDay(hour: 19, minute: 0),
+    );
+    if (!mounted) return;
+    if (picked != null) setState(() => _meetingTime = picked);
   }
 
   bool _isSameDay(DateTime? a, DateTime? b) {
@@ -1750,55 +1815,77 @@ class _TimeSlotSheetState extends State<_TimeSlotSheet> {
             ),
           ),
           const SizedBox(height: 16),
-          // 時間帯選択
+          // 集合時間選択（カフェ/ディナー 等の時間帯選択の代わり）
           Expanded(
             child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              children: TimeSlot.values.map((slot) {
-                final isSelected = _slot == slot;
-                return GestureDetector(
-                  onTap: () => setState(() => _slot = slot),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 14),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? AppColors.chipSelectedBg
-                          : AppColors.background,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: isSelected
-                            ? AppColors.chipSelectedBg
-                            : AppColors.divider,
-                        width: 1,
+              children: [
+                const Text('集合時間',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textSecondary)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final t in _presetTimes)
+                      _timeChip(t),
+                    GestureDetector(
+                      onTap: _pickCustomTime,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: AppColors.background,
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(color: AppColors.divider),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.access_time, size: 15,
+                                color: AppColors.textSecondary),
+                            SizedBox(width: 4),
+                            Text('時間を指定',
+                                style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.textSecondary)),
+                          ],
+                        ),
                       ),
                     ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            slot.label,
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: isSelected
-                                  ? FontWeight.w700
-                                  : FontWeight.w400,
-                              color: isSelected
-                                  ? AppColors.chipSelectedText
-                                  : AppColors.textPrimary,
-                            ),
+                    if (_meetingTime != null)
+                      GestureDetector(
+                        onTap: () =>
+                            setState(() => _meetingTime = null),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: AppColors.background,
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(color: AppColors.divider),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.close, size: 14,
+                                  color: AppColors.textTertiary),
+                              SizedBox(width: 4),
+                              Text('解除',
+                                  style: TextStyle(
+                                      fontSize: 13,
+                                      color: AppColors.textTertiary)),
+                            ],
                           ),
                         ),
-                        if (isSelected)
-                          Icon(Icons.check_rounded,
-                              color: AppColors.chipSelectedText, size: 18),
-                      ],
-                    ),
-                  ),
-                );
-              }).toList(),
+                      ),
+                  ],
+                ),
+              ],
             ),
           ),
           Padding(
@@ -1810,6 +1897,7 @@ class _TimeSlotSheetState extends State<_TimeSlotSheet> {
                 onPressed: () {
                   widget.onSlotSelected(_slot);
                   widget.onDateSelected(_date);
+                  widget.onMeetingTimeSelected(_meetingTime);
                   Navigator.pop(context);
                 },
                 style: ElevatedButton.styleFrom(

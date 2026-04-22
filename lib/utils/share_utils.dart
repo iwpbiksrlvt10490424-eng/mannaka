@@ -57,7 +57,7 @@ class ShareUtils {
     }
 
     sb.writeln('');
-    sb.writeln('Aimachiで見つけました');
+    sb.writeln('まんなかで見つけました');
     sb.writeln(appStoreUrl);
 
     return sb.toString();
@@ -88,7 +88,7 @@ class ShareUtils {
         '各自の移動時間\n'
         '$participantLines'
         '$restaurantSection\n\n'
-        'Aimachiでみんなの中間地点からお店を提案\n'
+        'まんなかでみんなの中間地点からお店を提案\n'
         '$appStoreUrl';
   }
 
@@ -138,7 +138,7 @@ class ShareUtils {
       sb.writeln(otherCandidates);
     }
     sb.writeln('');
-    sb.writeln('Aimachiで決めました');
+    sb.writeln('まんなかで決めました');
     sb.write(appStoreUrl);
     return sb.toString();
   }
@@ -153,7 +153,7 @@ class ShareUtils {
     if (text.isEmpty) return;
     await Share.share(
       text,
-      subject: 'Aimachiでお店を見つけました',
+      subject: 'まんなかでお店を見つけました',
       sharePositionOrigin: sharePositionOrigin,
     );
   }
@@ -161,6 +161,80 @@ class ShareUtils {
   /// LINEアプリで直接共有
   static Future<void> shareToLine(SearchState state) async {
     final text = buildLineText(state);
+    if (text.isEmpty) return;
+    final encoded = Uri.encodeComponent(text);
+    final lineUrl = Uri.parse('https://line.me/R/share?text=$encoded');
+    if (await canLaunchUrl(lineUrl)) {
+      await launchUrl(lineUrl, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  /// 複数候補を選んで LINE でシェアするためのテキスト組み立て
+  /// - 集合駅・集合時刻・参加者移動時間を上部に
+  /// - 各候補は箇条書き（名前・ジャンル・価格・評価・Googleマップ）
+  /// - shareUrl が渡された場合は末尾に追加（Web 共有ページへのリンク）
+  static String buildLineTextForCandidates(
+    SearchState state,
+    List<ScoredRestaurant> candidates, {
+    String? shareUrl,
+  }) {
+    final point = state.selectedMeetingPoint;
+    if (point == null || candidates.isEmpty) return '';
+
+    final sb = StringBuffer();
+    sb.writeln('🍽 お店の候補を共有します');
+    sb.writeln('');
+    sb.writeln('📍 集合: ${point.stationName}駅周辺');
+    final date = state.selectedDate;
+    final time = state.selectedMeetingTime;
+    if (date != null || time != null) {
+      final parts = <String>[];
+      if (date != null) parts.add('${date.month}/${date.day}');
+      if (time != null) {
+        parts.add(
+            '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}');
+      }
+      sb.writeln('🗓 ${parts.join(' ')}');
+    }
+    final participantLines = point.participantTimes.entries
+        .map((e) => '${e.key} ${e.value}分')
+        .join(' / ');
+    if (participantLines.isNotEmpty) {
+      sb.writeln('⏱ $participantLines');
+    }
+    sb.writeln('');
+    sb.writeln('候補のお店（${candidates.length}件）');
+    for (final sr in candidates) {
+      final r = sr.restaurant;
+      sb.writeln('');
+      sb.writeln('・${r.name}');
+      final meta = <String>[r.category, r.priceStr];
+      if (r.rating > 0) meta.add('★${r.rating.toStringAsFixed(1)}');
+      sb.writeln('  ${meta.join(' / ')}');
+      if (r.lat != null && r.lng != null) {
+        sb.writeln('  https://maps.google.com/maps?q=${r.lat},${r.lng}');
+      }
+    }
+    sb.writeln('');
+    if (shareUrl != null && shareUrl.isNotEmpty) {
+      sb.writeln('🌐 Webで見る（アプリ不要）');
+      sb.writeln(shareUrl);
+      sb.writeln('');
+    }
+    sb.writeln('まんなか（無料）');
+    sb.write(appStoreUrl);
+    return sb.toString();
+  }
+
+  /// 候補を LINE で共有する。
+  /// shareUrl はオプションで、Web 共有ページが生成できた場合に付加する。
+  static Future<void> shareCandidatesToLine(
+    SearchState state,
+    List<ScoredRestaurant> candidates, {
+    String? shareUrl,
+  }) async {
+    final text =
+        buildLineTextForCandidates(state, candidates, shareUrl: shareUrl);
     if (text.isEmpty) return;
     final encoded = Uri.encodeComponent(text);
     final lineUrl = Uri.parse('https://line.me/R/share?text=$encoded');

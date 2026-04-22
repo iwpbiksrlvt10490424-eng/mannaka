@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:developer' as developer;
 import 'dart:io';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/participant.dart';
@@ -126,6 +127,7 @@ class SearchState {
     this.restaurantCache = const <String, List<Restaurant>>{},
     this.loadingMessage,
     this.selectedDate,
+    this.selectedMeetingTime,
     this.groupRelation,
     List<ScoredRestaurant>? scoredCache,
     List<ScoredRestaurant>? sortedCache,
@@ -163,6 +165,8 @@ class SearchState {
   final String? errorMessage;
   final String? loadingMessage;
   final DateTime? selectedDate;
+  /// 集合時間（時刻のみ、例: 19:30）。date と独立に保持。
+  final TimeOfDay? selectedMeetingTime;
   // キャッシュ: stationName → restaurants
   final Map<String, List<Restaurant>> restaurantCache;
   // グループ関係性（おすすめ改善用）
@@ -295,6 +299,8 @@ class SearchState {
     bool clearLoadingMessage = false,
     DateTime? selectedDate,
     bool clearDate = false,
+    TimeOfDay? selectedMeetingTime,
+    bool clearMeetingTime = false,
     String? groupRelation,
     bool clearGroupRelation = false,
   }) {
@@ -349,6 +355,9 @@ class SearchState {
       loadingMessage: clearLoadingMessage ? null : (loadingMessage ?? this.loadingMessage),
       restaurantCache: restaurantCache ?? this.restaurantCache,
       selectedDate: clearDate ? null : (selectedDate ?? this.selectedDate),
+      selectedMeetingTime: clearMeetingTime
+          ? null
+          : (selectedMeetingTime ?? this.selectedMeetingTime),
       groupRelation: clearGroupRelation ? null : (groupRelation ?? this.groupRelation),
       scoredCache: isScoringUnchanged ? scoredRestaurants : null,
       sortedCache: isSortUnchanged ? sortedRestaurants : null,
@@ -879,6 +888,15 @@ class SearchNotifier extends Notifier<SearchState> {
   /// 予約可のみ表示のローカル絞り込みトグル
   void setReservableOnly(bool value) {
     state = state.copyWith(reservableOnly: value);
+  }
+
+  /// 集合時間を設定。null で解除。
+  void setMeetingTime(TimeOfDay? time) {
+    if (time == null) {
+      state = state.copyWith(clearMeetingTime: true);
+    } else {
+      state = state.copyWith(selectedMeetingTime: time);
+    }
   }
 
   void setPreferMajorStations(bool value) {

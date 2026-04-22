@@ -1,18 +1,19 @@
+import 'dart:developer' as developer;
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/ranking_entry.dart';
 
 /// マネタイズ対応の拡張分析サービス
-/// データ提供はユーザーのオプトイン制（analytics_opt_in キー）
+/// 利用統計の収集はデフォルト有効（analytics_opt_in キー）。
+/// マイページの「利用統計の提供」からユーザーが無効化（オプトアウト）できる。
 class AnalyticsService {
   static final _db = FirebaseFirestore.instance;
   static const _optInKey = 'analytics_opt_in';
 
-  // ── オプトイン状態の確認 ────────────────────────────────────────────────
-  // デフォルト true（プライバシーポリシーで開示済みの分析データ収集を有効にする）。
-  // マイページからユーザーがオプトアウト可能（setOptIn(false)）。
+  // ── 利用統計の状態確認 ──────────────────────────────────────────────────
+  // デフォルト true（プライバシーポリシーで開示済みの匿名統計の収集を有効にする）。
+  // マイページからユーザーが無効化可能（setOptIn(false)）。
   static Future<bool> isOptedIn() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool(_optInKey) ?? true;
@@ -95,7 +96,11 @@ class AnalyticsService {
         'budget': budget,
       });
     } catch (e) {
-      debugPrint('Analytics.logSearch: ${e.runtimeType}');
+      developer.log(
+        'Analytics.logSearch: ${e.runtimeType}',
+        name: 'AnalyticsService',
+        error: e,
+      );
     }
   }
 
@@ -129,7 +134,11 @@ class AnalyticsService {
         'price_range': priceRange,
       });
     } catch (e) {
-      debugPrint('Analytics.logRestaurantClick: ${e.runtimeType}');
+      developer.log(
+        'Analytics.logRestaurantClick: ${e.runtimeType}',
+        name: 'AnalyticsService',
+        error: e,
+      );
     }
   }
 
@@ -161,7 +170,11 @@ class AnalyticsService {
         'area': area,
       });
     } catch (e) {
-      debugPrint('Analytics.logReservationTap: ${e.runtimeType}');
+      developer.log(
+        'Analytics.logReservationTap: ${e.runtimeType}',
+        name: 'AnalyticsService',
+        error: e,
+      );
     }
   }
 
@@ -182,7 +195,40 @@ class AnalyticsService {
         'area': area,
       });
     } catch (e) {
-      debugPrint('Analytics.logShare: ${e.runtimeType}');
+      developer.log(
+        'Analytics.logShare: ${e.runtimeType}',
+        name: 'AnalyticsService',
+        error: e,
+      );
+    }
+  }
+
+  /// 候補をまとめて LINE でシェア開始したイベント。
+  /// candidateCount / カテゴリ分布 / 公開URL有無 / グループ名 を記録し、
+  /// 共有行動の分析に使う。
+  static Future<void> logLineShareInitiated({
+    required int candidateCount,
+    required List<String> categories,
+    required bool hasWebUrl,
+    required List<String> groupNames,
+  }) async {
+    try {
+      if (!await isOptedIn()) return;
+      final ctx = await _baseContext();
+      await _db.collection('line_share_initiated').add({
+        ...ctx,
+        'candidate_count': candidateCount,
+        'candidate_categories': categories,
+        'has_web_url': hasWebUrl,
+        'group_names': groupNames,
+        'has_group': groupNames.isNotEmpty,
+      });
+    } catch (e) {
+      developer.log(
+        'Analytics.logLineShareInitiated: ${e.runtimeType}',
+        name: 'AnalyticsService',
+        error: e,
+      );
     }
   }
 
@@ -200,7 +246,11 @@ class AnalyticsService {
         'value': value,
       });
     } catch (e) {
-      debugPrint('Analytics.logFilterUsed: ${e.runtimeType}');
+      developer.log(
+        'Analytics.logFilterUsed: ${e.runtimeType}',
+        name: 'AnalyticsService',
+        error: e,
+      );
     }
   }
 
@@ -210,7 +260,11 @@ class AnalyticsService {
       final ctx = await _baseContext();
       await _db.collection('sort_logs').add({...ctx, 'sort_type': sortType});
     } catch (e) {
-      debugPrint('Analytics.logSortChanged: ${e.runtimeType}');
+      developer.log(
+        'Analytics.logSortChanged: ${e.runtimeType}',
+        name: 'AnalyticsService',
+        error: e,
+      );
     }
   }
 
@@ -243,7 +297,11 @@ class AnalyticsService {
         'price_range': priceRange,
       });
     } catch (e) {
-      debugPrint('Analytics.logRestaurantDecided: ${e.runtimeType}');
+      developer.log(
+        'Analytics.logRestaurantDecided: ${e.runtimeType}',
+        name: 'AnalyticsService',
+        error: e,
+      );
     }
   }
 
@@ -261,7 +319,11 @@ class AnalyticsService {
           .map((e) => RankingEntry.fromMap(e.value.data(), e.key + 1))
           .toList();
     } catch (e) {
-      debugPrint('Analytics.fetchRanking: ${e.runtimeType}');
+      developer.log(
+        'Analytics.fetchRanking: ${e.runtimeType}',
+        name: 'AnalyticsService',
+        error: e,
+      );
       return [];
     }
   }

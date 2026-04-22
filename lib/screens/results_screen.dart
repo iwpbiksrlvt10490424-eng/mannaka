@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../models/saved_share_draft.dart';
+import '../providers/saved_share_drafts_provider.dart';
 import '../providers/search_provider.dart';
 import '../providers/history_provider.dart';
 import '../models/meeting_point.dart';
@@ -180,14 +182,23 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
                     color: const Color(0xFF06C755),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Text(
-                    'LINE\nで共有',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        height: 1.2),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      LineIcon(
+                          size: 16,
+                          filled: false,
+                          iconColor: Colors.white),
+                      SizedBox(width: 4),
+                      Text(
+                        '共有',
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            height: 1.0),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -338,6 +349,50 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
                 showCandidateShareSheet(context,
                     candidates: _sharedSelected.values.toList());
               },
+              onSave: () async {
+                HapticFeedback.selectionClick();
+                final s = ref.read(searchProvider);
+                final point = s.selectedMeetingPoint;
+                if (point == null) return;
+                final date = s.selectedDate;
+                final time = s.selectedMeetingTime;
+                final draft = SavedShareDraft(
+                  id: 'draft_${DateTime.now().millisecondsSinceEpoch}',
+                  createdAt: DateTime.now(),
+                  stationName: point.stationName,
+                  date: date?.toIso8601String() ?? '',
+                  meetingTime: time == null
+                      ? ''
+                      : '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}',
+                  participantTimes: Map.from(point.participantTimes),
+                  candidates: _sharedSelected.values.map((sr) {
+                    final r = sr.restaurant;
+                    return SavedShareCandidate(
+                      name: r.name,
+                      category: r.category,
+                      priceStr: r.priceStr,
+                      rating: r.rating,
+                      lat: r.lat,
+                      lng: r.lng,
+                      address: r.address,
+                      imageUrl: r.imageUrl,
+                      hotpepperUrl: r.hotpepperUrl,
+                      isReservable: r.isReservable,
+                    );
+                  }).toList(),
+                  note: '',
+                );
+                await ref
+                    .read(savedShareDraftsProvider.notifier)
+                    .add(draft);
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                  content:
+                      Text('下書きを保存しました。マイページからあとで送れます'),
+                  behavior: SnackBarBehavior.floating,
+                  duration: Duration(seconds: 2),
+                ));
+              },
             ),
     );
   }
@@ -349,10 +404,12 @@ class _SelectionShareBar extends StatelessWidget {
     required this.count,
     required this.onClear,
     required this.onShare,
+    required this.onSave,
   });
   final int count;
   final VoidCallback onClear;
   final VoidCallback onShare;
+  final VoidCallback onSave;
 
   @override
   Widget build(BuildContext context) {
@@ -385,6 +442,32 @@ class _SelectionShareBar extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 4),
+            // 下書き保存（あとで送る）
+            GestureDetector(
+              onTap: onSave,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 13),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryLight,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Icon(Icons.bookmark_add_outlined,
+                        size: 18, color: AppColors.primary),
+                    SizedBox(width: 6),
+                    Text('保存',
+                        style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.primary)),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
             Expanded(
               child: GestureDetector(
                 onTap: onShare,

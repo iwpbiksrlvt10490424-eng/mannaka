@@ -19,6 +19,8 @@ import '../services/geocoding_service.dart';
 import '../services/location_service.dart';
 import '../widgets/line_icon.dart';
 import '../widgets/station_search_sheet.dart';
+import 'saved_drafts_screen.dart';
+import 'tutorial_screen.dart';
 import 'support_screen.dart';
 import 'policy_screen.dart';
 import '../utils/share_utils.dart';
@@ -552,6 +554,28 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         HapticFeedback.lightImpact();
                         await AnalyticsService.setOptIn(v);
                         if (mounted) setState(() => _analyticsOptIn = v);
+                      },
+                    ),
+                    _NavItem(
+                      icon: Icons.bookmark_rounded,
+                      label: '保存した候補',
+                      subtitle: 'あとで LINE に送る下書きをまとめて管理',
+                      color: AppColors.primary,
+                      onTap: () {
+                        Navigator.of(context).push(MaterialPageRoute(
+                          builder: (_) => const SavedDraftsScreen(),
+                        ));
+                      },
+                    ),
+                    _NavItem(
+                      icon: Icons.help_outline_rounded,
+                      label: '使い方',
+                      subtitle: 'Aimachi の機能をガイド',
+                      color: AppColors.primary,
+                      onTap: () {
+                        Navigator.of(context).push(MaterialPageRoute(
+                          builder: (_) => const TutorialScreen(),
+                        ));
                       },
                     ),
                   ],

@@ -68,7 +68,7 @@ class _LocationShareScreenState extends State<LocationShareScreen> {
       if (perm == LocationPermission.deniedForever) {
         if (!mounted) return;
         setState(() {
-          _error = '位置情報をONにすると最寄り駅を自動で選択できます。設定 > プライバシー > 位置情報 から有効にしてください。';
+          _error = '現在地を設定すると最寄駅が自動入力できます。設定 > プライバシー > 位置情報 から有効にしてください。';
           _submitting = false;
         });
         return;
@@ -202,7 +202,7 @@ class _LocationShareScreenState extends State<LocationShareScreen> {
         ),
         const SizedBox(height: 12),
         Text(
-          '位置情報ONで最寄り駅が自動入力されます',
+          '現在地を設定すると最寄駅が自動入力できます',
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
         ),

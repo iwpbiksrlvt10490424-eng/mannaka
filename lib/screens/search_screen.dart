@@ -670,7 +670,7 @@ class _ParticipantRowState extends State<_ParticipantRow> {
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('位置情報ONで最寄り駅を自動選択できます。設定 > プライバシー > 位置情報 から有効化してください'),
+            content: Text('現在地を設定すると最寄駅が自動入力できます。設定 > プライバシー > 位置情報 から有効化してください'),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -688,7 +688,7 @@ class _ParticipantRowState extends State<_ParticipantRow> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('位置情報ONで最寄り駅を自動選択できます。設定 > プライバシー > 位置情報 から有効化してください'),
+            content: Text('現在地を設定すると最寄駅が自動入力できます。設定 > プライバシー > 位置情報 から有効化してください'),
             behavior: SnackBarBehavior.floating,
           ),
         );

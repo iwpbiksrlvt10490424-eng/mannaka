@@ -952,7 +952,7 @@ class _MidpointAnimPainter extends CustomPainter {
         final lblAlpha = ((phase3 - 0.5) / 0.3).clamp(0.0, 1.0);
         final tp = TextPainter(
           text: TextSpan(
-            text: 'まんなか',
+            text: 'Aimachi',
             style: TextStyle(
               color: AppColors.primary.withValues(alpha: lblAlpha),
               fontSize: size.width * 0.055,

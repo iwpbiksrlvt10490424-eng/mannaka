@@ -624,7 +624,7 @@ class _ParticipantRowState extends State<_ParticipantRow> {
     // LINEで送る時にいきなり「出発エリアを教えて」だと何のアプリか分からず
     // 警戒されるため、まんなか の説明とアプリ導線も添える。
     // 相手の名前は LINE のトーク画面で既に分かっているので入れない。
-    final shareText = '【まんなか】$hostNameさんがみんなに合うお店を探しています🍽\n'
+    final shareText = '【Aimachi】$hostNameさんがみんなに合うお店を探しています🍽\n'
         '出発エリアを教えてもらえると、ちょうど良い集合場所を提案できます。\n\n'
         '▼ タップしてエリアを送信\n'
         'mannaka://location?session=$sessionId\n\n'
@@ -1964,7 +1964,7 @@ class _HowToSheet extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            '準備は駅の名前だけ。あとはまんなかにおまかせ。',
+            '準備は駅の名前だけ。あとは Aimachi におまかせ。',
             style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
             textAlign: TextAlign.center,
           ),

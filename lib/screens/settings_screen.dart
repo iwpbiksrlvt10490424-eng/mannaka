@@ -228,20 +228,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                         )
                                       : null,
                                 ),
-                                child: imagePath == null || !File(imagePath).existsSync()
-                                    ? (_nameCtrl.text.isNotEmpty
-                                        ? Center(
-                                            child: Text(
-                                              _nameCtrl.text[0],
-                                              style: const TextStyle(
-                                                fontSize: 28,
-                                                fontWeight: FontWeight.w700,
-                                                color: AppColors.primary,
-                                              ),
-                                            ),
-                                          )
-                                        : const Icon(Icons.person_rounded,
-                                            size: 32, color: AppColors.primary))
+                                // プロフィール画像が未設定時は固定のデフォルト画像（Material アイコン）。
+                                // 名前の頭文字は使わない。
+                                child: imagePath == null ||
+                                        !File(imagePath).existsSync()
+                                    ? const Icon(Icons.person_rounded,
+                                        size: 40, color: AppColors.primary)
                                     : null,
                               ),
                               Positioned(
@@ -575,12 +567,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       leading: const LineIcon(size: 28, filled: true),
                       label: 'LINEで紹介する',
                       color: const Color(0xFF06C755),
-                      subtitle: '友達にまんなかを教えよう',
+                      subtitle: '友達にAimachi を教えよう',
                       onTap: () async {
                         final text =
                             'お店選び、もう迷わない\n\n'
                             'みんなの駅を入れるだけで、全員が行きやすいお店を自動で提案してくれるよ\n\n'
-                            'まんなか（無料）\n${ShareUtils.appStoreUrl}';
+                            'Aimachi（無料）\n${ShareUtils.appStoreUrl}';
                         final encoded = Uri.encodeComponent(text);
                         final lineUrl =
                             Uri.parse('https://line.me/R/share?text=$encoded');
@@ -613,7 +605,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         await Share.share(
                           'お店選び、もう迷わない\n\n'
                           'みんなの駅を入れるだけで、全員が行きやすいお店を自動で提案してくれるよ\n\n'
-                          'まんなか（無料）\n${ShareUtils.appStoreUrl}',
+                          'Aimachi（無料）\n${ShareUtils.appStoreUrl}',
                           sharePositionOrigin: Rect.fromCenter(
                             center: Offset(
                               size.width / 2,

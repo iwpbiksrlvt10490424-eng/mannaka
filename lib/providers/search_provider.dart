@@ -685,7 +685,7 @@ class SearchNotifier extends Notifier<SearchState> {
       await Future.wait(prefetchFutures, eagerError: false);
       await NotificationService.recordSearch();
 
-      // Firestoreに検索ログを記録（まんなか指数ランキング用）
+      // Firestoreに検索ログを記録（Aimachi指数ランキング用）
       if (results.isNotEmpty) {
         final bestStation = results.first;
         unawaited(AnalyticsService.logSearch(

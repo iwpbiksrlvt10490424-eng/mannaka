@@ -57,7 +57,7 @@ class ShareUtils {
     }
 
     sb.writeln('');
-    sb.writeln('まんなかで見つけました');
+    sb.writeln('Aimachi で見つけました');
     sb.writeln(appStoreUrl);
 
     return sb.toString();
@@ -88,7 +88,7 @@ class ShareUtils {
         '各自の移動時間\n'
         '$participantLines'
         '$restaurantSection\n\n'
-        'まんなかでみんなの中間地点からお店を提案\n'
+        'Aimachi でみんなの中間地点からお店を提案\n'
         '$appStoreUrl';
   }
 
@@ -138,7 +138,7 @@ class ShareUtils {
       sb.writeln(otherCandidates);
     }
     sb.writeln('');
-    sb.writeln('まんなかで決めました');
+    sb.writeln('Aimachi で決めました');
     sb.write(appStoreUrl);
     return sb.toString();
   }
@@ -153,7 +153,7 @@ class ShareUtils {
     if (text.isEmpty) return;
     await Share.share(
       text,
-      subject: 'まんなかでお店を見つけました',
+      subject: 'Aimachi でお店を見つけました',
       sharePositionOrigin: sharePositionOrigin,
     );
   }
@@ -221,7 +221,7 @@ class ShareUtils {
       sb.writeln(shareUrl);
       sb.writeln('');
     }
-    sb.writeln('まんなか（無料）');
+    sb.writeln('Aimachi（無料）');
     sb.write(appStoreUrl);
     return sb.toString();
   }

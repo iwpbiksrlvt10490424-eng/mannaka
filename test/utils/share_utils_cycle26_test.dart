@@ -157,7 +157,7 @@ void main() {
       );
       final text = ShareUtils.buildMeetingPointText(state);
       expect(text, contains('apps.apple.com'));
-      expect(text, contains('まんなか'));
+      expect(text, contains('Aimachi'));
     });
   });
 
@@ -222,7 +222,7 @@ void main() {
         includeBackup: false,
       );
       expect(text, contains('apps.apple.com'));
-      expect(text, contains('まんなか'));
+      expect(text, contains('Aimachi'));
     });
 
     test('priceAvg=0のとき予算行を含まない', () {

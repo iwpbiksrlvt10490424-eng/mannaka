@@ -1144,7 +1144,7 @@ class _AdPlaceholder extends StatelessWidget {
                           color: AppColors.textPrimary)),
                   const SizedBox(height: 4),
                   Text(
-                    'まんなか 厳選のお店情報をこの枠でお届けします',
+                    'Aimachi 厳選のお店情報をこの枠でお届けします',
                     style: TextStyle(
                         fontSize: 11,
                         color: Colors.grey.shade600,

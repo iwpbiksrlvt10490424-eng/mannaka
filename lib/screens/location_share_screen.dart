@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import '../services/location_session_service.dart';
@@ -28,19 +30,28 @@ class _LocationShareScreenState extends State<LocationShareScreen> {
     try {
       final data = await LocationSessionService.getSession(widget.sessionId);
       if (data == null) {
+        if (!mounted) return;
         setState(() {
           _error = 'このリンクは無効または期限切れです';
           _loading = false;
         });
         return;
       }
+      if (!mounted) return;
       setState(() {
         _hostName = data['hostName'] as String? ?? '';
         _loading = false;
       });
-    } catch (e) {
+    } catch (e, st) {
+      developer.log(
+        '_loadSession failed - ${e.runtimeType}',
+        name: 'LocationShareScreen',
+        error: e,
+        stackTrace: st,
+      );
+      if (!mounted) return;
       setState(() {
-        _error = '読み込みエラー: $e';
+        _error = 'このリンクを開けませんでした。通信状況を確認してもう一度お試しください。';
         _loading = false;
       });
     }
@@ -55,8 +66,9 @@ class _LocationShareScreenState extends State<LocationShareScreen> {
         perm = await Geolocator.requestPermission();
       }
       if (perm == LocationPermission.deniedForever) {
+        if (!mounted) return;
         setState(() {
-          _error = '位置情報の許可が必要です。設定から許可してください。';
+          _error = '位置情報をONにすると最寄り駅を自動で選択できます。設定 > プライバシー > 位置情報 から有効にしてください。';
           _submitting = false;
         });
         return;
@@ -70,13 +82,21 @@ class _LocationShareScreenState extends State<LocationShareScreen> {
         lat: pos.latitude,
         lng: pos.longitude,
       );
+      if (!mounted) return;
       setState(() {
         _done = true;
         _submitting = false;
       });
-    } catch (e) {
+    } catch (e, st) {
+      developer.log(
+        '_submit failed - ${e.runtimeType}',
+        name: 'LocationShareScreen',
+        error: e,
+        stackTrace: st,
+      );
+      if (!mounted) return;
       setState(() {
-        _error = '送信に失敗しました: $e';
+        _error = '送信に失敗しました。通信状況を確認してもう一度お試しください。';
         _submitting = false;
       });
     }
@@ -182,7 +202,7 @@ class _LocationShareScreenState extends State<LocationShareScreen> {
         ),
         const SizedBox(height: 12),
         Text(
-          'タップ後、位置情報の許可を求めます',
+          '位置情報ONで最寄り駅が自動入力されます',
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
         ),

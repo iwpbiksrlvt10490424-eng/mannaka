@@ -18,7 +18,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
       body: const SingleChildScrollView(
         padding: EdgeInsets.all(20),
         child: _PolicyContent(
-          header: 'Aimachi プライバシーポリシー\n制定日：2024年4月1日\n最終改定日：2026年4月10日',
+          header: 'まんなか プライバシーポリシー\n制定日：2024年4月1日\n最終改定日：2026年4月21日',
           sections: [
             _PolicySection(
               title: '第1条（個人情報の定義）',
@@ -36,14 +36,27 @@ class PrivacyPolicyScreen extends StatelessWidget {
                   '【入力された駅情報・プロフィール情報】\n'
                   '利用目的：アプリ機能の提供（出発駅の自動入力、ホーム駅の設定等）\n'
                   '保存場所：端末内のSharedPreferences\n'
-                  '保存期間：ユーザーがアプリを削除するまで保持\n'
-                  '※利用統計機能（オプトイン）を有効にした場合、ホーム駅情報が匿名IDとともにFirebaseに送信されます。\n\n'
+                  '保存期間：ユーザーがアプリを削除するまで保持\n\n'
                   '【飲食記録・検索履歴】\n'
                   '利用目的：履歴表示・再検索機能の提供\n'
                   '保存場所：端末内のみ\n'
                   '保存期間：ユーザーが削除するまで保持\n\n'
-                  '【クラッシュレポート・利用統計（匿名）】\n'
-                  '利用目的：アプリの安定性向上・機能改善\n'
+                  '【匿名の利用統計】\n'
+                  '利用目的：アプリ品質改善・ユーザー体験の向上・混雑駅の需要分析・掲載店舗の評価指標\n'
+                  '保存場所：Firebase（Google LLC）のサーバー\n'
+                  '取り扱い：本機能はデフォルトで有効（ON）ですが、マイページの「利用統計の提供」から'
+                  'いつでも無効化（オプトアウト）できます。氏名・メール等の個人識別情報は送信せず、'
+                  '端末ごとに生成した匿名IDと紐づく統計のみを収集します。\n'
+                  '収集内容：\n'
+                  '・ホーム駅・検索条件（シーン／ジャンル／予算／人数）\n'
+                  '・レストランの閲覧・クリック履歴（restaurant_clicks / category_demand）\n'
+                  '・予約ボタンの押下（reservation_leads / reservation_logs：送客指標として利用）\n'
+                  '・シェア操作の種別（share_logs）\n'
+                  '・フィルター使用（filter_logs：絞り込み条件の傾向分析）\n'
+                  '・ソート（並び替え）使用（sort_logs）\n'
+                  '・最終的に決定した店舗のコンバージョン（decided_restaurants / decision_logs）\n\n'
+                  '【クラッシュレポート（匿名）】\n'
+                  '利用目的：アプリの安定性向上\n'
                   '保存場所：Firebase（Google LLC）のサーバー\n'
                   '内容：端末種別、OSバージョン、クラッシュ情報等（個人を特定できない匿名情報）',
             ),
@@ -67,13 +80,18 @@ class PrivacyPolicyScreen extends StatelessWidget {
                   '提供情報：匿名の利用統計・クラッシュ情報\n'
                   '利用目的：アプリ品質改善\n'
                   'プライバシーポリシー：https://policies.google.com/privacy\n\n'
+                  '【LINEヤフー株式会社（LINE 共有）】\n'
+                  '提供情報：ユーザーが「LINEでシェア」を操作した際、LINE アプリに渡されるシェア文言（集合駅名・お店名・URL等）\n'
+                  '利用目的：友人への送信\n'
+                  'プライバシーポリシー：https://line.me/ja/terms/policy/\n'
+                  '※ LINE アプリが起動された後の取り扱いはLINEヤフー株式会社のプライバシーポリシーに従います。\n\n'
                   '上記以外の第三者に対し、ユーザーの同意なく個人情報を提供することはありません。ただし、法令に基づく開示が必要な場合はこの限りではありません。',
             ),
             _PolicySection(
               title: '第4条（個人情報の安全管理）',
               content:
                   '当アプリは、収集した個人情報の漏洩、滅失、毀損の防止のため、以下の安全管理措置を講じます。\n\n'
-                  '・GPS位置情報は最寄り駅の座標に変換し、集合場所検索の目的でのみ外部APIに送信します\n'
+                  '・生のGPS座標は外部サービスには送信しません。最寄り駅の座標に変換した上で、集合場所検索の目的でのみ外部APIに送信します\n'
                   '・外部APIへの通信はHTTPS（TLS暗号化）を使用します\n'
                   '・端末内データはOSが提供するセキュアな保存領域（Keychain/SharedPreferences）を使用します\n'
                   '・個人情報を含む情報をログに記録しません',
@@ -130,12 +148,12 @@ class TermsScreen extends StatelessWidget {
       body: const SingleChildScrollView(
         padding: EdgeInsets.all(20),
         child: _PolicyContent(
-          header: 'Aimachi 利用規約\n制定日：2024年4月1日\n最終改定日：2025年3月15日',
+          header: 'まんなか 利用規約\n制定日：2024年4月1日\n最終改定日：2025年3月15日',
           sections: [
             _PolicySection(
               title: '第1条（本規約の適用）',
               content:
-                  '本利用規約（以下「本規約」）は、Aimachi（以下「当アプリ」）が提供するサービス（以下「本サービス」）の利用条件を定めるものです。ユーザーは本サービスを利用することにより、本規約に同意したものとみなします。なお、ユーザーが未成年者の場合は、保護者の同意を得た上でご利用ください。',
+                  '本利用規約（以下「本規約」）は、まんなか（以下「当アプリ」）が提供するサービス（以下「本サービス」）の利用条件を定めるものです。ユーザーは本サービスを利用することにより、本規約に同意したものとみなします。なお、ユーザーが未成年者の場合は、保護者の同意を得た上でご利用ください。',
             ),
             _PolicySection(
               title: '第2条（サービスの内容）',

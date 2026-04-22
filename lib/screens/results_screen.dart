@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+// LINE 共有ボタン用の共通アイコン
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -9,6 +10,7 @@ import '../models/meeting_point.dart';
 import '../models/restaurant.dart';
 import '../models/scored_restaurant.dart';
 import '../theme/app_theme.dart';
+import '../widgets/line_icon.dart';
 import '../services/midpoint_service.dart';
 import '../utils/share_utils.dart';
 import 'restaurant_detail_screen.dart';
@@ -161,14 +163,20 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
                     color: const Color(0xFF06C755),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Text(
-                    'LINE\nでシェア',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        height: 1.2),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      LineIcon(size: 18, filled: false, iconColor: Colors.white),
+                      SizedBox(width: 6),
+                      Text(
+                        'シェア',
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            height: 1.0),
+                      ),
+                    ],
                   ),
                 ),
               ),

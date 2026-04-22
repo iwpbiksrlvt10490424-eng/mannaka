@@ -17,6 +17,7 @@ import '../data/station_data.dart';
 import '../services/analytics_service.dart';
 import '../services/geocoding_service.dart';
 import '../services/location_service.dart';
+import '../widgets/line_icon.dart';
 import '../widgets/station_search_sheet.dart';
 import 'support_screen.dart';
 import 'policy_screen.dart';
@@ -571,7 +572,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 _SettingsGroup(
                   children: [
                     _NavItem(
-                      icon: Icons.send_rounded,
+                      leading: const LineIcon(size: 28, filled: true),
                       label: 'LINEで紹介する',
                       color: const Color(0xFF06C755),
                       subtitle: '友達にまんなかを教えよう',
@@ -1100,11 +1101,14 @@ class _NavItem extends StatelessWidget {
     required this.label,
     required this.onTap,
     this.icon,
+    this.leading,
     this.color = AppColors.primary,
     this.subtitle,
     this.trailing,
   });
   final IconData? icon;
+  /// icon の代わりに任意のウィジェット（LINE アイコン等）を表示
+  final Widget? leading;
   final String label;
   final Color color;
   final VoidCallback onTap;
@@ -1123,7 +1127,10 @@ class _NavItem extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(
           children: [
-            if (icon != null) ...[
+            if (leading != null) ...[
+              SizedBox(width: 36, height: 36, child: Center(child: leading!)),
+              const SizedBox(width: 14),
+            ] else if (icon != null) ...[
               Container(
                 width: 36,
                 height: 36,

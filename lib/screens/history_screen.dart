@@ -6,6 +6,7 @@ import '../models/visited_restaurant.dart';
 import '../providers/history_provider.dart';
 import '../providers/visited_restaurants_provider.dart';
 import '../theme/app_theme.dart';
+import '../widgets/manual_restaurant_add_sheet.dart';
 import 'restaurant_detail_screen.dart';
 
 class HistoryScreen extends ConsumerStatefulWidget {
@@ -74,6 +75,17 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen>
           _VisitedTab(visited: visited),
         ],
       ),
+      floatingActionButton: _tab.index == 1
+          ? FloatingActionButton.extended(
+              onPressed: () => showManualRestaurantAddSheet(context,
+                  initialTarget: AddTarget.visited),
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.add),
+              label: const Text('お店を追加',
+                  style: TextStyle(fontWeight: FontWeight.w700)),
+            )
+          : null,
     );
   }
 }

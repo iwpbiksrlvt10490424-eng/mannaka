@@ -7,6 +7,7 @@ import '../models/visited_restaurant.dart';
 import '../providers/reserved_restaurants_provider.dart';
 import '../providers/visited_restaurants_provider.dart';
 import '../theme/app_theme.dart';
+import '../widgets/manual_restaurant_add_sheet.dart';
 
 class ReservedScreen extends ConsumerStatefulWidget {
   const ReservedScreen({super.key});
@@ -31,6 +32,15 @@ class _ReservedScreenState extends ConsumerState<ReservedScreen> {
         scrolledUnderElevation: 0,
       ),
       body: reserved.isEmpty ? _empty() : _list(reserved),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => showManualRestaurantAddSheet(context,
+            initialTarget: AddTarget.reserved),
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.add),
+        label: const Text('お店を追加',
+            style: TextStyle(fontWeight: FontWeight.w700)),
+      ),
     );
   }
 

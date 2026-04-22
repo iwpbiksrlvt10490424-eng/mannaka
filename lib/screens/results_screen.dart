@@ -408,7 +408,7 @@ class _MeetingPointTabState extends ConsumerState<_MeetingPointTab> {
     return _cachedScored!;
   }
 
-  /// 表示用リスト（ローカルカテゴリフィルタ + ソートオプション適用済み）
+  /// 表示用リスト（ローカルカテゴリフィルタ + 予約可フィルタ + ソート適用済み）
   List<ScoredRestaurant> get _scoredRestaurants {
     var list = _allScored;
     // 結果画面内のカテゴリチップで絞り込み
@@ -416,6 +416,10 @@ class _MeetingPointTabState extends ConsumerState<_MeetingPointTab> {
       list = list
           .where((s) => _selectedCategories.contains(s.restaurant.category))
           .toList();
+    }
+    // 予約可のみ絞り込み
+    if (widget.state.reservableOnly) {
+      list = list.where((s) => s.restaurant.isReservable).toList();
     }
     // ソートオプション適用
     return switch (widget.state.sortOption) {
@@ -770,9 +774,13 @@ class _HeroCard extends StatelessWidget {
                   // カテゴリ · 価格 · 評価
                   Row(
                     children: [
-                      Text(r.category,
-                          style: const TextStyle(
-                              fontSize: 13, color: AppColors.textSecondary)),
+                      Flexible(
+                        child: Text(r.category,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontSize: 13,
+                                color: AppColors.textSecondary)),
+                      ),
                       const Text('  ·  ',
                           style: TextStyle(
                               fontSize: 13, color: AppColors.textTertiary)),
@@ -781,10 +789,29 @@ class _HeroCard extends StatelessWidget {
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
                               color: AppColors.textPrimary)),
-                      if (r.rating >= 4.0) ...[
+                      if (r.rating > 0) ...[
                         const SizedBox(width: 10),
+                        const Icon(Icons.star_rounded,
+                            size: 15, color: Color(0xFFF5B301)),
+                        const SizedBox(width: 2),
+                        Text(r.rating.toStringAsFixed(1),
+                            style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textPrimary)),
+                        if (r.reviewCount > 0) ...[
+                          const SizedBox(width: 4),
+                          Text('(${r.reviewCount})',
+                              style: const TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.textTertiary)),
+                        ],
+                      ],
+                      if (r.rating >= 4.0) ...[
+                        const SizedBox(width: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 7, vertical: 2),
                           decoration: BoxDecoration(
                             color: AppColors.primary.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(5),
@@ -957,6 +984,17 @@ class _CompactCard extends StatelessWidget {
                   const SizedBox(height: 5),
                   Row(
                     children: [
+                      if (r.rating > 0) ...[
+                        const Icon(Icons.star_rounded,
+                            size: 13, color: Color(0xFFF5B301)),
+                        const SizedBox(width: 2),
+                        Text(r.rating.toStringAsFixed(1),
+                            style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textPrimary)),
+                        const SizedBox(width: 8),
+                      ],
                       if (r.isReservable)
                         _SmallBadge('予約可', AppColors.success),
                       if (r.hasPrivateRoom) ...[
@@ -1355,6 +1393,8 @@ class _ConditionEditSheetState extends ConsumerState<_ConditionEditSheet> {
                         () => widget.notifier.setFreeDrink(!state.showFreeDrink)),
                     _chip('チェーン店を除く', state.excludeChains,
                         () => widget.notifier.setExcludeChains(!state.excludeChains)),
+                    _chip('予約可のみ', state.reservableOnly,
+                        () => widget.notifier.setReservableOnly(!state.reservableOnly)),
                   ],
                 ),
               ),

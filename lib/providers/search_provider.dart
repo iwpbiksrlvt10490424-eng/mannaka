@@ -110,6 +110,7 @@ class SearchState {
     this.showPrivateRoom = false,
     this.showFreeDrink = false,
     this.excludeChains = false,
+    this.reservableOnly = false,
     this.preferMajorStations = false,
     this.occasion = Occasion.none,
     this.timeSlot = TimeSlot.all,
@@ -144,6 +145,8 @@ class SearchState {
   final bool showFreeDrink;
   /// チェーン店を除外するかどうか
   final bool excludeChains;
+  /// 予約可能な店舗のみ表示（ローカル絞り込み）
+  final bool reservableOnly;
   /// 真ん中重視(false) か 主要駅重視(true) か。
   /// true のときは `kStations`（35の主要駅）のみを集合候補に絞る
   final bool preferMajorStations;
@@ -222,6 +225,15 @@ class SearchState {
   /// ソート済みレストラン（表示用・キャッシュ付き）
   late final List<ScoredRestaurant> sortedRestaurants = _sortedCache ?? _computeSorted();
 
+  /// 表示用の絞り込み後リスト（予約可のみ等のローカルフィルタ適用後）。
+  /// スコアリングを通さないので reservableOnly の切替では再計算しない。
+  List<ScoredRestaurant> get displayRestaurants {
+    if (!reservableOnly) return sortedRestaurants;
+    return sortedRestaurants
+        .where((s) => s.restaurant.isReservable)
+        .toList();
+  }
+
   List<ScoredRestaurant> _computeSorted() {
     final base = scoredRestaurants;
     return switch (sortOption) {
@@ -261,6 +273,7 @@ class SearchState {
     bool? showPrivateRoom,
     bool? showFreeDrink,
     bool? excludeChains,
+    bool? reservableOnly,
     bool? preferMajorStations,
     Occasion? occasion,
     TimeSlot? timeSlot,
@@ -320,6 +333,7 @@ class SearchState {
       showPrivateRoom: showPrivateRoom ?? this.showPrivateRoom,
       showFreeDrink: showFreeDrink ?? this.showFreeDrink,
       excludeChains: excludeChains ?? this.excludeChains,
+      reservableOnly: reservableOnly ?? this.reservableOnly,
       preferMajorStations: preferMajorStations ?? this.preferMajorStations,
       occasion: occasion ?? this.occasion,
       timeSlot: timeSlot ?? this.timeSlot,
@@ -847,6 +861,11 @@ class SearchNotifier extends Notifier<SearchState> {
 
   void setExcludeChains(bool value) {
     state = state.copyWith(excludeChains: value);
+  }
+
+  /// 予約可のみ表示のローカル絞り込みトグル
+  void setReservableOnly(bool value) {
+    state = state.copyWith(reservableOnly: value);
   }
 
   void setPreferMajorStations(bool value) {

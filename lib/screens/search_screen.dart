@@ -575,6 +575,20 @@ class _ParticipantRowState extends State<_ParticipantRow> {
   }
 
   @override
+  void didUpdateWidget(covariant _ParticipantRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 親の Participant.name（マイページ変更・グループロード等）が変わったら
+    // コントローラの表示テキストも同期する。カーソル位置を末尾に。
+    if (widget.participant.name != _ctrl.text) {
+      _ctrl.value = TextEditingValue(
+        text: widget.participant.name,
+        selection:
+            TextSelection.collapsed(offset: widget.participant.name.length),
+      );
+    }
+  }
+
+  @override
   void dispose() {
     _ctrl.dispose();
     _sessionSub?.cancel();

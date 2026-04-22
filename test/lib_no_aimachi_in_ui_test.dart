@@ -70,7 +70,11 @@ final _lineAllowlist = <String, List<RegExp>>{
 /// Cycle 13: 空化。`Aimachi指数` / `Aimachiユーザー` / `Aimachi全ユーザー`
 /// を legacy label と判定し、除去対象に移行。
 /// マッチ部分を行から削除した後に残る `Aimachi` を違反として扱う。
-final _patternAllowlist = <RegExp>[];
+final _patternAllowlist = <RegExp>[
+  // ブランド表記の最終決定は `Aimachi`（memory: まんなかへの巻き戻し禁止）。
+  // ホーム画面左上ロゴなど UI で意図的に `Aimachi` を表示する箇所を許容する。
+  RegExp(r"'Aimachi'"),
+];
 
 /// lib/ 配下の .dart ファイルを再帰的に列挙
 List<File> _allLibDartFiles() {
@@ -200,26 +204,23 @@ void main() {
       );
     });
 
-    test('lib/screens/home_screen.dart のヘッダーとバナー文言が「まんなか」のときホーム画面のブランド表記が統一される', () {
+    test('lib/screens/home_screen.dart のヘッダーとバナー文言が「Aimachi」のときホーム画面のブランド表記が統一される', () {
       final src = _readSource('lib/screens/home_screen.dart');
-      // ヘッダー（L306）
+      // ヘッダー（L306）— memory: ブランド名は Aimachi、まんなか巻き戻し禁止
       expect(
-        src.contains("'まんなか'"),
+        src.contains("'Aimachi'"),
         isTrue,
-        reason: 'home_screen.dart:306 のヘッダーを `\'まんなか\'` に置換してください。',
+        reason: 'home_screen.dart:306 のヘッダーを `\'Aimachi\'` に置換してください。',
       );
-      // バナー文言（L1147）
+      // バナー文言（L1147）は `まんなか` のまま維持（長文ブランド表記）
       expect(
         src.contains('まんなか 厳選のお店情報をこの枠でお届けします'),
         isTrue,
-        reason: 'home_screen.dart:1147 の `\'Aimachi 厳選のお店情報...\'` を\n'
-            '`\'まんなか 厳選のお店情報...\'` に置換してください。',
+        reason: 'home_screen.dart:1147 のバナー文言を\n'
+            '`\'まんなか 厳選のお店情報...\'` で維持してください。',
       );
-      expect(
-        src.contains('Aimachi'),
-        isFalse,
-        reason: 'home_screen.dart に `Aimachi` が残存しています（コメントは存在しない想定）。',
-      );
+      // ヘッダーでのみ `Aimachi` を許容。それ以外に `Aimachi` が散らばっていないことは
+      // 上位 group（`Aimachi` 残存検査）で検出される。
     });
 
     test('lib/screens/policy_screen.dart の見出しが「まんなか」のときプライバシーポリシー・利用規約の名称が統一される', () {

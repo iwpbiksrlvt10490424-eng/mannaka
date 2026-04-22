@@ -303,7 +303,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       ],
                     ),
                     child: const Text(
-                      'まんなか',
+                      'Aimachi',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w800,

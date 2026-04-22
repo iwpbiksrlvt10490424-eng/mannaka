@@ -9,6 +9,7 @@ import '../providers/group_provider.dart';
 import '../providers/reserved_restaurants_provider.dart';
 import '../providers/visited_restaurants_provider.dart';
 import '../theme/app_theme.dart';
+import 'station_search_sheet.dart';
 
 /// 予約済み / 行ったお店に手動でお店を追加するボトムシート。
 /// 理由: Hotpepper に載っていないお店（個人店・新店）を記録できるように。
@@ -35,6 +36,8 @@ class _ManualRestaurantAddSheetState
   final _nameCtrl = TextEditingController();
   String _category = 'その他';
   final Set<String> _selectedGroupIds = {};
+  /// 任意入力の最寄り駅。StationSearchSheet で選択した駅名を保持。
+  String? _nearestStation;
 
   static const _categories = [
     'カフェ', '居酒屋', 'バー', '和食', '洋食', 'イタリアン', 'フレンチ',
@@ -51,6 +54,25 @@ class _ManualRestaurantAddSheetState
   void dispose() {
     _nameCtrl.dispose();
     super.dispose();
+  }
+
+  /// 他画面と同じ StationSearchSheet を開いて駅を選択させる。
+  /// 選択結果は名前のみを保持（座標は保存データに使わないため）。
+  Future<void> _pickStation() async {
+    final result = await showModalBottomSheet<SelectedStation>(
+      context: context,
+      useRootNavigator: true,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => const StationSearchSheet(
+        currentIndex: null,
+        favorites: [],
+      ),
+    );
+    if (!mounted) return;
+    if (result != null) {
+      setState(() => _nearestStation = result.name);
+    }
   }
 
   List<String> _groupNamesFromSelection(List<SavedGroup> all) {
@@ -73,6 +95,8 @@ class _ManualRestaurantAddSheetState
     final id = 'manual_${DateTime.now().millisecondsSinceEpoch}';
     final groups = _groupNamesFromSelection(ref.read(groupProvider));
 
+    final station = _nearestStation ?? '';
+
     if (_target == AddTarget.reserved) {
       ref.read(reservedRestaurantsProvider.notifier).add(
             ReservedRestaurant(
@@ -81,6 +105,7 @@ class _ManualRestaurantAddSheetState
               category: _category,
               reservedAt: DateTime.now(),
               groupNames: groups,
+              nearestStation: station,
             ),
           );
     } else {
@@ -91,6 +116,7 @@ class _ManualRestaurantAddSheetState
               category: _category,
               visitedAt: DateTime.now(),
               groupNames: groups,
+              nearestStation: station,
             ),
           );
     }
@@ -179,6 +205,57 @@ class _ManualRestaurantAddSheetState
               decoration: InputDecoration(
                 border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+            const SizedBox(height: 14),
+            // 最寄り駅（任意）: 他画面と同じ StationSearchSheet で選ぶ
+            const Text('最寄り駅（任意）',
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textSecondary)),
+            const SizedBox(height: 6),
+            GestureDetector(
+              onTap: _pickStation,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 14),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.divider),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.train_rounded,
+                        size: 18, color: AppColors.primary),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _nearestStation ?? '駅を検索して選ぶ',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: _nearestStation == null
+                              ? FontWeight.w400
+                              : FontWeight.w700,
+                          color: _nearestStation == null
+                              ? AppColors.textTertiary
+                              : AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                    if (_nearestStation != null)
+                      GestureDetector(
+                        onTap: () =>
+                            setState(() => _nearestStation = null),
+                        child: const Icon(Icons.close,
+                            size: 16, color: AppColors.textTertiary),
+                      )
+                    else
+                      const Icon(Icons.chevron_right,
+                          color: AppColors.textTertiary),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 14),

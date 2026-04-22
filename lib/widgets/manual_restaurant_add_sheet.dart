@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../models/reserved_restaurant.dart';
 import '../models/visited_restaurant.dart';
+import '../models/saved_group.dart';
+import '../providers/group_provider.dart';
 import '../providers/reserved_restaurants_provider.dart';
 import '../providers/visited_restaurants_provider.dart';
 import '../theme/app_theme.dart';
 
 /// 予約済み / 行ったお店に手動でお店を追加するボトムシート。
-/// 理由: Hotpepper に載っていないお店（個人店・新店・Google Maps で見つけた店）も
-/// 記録できるようにするため。保存先は呼び出し側で initialTarget 指定、
-/// 内部でトグル可能。店名をコピー済みの状態で Google Maps を開くボタンを用意し、
-/// ユーザーが住所や位置を確認しつつ手入力で埋められる導線を提供する。
+/// 理由: Hotpepper に載っていないお店（個人店・新店）を記録できるように。
+/// 住所や駅は後から編集で追えるため、最小入力として
+/// 店名・ジャンル・グループ（任意）のみにする。
 enum AddTarget { reserved, visited }
 
 class ManualRestaurantAddSheet extends ConsumerStatefulWidget {
@@ -33,9 +33,8 @@ class _ManualRestaurantAddSheetState
     extends ConsumerState<ManualRestaurantAddSheet> {
   late AddTarget _target;
   final _nameCtrl = TextEditingController();
-  final _stationCtrl = TextEditingController();
-  final _addressCtrl = TextEditingController();
   String _category = 'その他';
+  final Set<String> _selectedGroupIds = {};
 
   static const _categories = [
     'カフェ', '居酒屋', 'バー', '和食', '洋食', 'イタリアン', 'フレンチ',
@@ -51,28 +50,14 @@ class _ManualRestaurantAddSheetState
   @override
   void dispose() {
     _nameCtrl.dispose();
-    _stationCtrl.dispose();
-    _addressCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _openGoogleMaps() async {
-    final name = _nameCtrl.text.trim();
-    if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('先にお店の名前を入力してください'),
-        behavior: SnackBarBehavior.floating,
-      ));
-      return;
-    }
-    // 名前をコピーして、Google Maps で検索しやすく
-    await Clipboard.setData(ClipboardData(text: name));
-    final uri =
-        Uri.parse('https://www.google.com/maps/search/?api=1&query='
-            '${Uri.encodeComponent(name)}');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
+  List<String> _groupNamesFromSelection(List<SavedGroup> all) {
+    return all
+        .where((g) => _selectedGroupIds.contains(g.id))
+        .map((g) => g.name)
+        .toList();
   }
 
   void _save() {
@@ -86,8 +71,7 @@ class _ManualRestaurantAddSheetState
     }
     HapticFeedback.mediumImpact();
     final id = 'manual_${DateTime.now().millisecondsSinceEpoch}';
-    final station = _stationCtrl.text.trim();
-    final address = _addressCtrl.text.trim();
+    final groups = _groupNamesFromSelection(ref.read(groupProvider));
 
     if (_target == AddTarget.reserved) {
       ref.read(reservedRestaurantsProvider.notifier).add(
@@ -96,8 +80,7 @@ class _ManualRestaurantAddSheetState
               restaurantName: name,
               category: _category,
               reservedAt: DateTime.now(),
-              nearestStation: station,
-              address: address,
+              groupNames: groups,
             ),
           );
     } else {
@@ -107,9 +90,7 @@ class _ManualRestaurantAddSheetState
               restaurantName: name,
               category: _category,
               visitedAt: DateTime.now(),
-              groupNames: const [],
-              nearestStation: station,
-              address: address,
+              groupNames: groups,
             ),
           );
     }
@@ -127,6 +108,8 @@ class _ManualRestaurantAddSheetState
   @override
   Widget build(BuildContext context) {
     final viewInsets = MediaQuery.of(context).viewInsets;
+    final groups = ref.watch(groupProvider);
+
     return Padding(
       padding: EdgeInsets.fromLTRB(20, 12, 20, viewInsets.bottom + 20),
       child: SingleChildScrollView(
@@ -154,7 +137,6 @@ class _ManualRestaurantAddSheetState
               ),
             ),
             const SizedBox(height: 14),
-            // 保存先トグル
             Container(
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
@@ -163,10 +145,8 @@ class _ManualRestaurantAddSheetState
               ),
               child: Row(
                 children: [
-                  Expanded(
-                      child: _targetTab('予約済み', AddTarget.reserved)),
-                  Expanded(
-                      child: _targetTab('行ったお店', AddTarget.visited)),
+                  Expanded(child: _targetTab('予約済み', AddTarget.reserved)),
+                  Expanded(child: _targetTab('行ったお店', AddTarget.visited)),
                 ],
               ),
             ),
@@ -182,17 +162,11 @@ class _ManualRestaurantAddSheetState
               ),
             ),
             const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: Text('ジャンル',
-                      style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textSecondary)),
-                ),
-              ],
-            ),
+            Text('ジャンル',
+                style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textSecondary)),
             const SizedBox(height: 6),
             DropdownButtonFormField<String>(
               initialValue: _category,
@@ -207,40 +181,80 @@ class _ManualRestaurantAddSheetState
                     borderRadius: BorderRadius.circular(12)),
               ),
             ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _stationCtrl,
-              decoration: InputDecoration(
-                labelText: '最寄り駅（任意）',
-                hintText: '例: 渋谷',
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12)),
+            const SizedBox(height: 14),
+            if (groups.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  'グループは未登録です。探す画面で検索履歴からグループ保存ができます。',
+                  style: TextStyle(
+                      fontSize: 12, color: AppColors.textSecondary),
+                ),
+              )
+            else ...[
+              const Text('グループ（任意・複数選択可）',
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textSecondary)),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: groups.map((g) {
+                  final selected = _selectedGroupIds.contains(g.id);
+                  return GestureDetector(
+                    onTap: () => setState(() {
+                      if (selected) {
+                        _selectedGroupIds.remove(g.id);
+                      } else {
+                        _selectedGroupIds.add(g.id);
+                      }
+                    }),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? AppColors.primary
+                            : AppColors.background,
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: selected
+                              ? AppColors.primary
+                              : AppColors.divider,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (selected) ...[
+                            const Icon(Icons.check,
+                                size: 14, color: Colors.white),
+                            const SizedBox(width: 4),
+                          ],
+                          Text(
+                            g.name,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: selected
+                                  ? Colors.white
+                                  : AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
               ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _addressCtrl,
-              decoration: InputDecoration(
-                labelText: '住所（任意）',
-                hintText: '例: 東京都渋谷区…',
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
-            const SizedBox(height: 12),
-            // Google Maps で場所を調べる
-            OutlinedButton.icon(
-              onPressed: _openGoogleMaps,
-              icon: const Icon(Icons.map_outlined, size: 18),
-              label: const Text('Google マップで検索（名前はコピー済み）'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFF1A73E8),
-                side: const BorderSide(color: Color(0xFF1A73E8)),
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
+            ],
             const SizedBox(height: 18),
             SizedBox(
               height: 50,

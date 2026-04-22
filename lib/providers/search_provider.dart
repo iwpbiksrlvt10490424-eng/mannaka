@@ -17,6 +17,7 @@ import '../services/notification_service.dart';
 import '../services/analytics_service.dart';
 import '../services/restaurant_cache_service.dart';
 import '../services/location_service.dart';
+import 'profile_provider.dart';
 
 enum Occasion {
   none,
@@ -360,8 +361,20 @@ class SearchNotifier extends Notifier<SearchState> {
   SearchState build() {
     Future.microtask(_autoFillHomeStation);
     Future.microtask(_autoFillNickname);
+    // ニックネームが変わったら先頭参加者に即反映する。
+    // これで nicknameProvider を single source of truth として扱える
+    // （settings 初期ロード・onChanged どちらの経路でも追従する）。
+    ref.listen<String>(nicknameProvider, (_, next) {
+      if (next.isNotEmpty) setHomeNickname(next);
+    });
+    final initialName = ref.read(nicknameProvider);
     return SearchState(
-      participants: const [Participant(id: '1', name: '自分')],
+      participants: [
+        Participant(
+          id: '1',
+          name: initialName.isEmpty ? '自分' : initialName,
+        ),
+      ],
     );
   }
 
@@ -881,8 +894,15 @@ class SearchNotifier extends Notifier<SearchState> {
   }
 
   void reset() {
+    // nickname を single source of truth として反映（'自分' ハードコード撤廃）
+    final nickname = ref.read(nicknameProvider);
     state = SearchState(
-      participants: const [Participant(id: '1', name: '自分')],
+      participants: [
+        Participant(
+          id: '1',
+          name: nickname.isEmpty ? '自分' : nickname,
+        ),
+      ],
     );
   }
 

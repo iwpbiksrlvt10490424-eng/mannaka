@@ -4,7 +4,6 @@ import 'package:url_launcher/url_launcher.dart';
 import '../models/meeting_point.dart';
 import '../models/scored_restaurant.dart';
 import '../providers/search_provider.dart';
-import '../services/midpoint_service.dart';
 
 class ShareUtils {
   static const appStoreId = '6761008332';
@@ -290,52 +289,77 @@ class ShareUtils {
     }
   }
 
-  /// 右上の LINE ボタン用：候補の**駅（MeetingPoint）一覧**の top 3 をまとめて共有。
+  /// 右上の LINE ボタン用：**候補の集合駅（MeetingPoint）一覧**を共有。
   ///
-  /// 方針:
-  /// - state.results の上位 3 駅までを対象
-  /// - 各駅に対応する cached restaurants を MidpointService で再スコア
-  ///   （既存のソフトフィルタをそのまま尊重）
-  /// - 各駅 top 3 を grouped に積んで LINE 起動
-  /// - キャッシュが無い駅はスキップ（タブ未訪問時など）
-  static Future<void> shareTopCandidatesAcrossAreas(SearchState state) async {
-    if (state.results.isEmpty) return;
+  /// 責務の線引き:
+  /// - 右上ボタン = 候補の**集合駅リスト**（お店は含まない）
+  /// - 下部バー = ユーザーが明示的に選んだ**お店**の共有
+  ///
+  /// 本文構成:
+  /// ```
+  /// Aimachiで集合場所の候補を共有します
+  ///
+  /// 🗓 4/24 19:30
+  ///
+  /// 候補の集合駅
+  ///
+  /// 📍 新宿駅
+  /// ⏱ あや 12分 / ゆう 8分
+  ///
+  /// 📍 渋谷駅
+  /// ⏱ あや 15分 / ゆう 5分
+  ///
+  /// Aimachiでお店を見つけられます👇
+  /// <App Store URL>
+  /// ```
+  static String buildLineTextForMeetingPoints(SearchState state) {
+    if (state.results.isEmpty) return '';
 
-    final grouped = <String, List<ScoredRestaurant>>{};
-    for (final point in state.results.take(3)) {
-      final cached = state.restaurantCache[point.stationName];
-      if (cached == null || cached.isEmpty) continue;
-      final scored = MidpointService.scoreRestaurants(
-        participants: state.participants,
-        centroidLat: point.lat,
-        centroidLng: point.lng,
-        baseRestaurants: cached,
-        categories: state.restaurantCategories,
-        femaleFriendly: state.showFemaleFriendly,
-        hasPrivateRoom: state.showPrivateRoom,
-        hasFreeDrink: state.showFreeDrink,
-        excludeChains: state.excludeChains,
-        timeSlot: state.timeSlot,
-        maxBudget: state.maxBudget,
-        occasion: state.occasion != Occasion.none ? state.occasion.label : null,
-        groupRelation: state.groupRelation,
-        selectedDate: state.selectedDate,
-      );
-      if (scored.isNotEmpty) {
-        grouped[point.stationName] = scored.take(3).toList();
+    final sb = StringBuffer();
+    sb.writeln('Aimachiで集合場所の候補を共有します');
+    sb.writeln('');
+
+    // 日時
+    final date = state.selectedDate;
+    final time = state.selectedMeetingTime;
+    if (date != null || time != null) {
+      final parts = <String>[];
+      if (date != null) parts.add('${date.month}/${date.day}');
+      if (time != null) {
+        parts.add(
+            '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}');
+      }
+      sb.writeln('🗓 ${parts.join(' ')}');
+      sb.writeln('');
+    }
+
+    sb.writeln('候補の集合駅');
+
+    for (final point in state.results.take(5)) {
+      sb.writeln('');
+      sb.writeln('📍 ${point.stationName}駅');
+      if (point.participantTimes.isNotEmpty) {
+        final line = point.participantTimes.entries
+            .map((e) => '${e.key} ${e.value}分')
+            .join(' / ');
+        sb.writeln('⏱ $line');
       }
     }
 
-    // どの駅もキャッシュが無いときは、現タブの sortedRestaurants だけで作る
-    if (grouped.isEmpty) {
-      final currentPoint = state.selectedMeetingPoint;
-      if (currentPoint != null && state.sortedRestaurants.isNotEmpty) {
-        grouped[currentPoint.stationName] =
-            state.sortedRestaurants.take(3).toList();
-      }
-    }
+    sb.writeln('');
+    sb.writeln('Aimachiでお店を見つけられます👇');
+    sb.write(appStoreUrl);
+    return sb.toString();
+  }
 
-    if (grouped.isEmpty) return;
-    await shareGroupedCandidatesToLine(state, grouped);
+  /// 右上の LINE ボタン用：候補の集合駅一覧を LINE に流し込む。
+  static Future<void> shareMeetingPointsToLine(SearchState state) async {
+    final text = buildLineTextForMeetingPoints(state);
+    if (text.isEmpty) return;
+    final encoded = Uri.encodeComponent(text);
+    final lineUrl = Uri.parse('https://line.me/R/share?text=$encoded');
+    if (await canLaunchUrl(lineUrl)) {
+      await launchUrl(lineUrl, mode: LaunchMode.externalApplication);
+    }
   }
 }

@@ -169,41 +169,19 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
                     }
                   },
           ),
-          if (state.selectedMeetingPoint != null) ...[
+          if (state.results.isNotEmpty) ...[
+            // 右上の共有ボタン：**候補の集合駅リスト**を LINE で送る。
+            // お店は送らない（お店は下部バーの選択→共有フローで送る）。
             Padding(
-              padding: const EdgeInsets.only(right: 4),
+              padding: const EdgeInsets.only(right: 8),
               child: GestureDetector(
                 onTap: () {
                   HapticFeedback.mediumImpact();
-                  // 候補の駅一覧（state.results）の top 3 をまとめて共有。
-                  // タブ横断で「候補として表示されている各駅の上位3件」を送る。
-                  ShareUtils.shareTopCandidatesAcrossAreas(state);
+                  ShareUtils.shareMeetingPointsToLine(state);
                 },
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF06C755),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: const [
-                      LineIcon(
-                          size: 16,
-                          filled: false,
-                          iconColor: Colors.white),
-                      SizedBox(width: 4),
-                      Text(
-                        '共有',
-                        style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                            height: 1.0),
-                      ),
-                    ],
-                  ),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 6),
+                  child: LineIcon(size: 32, filled: true),
                 ),
               ),
             ),

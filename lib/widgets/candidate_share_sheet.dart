@@ -11,8 +11,8 @@ import 'line_icon.dart';
 
 /// 選んだ候補お店を LINE で共有するボトムシート。
 ///
-/// LINE 本文には **駅を跨いで選択順の上位 3 件のみ** を載せ、4 件目以降は
-/// Aimachi のダウンロード誘導で相手に伝える。
+/// LINE 本文には **駅を跨いで選択順の上位 5 件のみ** を載せる。
+/// 1 回で送れる上限は 5 件で、選択 UI 側でも 6 件目以降は選べない。
 /// シート内のプレビューは駅ごとにまとめた形で「何を何件選んでいるか」を示す。
 class CandidateShareSheet extends ConsumerStatefulWidget {
   const CandidateShareSheet({
@@ -77,8 +77,7 @@ class _CandidateShareSheetState extends ConsumerState<CandidateShareSheet> {
   Widget build(BuildContext context) {
     final viewInsets = MediaQuery.of(context).viewInsets;
     final grouped = _grouped;
-    final sendCount = _totalCount > 3 ? 3 : _totalCount;
-    final extra = _totalCount - sendCount;
+    final sendCount = _totalCount > 5 ? 5 : _totalCount;
 
     return Padding(
       padding: EdgeInsets.fromLTRB(20, 12, 20, viewInsets.bottom + 20),
@@ -107,11 +106,9 @@ class _CandidateShareSheetState extends ConsumerState<CandidateShareSheet> {
               ),
             ),
             const SizedBox(height: 6),
-            Text(
-              extra > 0
-                  ? '選んだ順に最初の3件を LINE に載せます。\n4件目以降の$extra件を相手が見るには、Aimachi のダウンロードが必要です。'
-                  : 'お店は選んだ順に最大3件までLINEで送れます。',
-              style: const TextStyle(
+            const Text(
+              '1回で送れるのは5件までです。\n相手にもAimachiを使ってもらえば、同じ条件で自分で探せます。',
+              style: TextStyle(
                 fontSize: 12.5,
                 color: AppColors.textSecondary,
                 height: 1.7,
@@ -173,11 +170,7 @@ class _CandidateShareSheetState extends ConsumerState<CandidateShareSheet> {
                     : const LineIcon(
                         size: 22, filled: false, iconColor: Colors.white),
                 label: Text(
-                  _sharing
-                      ? '準備中…'
-                      : extra > 0
-                          ? '上位3件をLINEで送る'
-                          : '$_totalCount件をLINEで送る',
+                  _sharing ? '準備中…' : '$sendCount件をLINEで送る',
                   style: const TextStyle(
                       fontSize: 15, fontWeight: FontWeight.w700),
                 ),

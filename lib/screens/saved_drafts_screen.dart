@@ -7,10 +7,11 @@ import '../models/saved_share_draft.dart';
 import '../providers/saved_share_drafts_provider.dart';
 import '../services/analytics_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/share_utils.dart';
 import '../widgets/line_icon.dart';
 
 /// 保存された LINE 共有の下書き一覧。あとで送りたいユーザー向け。
-/// LINE 本文には上位 3 件を入れ、4 件以上あれば Aimachi で続きを見る案内を付ける。
+/// LINE 本文には上位 5 件を入れる（1 回で送れる上限）。
 class SavedDraftsScreen extends ConsumerWidget {
   const SavedDraftsScreen({super.key});
 
@@ -105,9 +106,9 @@ class _DraftCardState extends ConsumerState<_DraftCard> {
     }
   }
 
-  /// LINE 本文。上位 3 件まで、残りは Aimachi 誘導で省略。
+  /// LINE 本文。1 回で送れるのは上位 5 件まで。
   String _buildText(SavedShareDraft d) {
-    final top = d.candidates.take(3).toList();
+    final top = d.candidates.take(5).toList();
     final extra = d.candidates.length - top.length;
 
     final sb = StringBuffer();
@@ -140,18 +141,14 @@ class _DraftCardState extends ConsumerState<_DraftCard> {
       final meta = <String>[c.category, c.priceStr];
       if (c.rating > 0) meta.add('★${c.rating.toStringAsFixed(1)}');
       sb.writeln('  ${meta.join(' / ')}');
-      // Google の店舗詳細ページ（口コミ・写真・メニュー閲覧）に短縮URLで飛ばす
-      final queryBits = <String>[c.name];
-      if (d.stationName.isNotEmpty) queryBits.add(d.stationName);
-      final query = Uri.encodeComponent(queryBits.join(' '));
-      sb.writeln('  https://www.google.com/maps?q=$query');
+      // Hotpepper 由来なら固定長の公式ページURL、無ければ Google 検索にフォールバック。
+      sb.writeln('  ${ShareUtils.shortStoreUrl(c.hotpepperUrl, c.name, d.stationName)}');
     }
     sb.writeln('');
     if (extra > 0) {
-      sb.writeln('4件目以降を見るには Aimachi（無料）のダウンロードが必要です👇');
-    } else {
-      sb.writeln('Aimachi（無料）');
+      sb.writeln('1回で送れるのは5件までです');
     }
+    sb.writeln('あなたもAimachi（無料）で同じ条件のお店を探してみましょう👇');
     sb.write('https://apps.apple.com/jp/app/aimachi/id6761008332');
     return sb.toString();
   }

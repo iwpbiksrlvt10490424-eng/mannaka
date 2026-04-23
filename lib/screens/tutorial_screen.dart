@@ -42,13 +42,13 @@ class TutorialScreen extends ConsumerWidget {
       icon: Icons.chat_rounded,
       title: 'まとめてLINEで送る',
       body: '下部の「N件をLINEで送る」で一気に共有。\n'
-          '駅ごとにまとまった形式で、上位3件をLINE本文に入れます。',
+          '1回で送れるのは5件までです。',
       where: '検索結果画面の下部バー',
     ),
     _Section(
       icon: Icons.flash_on_rounded,
       title: '候補の一覧をワンタップでLINE',
-      body: '右上の「共有」で、表示中の候補駅の上位3件を\n'
+      body: '右上の「共有」で、候補の集合駅の一覧を\n'
           'まとめて LINE 送信用に準備します。',
       where: '検索結果画面 右上の緑ボタン',
     ),

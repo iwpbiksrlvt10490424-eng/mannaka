@@ -12,6 +12,24 @@ class ShareUtils {
   static const appStoreReviewUrl =
       'itms-apps://itunes.apple.com/app/id$appStoreId?action=write-review';
 
+  /// LINE 本文に入れる「お店ページへのリンク」を**なるべく短く**返す。
+  ///
+  /// 優先順:
+  /// 1. `hotpepperUrl`（約 40 文字固定、日本語エンコード不要）
+  /// 2. Google Maps 検索 URL（日本語エンコードで長くなる）
+  ///
+  /// Hotpepper 由来のお店は (1) が返る。Foursquare/Overpass フォールバック等で
+  /// hotpepperUrl が無い場合だけ (2) に落ちる。
+  static String shortStoreUrl(
+      String? hotpepperUrl, String name, String stationName) {
+    if (hotpepperUrl != null && hotpepperUrl.isNotEmpty) {
+      return hotpepperUrl;
+    }
+    final bits = <String>[name];
+    if (stationName.isNotEmpty) bits.add(stationName);
+    return 'https://maps.google.com/?q=${Uri.encodeComponent(bits.join(' '))}';
+  }
+
   /// メインのシェアテキスト（レストラン決定後）
   /// [includeBackup]: trueのとき代替案も含める
   static String buildRestaurantShareText(
@@ -172,17 +190,16 @@ class ShareUtils {
   /// ユーザーが選んだ候補（駅を跨いだ順序付きリスト）を LINE で共有するテキスト。
   ///
   /// 仕様:
-  /// - 駅に関係なく **選択順** の上位 3 件のみを本文に含める
+  /// - 駅に関係なく **選択順** の上位 5 件のみを本文に含める
   /// - 各店舗は「店名（駅エリア）」「ジャンル / 価格 / ★評価」「Google店舗ページURL」
-  /// - 4件目以降は本文に入らず、末尾で Aimachi DL を促す
+  /// - 1 回で送れる上限は 5 件。UI 側でも 6 件目以降は選択できないよう制御する
   static String buildLineTextForSelections(
     SearchState state,
     List<({String station, ScoredRestaurant scored})> selections,
   ) {
     if (selections.isEmpty) return '';
 
-    final top = selections.take(3).toList();
-    final extra = selections.length - top.length;
+    final top = selections.take(5).toList();
 
     final sb = StringBuffer();
     sb.writeln('Aimachiで探したお店の候補を共有します');
@@ -209,18 +226,14 @@ class ShareUtils {
       final meta = <String>[r.category, r.priceStr];
       if (r.rating > 0) meta.add('★${r.rating.toStringAsFixed(1)}');
       sb.writeln('  ${meta.join(' / ')}');
-      final queryBits = <String>[r.name];
-      if (r.stationName.isNotEmpty) queryBits.add(r.stationName);
-      final query = Uri.encodeComponent(queryBits.join(' '));
-      sb.writeln('  https://www.google.com/maps?q=$query');
+      sb.writeln('  ${shortStoreUrl(r.hotpepperUrl, r.name, r.stationName)}');
     }
 
     sb.writeln('');
-    if (extra > 0) {
-      sb.writeln('4件目以降を見るには Aimachi（無料）のダウンロードが必要です👇');
-    } else {
-      sb.writeln('Aimachi（無料）でお店を探せます👇');
-    }
+    // 「DLすれば4件目以降が見れる」は実装上できないので謳わない。
+    // 代わりに「あなたも同じ条件で検索できる」という価値訴求でDL誘導する。
+    sb.writeln('1回で送れるのは5件までです');
+    sb.writeln('あなたもAimachi（無料）で同じ条件のお店を探してみましょう👇');
     sb.write(appStoreUrl);
     return sb.toString();
   }

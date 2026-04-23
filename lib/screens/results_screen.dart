@@ -35,10 +35,25 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
   /// LINE 本文で駅ごとにグループ表示できるようにする。
   final Map<String, _SelectedEntry> _sharedSelected = {};
 
+  /// LINE で 1 回に送れる件数の上限。選択UIもこの件数で頭打ち。
+  static const int _kMaxSelect = 5;
+
   void _toggleSelection(ScoredRestaurant sr, String stationName) {
     final id = sr.restaurant.id;
+    final alreadySelected = _sharedSelected.containsKey(id);
+    if (!alreadySelected && _sharedSelected.length >= _kMaxSelect) {
+      HapticFeedback.lightImpact();
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(
+          content: Text('1回で送れるのは5件までです'),
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
+        ));
+      return;
+    }
     setState(() {
-      if (_sharedSelected.containsKey(id)) {
+      if (alreadySelected) {
         _sharedSelected.remove(id);
       } else {
         _sharedSelected[id] =

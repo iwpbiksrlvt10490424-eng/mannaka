@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/saved_group.dart';
 import '../models/scored_restaurant.dart';
+import '../providers/auth_provider.dart';
 import '../providers/group_provider.dart';
 import '../providers/search_provider.dart';
 import '../services/analytics_service.dart';
@@ -38,6 +39,9 @@ class _CandidateShareSheetState extends ConsumerState<CandidateShareSheet> {
   /// 失敗時は null を返し、LINE テキストにはリンクを付けない。
   Future<String?> _createPublicShareDoc(SearchState state) async {
     try {
+      // Firestore rules が `request.auth != null` を要求するため、
+      // 書き込み前に匿名認証を済ませておく（初回タップでも permission-denied を防ぐ）。
+      await ensureUid();
       final point = state.selectedMeetingPoint;
       if (point == null) return null;
       final data = {

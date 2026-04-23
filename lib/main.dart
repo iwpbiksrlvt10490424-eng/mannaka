@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:developer' as developer;
 
 import 'package:flutter/material.dart';
@@ -6,6 +7,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:app_links/app_links.dart';
 import 'firebase_options.dart';
 import 'app.dart';
+import 'providers/auth_provider.dart';
 import 'models/restaurant.dart';
 import 'screens/location_share_screen.dart';
 import 'screens/restaurant_detail_screen.dart';
@@ -29,6 +31,14 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    // バックグラウンドで匿名認証を先行実行しておく。
+    // 共有・保存の初回タップで permission-denied が出ないようにするため。
+    // 理由: Firestore rules が request.auth != null を要求しており、
+    // 通信準備が終わっていない瞬間に書き込みが走るとリンクなし本文になる不具合があった。
+    unawaited(ensureUid().catchError((e) {
+      developer.log('匿名認証の先行実行失敗: ${e.runtimeType}', name: 'main');
+      return '';
+    }));
   } catch (e) {
     developer.log(
       'Firebase初期化エラー: ${e.runtimeType}',

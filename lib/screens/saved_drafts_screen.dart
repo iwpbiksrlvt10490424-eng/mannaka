@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../models/saved_share_draft.dart';
+import '../providers/auth_provider.dart';
 import '../providers/saved_share_drafts_provider.dart';
 import '../services/analytics_service.dart';
 import '../theme/app_theme.dart';
@@ -84,6 +85,8 @@ class _DraftCardState extends ConsumerState<_DraftCard> {
 
   Future<String?> _createPublicShareDoc() async {
     try {
+      // Firestore rules（request.auth != null）を満たすため、書込前に匿名認証を確立
+      await ensureUid();
       final d = widget.draft;
       final data = {
         'createdAt': FieldValue.serverTimestamp(),

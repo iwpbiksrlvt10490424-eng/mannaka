@@ -30,17 +30,19 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
   TabController? _tab;
   int _tabCount = 0;
   bool _autoSaved = false; // セッション単位で1回だけ自動保存
-  /// 駅タブを跨いでも保持される選択済み候補の ID 集合。
-  /// レストランオブジェクトは tab 間で共有されないため、選択されたレストラン本体も保持する。
-  final Map<String, ScoredRestaurant> _sharedSelected = {};
+  /// 駅タブを跨いでも保持される選択済み候補。
+  /// レストラン ID → (scored, 選択時の集合駅名) のペアを保持し、
+  /// LINE 本文で駅ごとにグループ表示できるようにする。
+  final Map<String, _SelectedEntry> _sharedSelected = {};
 
-  void _toggleSelection(ScoredRestaurant sr) {
+  void _toggleSelection(ScoredRestaurant sr, String stationName) {
     final id = sr.restaurant.id;
     setState(() {
       if (_sharedSelected.containsKey(id)) {
         _sharedSelected.remove(id);
       } else {
-        _sharedSelected[id] = sr;
+        _sharedSelected[id] =
+            _SelectedEntry(scored: sr, stationName: stationName);
       }
     });
   }
@@ -175,31 +177,9 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
                   HapticFeedback.mediumImpact();
                   ShareUtils.shareToLine(state);
                 },
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF06C755),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: const [
-                      LineIcon(
-                          size: 16,
-                          filled: false,
-                          iconColor: Colors.white),
-                      SizedBox(width: 4),
-                      Text(
-                        '共有',
-                        style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                            height: 1.0),
-                      ),
-                    ],
-                  ),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 4),
+                  child: LineIcon(size: 36, filled: true),
                 ),
               ),
             ),
@@ -311,7 +291,8 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
                             state: state,
                             notifier: notifier,
                             selectedIds: _sharedSelected.keys.toSet(),
-                            onToggleSelect: _toggleSelection,
+                            onToggleSelect: (sr) =>
+                                _toggleSelection(sr, point.stationName),
                             onFirstDetailOpen: (restaurant) {
                               if (!_autoSaved) {
                                 _autoSaved = true;
@@ -346,8 +327,12 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
               onClear: _clearSelection,
               onShare: () {
                 HapticFeedback.mediumImpact();
-                showCandidateShareSheet(context,
-                    candidates: _sharedSelected.values.toList());
+                // エリアごとに束ねて LINE 本文に並べるため Map で渡す。
+                final grouped = <String, List<ScoredRestaurant>>{};
+                for (final e in _sharedSelected.values) {
+                  grouped.putIfAbsent(e.stationName, () => []).add(e.scored);
+                }
+                showCandidateShareSheet(context, groupedCandidates: grouped);
               },
               onSave: () async {
                 HapticFeedback.selectionClick();
@@ -365,8 +350,8 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
                       ? ''
                       : '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}',
                   participantTimes: Map.from(point.participantTimes),
-                  candidates: _sharedSelected.values.map((sr) {
-                    final r = sr.restaurant;
+                  candidates: _sharedSelected.values.map((e) {
+                    final r = e.scored.restaurant;
                     return SavedShareCandidate(
                       name: r.name,
                       category: r.category,
@@ -414,6 +399,14 @@ class _SelectionShareBar extends StatefulWidget {
 
   @override
   State<_SelectionShareBar> createState() => _SelectionShareBarState();
+}
+
+/// 駅タブを跨いで保持する選択のエントリ。どの駅タブから選ばれたかを記録し、
+/// LINE 本文では駅ごとにまとめて表示する。
+class _SelectedEntry {
+  const _SelectedEntry({required this.scored, required this.stationName});
+  final ScoredRestaurant scored;
+  final String stationName;
 }
 
 class _SelectionShareBarState extends State<_SelectionShareBar> {

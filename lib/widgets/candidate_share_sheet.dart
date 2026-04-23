@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../models/saved_group.dart';
 import '../models/scored_restaurant.dart';
-import '../providers/group_provider.dart';
 import '../providers/search_provider.dart';
 import '../services/analytics_service.dart';
 import '../theme/app_theme.dart';
@@ -12,17 +10,20 @@ import '../utils/share_utils.dart';
 import 'line_icon.dart';
 
 /// 選択した候補お店を LINE でシェアするためのボトムシート。
-/// - グループを任意で選択（記録用）
-/// - LINE 本文には上位 3 件を順序付きで含める
-/// - 4 件以上あるときは「続きは Aimachi で」アプリ誘導を末尾に付ける
-/// - Web 共有ページは廃止（相手はアプリで見る前提）
+///
+/// 設計方針:
+/// - LINE 本文は **冒頭「Aimachiで検索したお店を共有します」** → 日時 → 参加者
+///   → 駅ごとの候補（各駅 最大3件、番号付き）→ Aimachi 誘導 の構成。
+/// - ユーザーが複数エリアで候補を選んだ場合、駅ごとに束ねて表示する。
+/// - グループ選択 UI は要望により撤去（記録用途が不明確なため）。
 class CandidateShareSheet extends ConsumerStatefulWidget {
   const CandidateShareSheet({
     super.key,
-    required this.candidates,
+    required this.groupedCandidates,
   });
 
-  final List<ScoredRestaurant> candidates;
+  /// 駅名 → その駅で選ばれた候補の順序付きリスト。
+  final Map<String, List<ScoredRestaurant>> groupedCandidates;
 
   @override
   ConsumerState<CandidateShareSheet> createState() =>
@@ -30,15 +31,10 @@ class CandidateShareSheet extends ConsumerStatefulWidget {
 }
 
 class _CandidateShareSheetState extends ConsumerState<CandidateShareSheet> {
-  final Set<String> _selectedGroupIds = {};
   bool _sharing = false;
 
-  List<String> _groupNamesFromSelection(List<SavedGroup> all) {
-    return all
-        .where((g) => _selectedGroupIds.contains(g.id))
-        .map((g) => g.name)
-        .toList();
-  }
+  int get _totalCount =>
+      widget.groupedCandidates.values.fold(0, (a, b) => a + b.length);
 
   Future<void> _share() async {
     if (_sharing) return;
@@ -46,19 +42,22 @@ class _CandidateShareSheetState extends ConsumerState<CandidateShareSheet> {
     setState(() => _sharing = true);
     final state = ref.read(searchProvider);
     try {
-      final categories = widget.candidates
+      final categories = widget.groupedCandidates.values
+          .expand((l) => l)
           .map((sr) => sr.restaurant.category)
           .toSet()
           .toList();
-      final groups = _groupNamesFromSelection(ref.read(groupProvider));
       await AnalyticsService.logLineShareInitiated(
-        candidateCount: widget.candidates.length,
+        candidateCount: _totalCount,
         categories: categories,
         hasWebUrl: false,
-        groupNames: groups,
+        groupNames: const [],
       );
 
-      await ShareUtils.shareCandidatesToLine(state, widget.candidates);
+      await ShareUtils.shareGroupedCandidatesToLine(
+        state,
+        widget.groupedCandidates,
+      );
       if (!mounted) return;
       Navigator.of(context).pop();
     } catch (_) {
@@ -76,10 +75,7 @@ class _CandidateShareSheetState extends ConsumerState<CandidateShareSheet> {
   @override
   Widget build(BuildContext context) {
     final viewInsets = MediaQuery.of(context).viewInsets;
-    final groups = ref.watch(groupProvider);
-
-    final visibleCount = widget.candidates.length > 3 ? 3 : widget.candidates.length;
-    final extra = widget.candidates.length - visibleCount;
+    final areaCount = widget.groupedCandidates.length;
 
     return Padding(
       padding: EdgeInsets.fromLTRB(20, 12, 20, viewInsets.bottom + 20),
@@ -107,92 +103,71 @@ class _CandidateShareSheetState extends ConsumerState<CandidateShareSheet> {
                 color: AppColors.textPrimary,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             Text(
-              extra > 0
-                  ? '上位 $visibleCount 件を順番に送ります。\n残り $extra 件は Aimachi で見られます（アプリ誘導を文末に自動付与）。'
-                  : '$visibleCount 件を送ります。',
+              areaCount > 1
+                  ? '$areaCount エリア・$_totalCount 件を、駅ごとに順番にまとめて送ります。各エリア 上位 3 件まで本文に入り、それ以降は Aimachi へ誘導します。'
+                  : '$_totalCount 件を順番に送ります。上位 3 件は本文に、それ以降は Aimachi へ誘導します。',
               style: const TextStyle(
-                fontSize: 12,
+                fontSize: 12.5,
                 color: AppColors.textSecondary,
-                height: 1.6,
+                height: 1.7,
               ),
             ),
-            const SizedBox(height: 18),
-            if (groups.isEmpty)
-              Container(
+            const SizedBox(height: 16),
+            // 駅ごとのプレビュー
+            ...widget.groupedCandidates.entries.map((e) {
+              final top = e.value.take(3).toList();
+              final extra = e.value.length - top.length;
+              return Container(
+                margin: const EdgeInsets.only(bottom: 10),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: AppColors.background,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Text(
-                  'グループは未登録です（このまま共有できます）',
-                  style: TextStyle(
-                      fontSize: 12, color: AppColors.textSecondary),
-                ),
-              )
-            else ...[
-              const Text('どのグループに送りますか（任意）',
-                  style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textSecondary)),
-              const SizedBox(height: 6),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: groups.map((g) {
-                  final selected = _selectedGroupIds.contains(g.id);
-                  return GestureDetector(
-                    onTap: () => setState(() {
-                      if (selected) {
-                        _selectedGroupIds.remove(g.id);
-                      } else {
-                        _selectedGroupIds.add(g.id);
-                      }
-                    }),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: selected
-                            ? AppColors.primary
-                            : AppColors.background,
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(
-                          color: selected
-                              ? AppColors.primary
-                              : AppColors.divider,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.place,
+                            size: 14, color: AppColors.primary),
+                        const SizedBox(width: 4),
+                        Text('${e.key}駅周辺',
+                            style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.textPrimary)),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    for (var i = 0; i < top.length; i++)
+                      Text(
+                        '${i + 1}. ${top[i].restaurant.name}',
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          color: AppColors.textSecondary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    if (extra > 0)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          '…ほか$extra件は Aimachi で',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textTertiary,
+                          ),
                         ),
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (selected) ...[
-                            const Icon(Icons.check,
-                                size: 14, color: Colors.white),
-                            const SizedBox(width: 4),
-                          ],
-                          Text(
-                            g.name,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: selected
-                                  ? Colors.white
-                                  : AppColors.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-            ],
-            const SizedBox(height: 20),
+                  ],
+                ),
+              );
+            }),
+            const SizedBox(height: 8),
             SizedBox(
               height: 52,
               child: ElevatedButton.icon(
@@ -229,7 +204,7 @@ class _CandidateShareSheetState extends ConsumerState<CandidateShareSheet> {
 
 void showCandidateShareSheet(
   BuildContext context, {
-  required List<ScoredRestaurant> candidates,
+  required Map<String, List<ScoredRestaurant>> groupedCandidates,
 }) {
   showModalBottomSheet(
     context: context,
@@ -238,6 +213,7 @@ void showCandidateShareSheet(
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
-    builder: (_) => CandidateShareSheet(candidates: candidates),
+    builder: (_) =>
+        CandidateShareSheet(groupedCandidates: groupedCandidates),
   );
 }

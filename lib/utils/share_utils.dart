@@ -169,25 +169,39 @@ class ShareUtils {
     }
   }
 
-  /// 複数候補を選んで LINE でシェアするためのテキスト組み立て
-  /// - 集合駅・予約時刻・参加者移動時間を上部に
-  /// - 候補は**上位3件まで**を順番に表示（4件以上あるときは「続きは Aimachi で」案内）
-  /// - Web 共有ページは廃止：相手はアプリで見る前提
-  static String buildLineTextForCandidates(
+  /// 複数のエリア（駅）で選んだ候補を LINE でまとめて共有するためのテキスト。
+  ///
+  /// 構成:
+  /// ```
+  /// Aimachiで検索したお店を共有します
+  ///
+  /// 🗓 4/24 19:30
+  /// ⏱ あや 12分 / ゆう 8分
+  ///
+  /// 📍 渋谷駅周辺
+  /// 1. お店A（カフェ / ¥1500〜 / ★4.2）
+  ///   Google Maps
+  /// 2. ...
+  ///
+  /// 📍 新宿駅周辺
+  /// 1. ...
+  ///
+  /// 続きは Aimachi（無料）で見れます👇
+  /// <App Store URL>
+  /// ```
+  ///
+  /// 各エリアは上位 3 件まで本文に入り、残りは末尾の Aimachi 誘導で補う。
+  static String buildLineTextForGroupedCandidates(
     SearchState state,
-    List<ScoredRestaurant> candidates,
+    Map<String, List<ScoredRestaurant>> grouped,
   ) {
-    final point = state.selectedMeetingPoint;
-    if (point == null || candidates.isEmpty) return '';
-
-    // 3 件でキャップ。スコア順の上位が来ている前提。
-    final top = candidates.take(3).toList();
-    final extra = candidates.length - top.length;
+    if (grouped.isEmpty) return '';
 
     final sb = StringBuffer();
-    sb.writeln('🍽 お店の候補を共有します');
+    sb.writeln('Aimachiで検索したお店を共有します');
     sb.writeln('');
-    sb.writeln('📍 ${point.stationName}駅周辺');
+
+    // 日時（エリアに依存しない共通情報を先頭に）
     final date = state.selectedDate;
     final time = state.selectedMeetingTime;
     if (date != null || time != null) {
@@ -199,41 +213,60 @@ class ShareUtils {
       }
       sb.writeln('🗓 ${parts.join(' ')}');
     }
-    final participantLines = point.participantTimes.entries
-        .map((e) => '${e.key} ${e.value}分')
-        .join(' / ');
-    if (participantLines.isNotEmpty) {
-      sb.writeln('⏱ $participantLines');
-    }
-    sb.writeln('');
-    sb.writeln('候補のお店（${candidates.length}件）');
-    for (var i = 0; i < top.length; i++) {
-      final r = top[i].restaurant;
-      sb.writeln('');
-      sb.writeln('${i + 1}. ${r.name}');
-      final meta = <String>[r.category, r.priceStr];
-      if (r.rating > 0) meta.add('★${r.rating.toStringAsFixed(1)}');
-      sb.writeln('  ${meta.join(' / ')}');
-      if (r.lat != null && r.lng != null) {
-        sb.writeln('  https://maps.google.com/maps?q=${r.lat},${r.lng}');
+
+    // 参加者の移動時間は「現在選択中の集合駅」を代表として出す
+    final currentPoint = state.selectedMeetingPoint;
+    if (currentPoint != null) {
+      final participantLines = currentPoint.participantTimes.entries
+          .map((e) => '${e.key} ${e.value}分')
+          .join(' / ');
+      if (participantLines.isNotEmpty) {
+        sb.writeln('⏱ $participantLines');
       }
     }
+
+    var totalExtra = 0;
+    for (final entry in grouped.entries) {
+      final station = entry.key;
+      final list = entry.value;
+      if (list.isEmpty) continue;
+      final top = list.take(3).toList();
+      final extra = list.length - top.length;
+      totalExtra += extra;
+
+      sb.writeln('');
+      sb.writeln('📍 $station駅周辺');
+      for (var i = 0; i < top.length; i++) {
+        final r = top[i].restaurant;
+        sb.writeln('${i + 1}. ${r.name}');
+        final meta = <String>[r.category, r.priceStr];
+        if (r.rating > 0) meta.add('★${r.rating.toStringAsFixed(1)}');
+        sb.writeln('  ${meta.join(' / ')}');
+        if (r.lat != null && r.lng != null) {
+          sb.writeln('  https://maps.google.com/maps?q=${r.lat},${r.lng}');
+        }
+      }
+      if (extra > 0) {
+        sb.writeln('  …ほか$extra件');
+      }
+    }
+
     sb.writeln('');
-    if (extra > 0) {
-      sb.writeln('続きの$extra件は Aimachi（無料）で見れます👇');
+    if (totalExtra > 0) {
+      sb.writeln('続きは Aimachi（無料）で見れます👇');
     } else {
-      sb.writeln('Aimachi（無料）');
+      sb.writeln('Aimachi（無料）でお店を探せます👇');
     }
     sb.write(appStoreUrl);
     return sb.toString();
   }
 
-  /// 候補を LINE で共有する。
-  static Future<void> shareCandidatesToLine(
+  /// エリアごとにまとめた候補を LINE で共有する。
+  static Future<void> shareGroupedCandidatesToLine(
     SearchState state,
-    List<ScoredRestaurant> candidates,
+    Map<String, List<ScoredRestaurant>> grouped,
   ) async {
-    final text = buildLineTextForCandidates(state, candidates);
+    final text = buildLineTextForGroupedCandidates(state, grouped);
     if (text.isEmpty) return;
     final encoded = Uri.encodeComponent(text);
     final lineUrl = Uri.parse('https://line.me/R/share?text=$encoded');

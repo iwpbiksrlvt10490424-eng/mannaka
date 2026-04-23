@@ -624,7 +624,8 @@ class _ParticipantRowState extends State<_ParticipantRow> {
     // LINEで送る時にいきなり「出発エリアを教えて」だと何のアプリか分からず
     // 警戒されるため、まんなか の説明とアプリ導線も添える。
     // 相手の名前は LINE のトーク画面で既に分かっているので入れない。
-    final shareText = '【Aimachi】$hostNameさんがみんなに合うお店を探しています🍽\n'
+    final shareText = '【Aimachi】\n'
+        '$hostNameさんがみんなに合うお店を探しています🍽\n'
         '出発エリアを教えてもらえると、ちょうど良い集合場所を提案できます。\n\n'
         '▼ タップしてエリアを送信\n'
         'mannaka://location?session=$sessionId\n\n'
@@ -709,27 +710,50 @@ class _ParticipantRowState extends State<_ParticipantRow> {
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           child: Row(
             children: [
-              // 名前入力
-              SizedBox(
-                width: 88,
-                child: TextField(
-                  controller: _ctrl,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w500,
-                    fontSize: 15,
-                    color: AppColors.textPrimary,
-                  ),
-                  decoration: const InputDecoration(
-                    isDense: true,
-                    contentPadding: EdgeInsets.zero,
-                    border: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                    hintText: '例: あや',
-                    hintStyle: TextStyle(
-                        color: AppColors.textTertiary, fontSize: 15),
-                  ),
-                  onChanged: widget.onNameChanged,
+              // 名前入力: 駅チップと視覚的に同格の「入力可能な器」として見せる。
+              // 背景色・角丸・左アイコンで「押せる欄」と分かる。
+              Container(
+                width: 128,
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.divider, width: 1),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.person_outline_rounded,
+                        size: 16, color: Colors.grey.shade500),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: TextField(
+                        controller: _ctrl,
+                        maxLength: 12, // 表示とUXの均衡（従来の88pxでは4-5文字で見切れていた）
+                        textInputAction: TextInputAction.done,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          color: AppColors.textPrimary,
+                        ),
+                        decoration: const InputDecoration(
+                          isDense: true,
+                          contentPadding: EdgeInsets.zero,
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          hintText: 'お名前',
+                          hintStyle: TextStyle(
+                              color: AppColors.textTertiary,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500),
+                          // 文字数カウンター非表示（maxLength 指定時のデフォルト抑止）
+                          counterText: '',
+                        ),
+                        onChanged: widget.onNameChanged,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               // 駅エリア

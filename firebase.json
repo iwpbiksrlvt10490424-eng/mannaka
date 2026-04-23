@@ -2,28 +2,6 @@
   "firestore": {
     "rules": "firestore.rules"
   },
-  "hosting": {
-    "public": "web_public",
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "**/node_modules/**"
-    ],
-    "rewrites": [
-      {
-        "source": "/s/**",
-        "destination": "/index.html"
-      }
-    ],
-    "headers": [
-      {
-        "source": "/s/**",
-        "headers": [
-          {"key": "Cache-Control", "value": "public, max-age=60"}
-        ]
-      }
-    ]
-  },
   "flutter": {
     "platforms": {
       "ios": {

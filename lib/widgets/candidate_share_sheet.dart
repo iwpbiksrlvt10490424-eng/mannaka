@@ -1,11 +1,9 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/saved_group.dart';
 import '../models/scored_restaurant.dart';
-import '../providers/auth_provider.dart';
 import '../providers/group_provider.dart';
 import '../providers/search_provider.dart';
 import '../services/analytics_service.dart';
@@ -13,11 +11,11 @@ import '../theme/app_theme.dart';
 import '../utils/share_utils.dart';
 import 'line_icon.dart';
 
-/// 選択した候補お店をLINEでシェアするためのボトムシート。
+/// 選択した候補お店を LINE でシェアするためのボトムシート。
 /// - グループを任意で選択（記録用）
-/// - Firestore /public_shares/{shareId} に候補を保存し、
-///   Web 共有URLを組み立てて LINE 本文に載せる（アプリ未インストール者も閲覧可）
-/// - 共有開始を Firebase Analytics に記録
+/// - LINE 本文には上位 3 件を順序付きで含める
+/// - 4 件以上あるときは「続きは Aimachi で」アプリ誘導を末尾に付ける
+/// - Web 共有ページは廃止（相手はアプリで見る前提）
 class CandidateShareSheet extends ConsumerStatefulWidget {
   const CandidateShareSheet({
     super.key,
@@ -35,53 +33,6 @@ class _CandidateShareSheetState extends ConsumerState<CandidateShareSheet> {
   final Set<String> _selectedGroupIds = {};
   bool _sharing = false;
 
-  /// Firestore に候補を保存し、Web 共有用の URL を返す。
-  /// 失敗時は null を返し、LINE テキストにはリンクを付けない。
-  Future<String?> _createPublicShareDoc(SearchState state) async {
-    try {
-      // Firestore rules が `request.auth != null` を要求するため、
-      // 書き込み前に匿名認証を済ませておく（初回タップでも permission-denied を防ぐ）。
-      await ensureUid();
-      final point = state.selectedMeetingPoint;
-      if (point == null) return null;
-      final data = {
-        'createdAt': FieldValue.serverTimestamp(),
-        'stationName': point.stationName,
-        'date': state.selectedDate?.toIso8601String(),
-        'meetingTime': state.selectedMeetingTime == null
-            ? null
-            : '${state.selectedMeetingTime!.hour.toString().padLeft(2, '0')}:'
-                '${state.selectedMeetingTime!.minute.toString().padLeft(2, '0')}',
-        'participantTimes': point.participantTimes,
-        'candidates': widget.candidates.map((sr) {
-          final r = sr.restaurant;
-          return {
-            'name': r.name,
-            'category': r.category,
-            'priceStr': r.priceStr,
-            'rating': r.rating,
-            'address': r.address,
-            'lat': r.lat,
-            'lng': r.lng,
-            'imageUrl': r.imageUrl,
-            'hotpepperUrl': r.hotpepperUrl,
-            'isReservable': r.isReservable,
-          };
-        }).toList(),
-        'groupNames': _groupNamesFromSelection(ref.read(groupProvider)),
-      };
-      final doc = await FirebaseFirestore.instance
-          .collection('public_shares')
-          .add(data);
-      // Firebase Hosting にデプロイされた静的ページが /s/<id> で閲覧可能。
-      // デプロイ前でも文字列としては生成でき、デプロイ後にリンクが有効になる。
-      // Firebase プロジェクト 'mannnaka' にデプロイされた Hosting URL
-      return 'https://mannnaka.web.app/s/${doc.id}';
-    } catch (e) {
-      return null;
-    }
-  }
-
   List<String> _groupNamesFromSelection(List<SavedGroup> all) {
     return all
         .where((g) => _selectedGroupIds.contains(g.id))
@@ -90,14 +41,11 @@ class _CandidateShareSheetState extends ConsumerState<CandidateShareSheet> {
   }
 
   Future<void> _share() async {
+    if (_sharing) return;
     HapticFeedback.mediumImpact();
     setState(() => _sharing = true);
     final state = ref.read(searchProvider);
     try {
-      // Firestore に保存 → Web URL を取得
-      final shareUrl = await _createPublicShareDoc(state);
-
-      // Analytics: 共有開始イベント
       final categories = widget.candidates
           .map((sr) => sr.restaurant.category)
           .toSet()
@@ -106,16 +54,11 @@ class _CandidateShareSheetState extends ConsumerState<CandidateShareSheet> {
       await AnalyticsService.logLineShareInitiated(
         candidateCount: widget.candidates.length,
         categories: categories,
-        hasWebUrl: shareUrl != null,
+        hasWebUrl: false,
         groupNames: groups,
       );
 
-      // LINE 起動
-      await ShareUtils.shareCandidatesToLine(
-        state,
-        widget.candidates,
-        shareUrl: shareUrl,
-      );
+      await ShareUtils.shareCandidatesToLine(state, widget.candidates);
       if (!mounted) return;
       Navigator.of(context).pop();
     } catch (_) {
@@ -135,6 +78,9 @@ class _CandidateShareSheetState extends ConsumerState<CandidateShareSheet> {
     final viewInsets = MediaQuery.of(context).viewInsets;
     final groups = ref.watch(groupProvider);
 
+    final visibleCount = widget.candidates.length > 3 ? 3 : widget.candidates.length;
+    final extra = widget.candidates.length - visibleCount;
+
     return Padding(
       padding: EdgeInsets.fromLTRB(20, 12, 20, viewInsets.bottom + 20),
       child: SingleChildScrollView(
@@ -153,9 +99,9 @@ class _CandidateShareSheetState extends ConsumerState<CandidateShareSheet> {
               ),
             ),
             const SizedBox(height: 14),
-            Text(
+            const Text(
               'LINEで候補をシェア',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
                 color: AppColors.textPrimary,
@@ -163,7 +109,9 @@ class _CandidateShareSheetState extends ConsumerState<CandidateShareSheet> {
             ),
             const SizedBox(height: 4),
             Text(
-              '${widget.candidates.length}件の候補を送ります。アプリ未インストールの相手にも Webページで共有できます。',
+              extra > 0
+                  ? '上位 $visibleCount 件を順番に送ります。\n残り $extra 件は Aimachi で見られます（アプリ誘導を文末に自動付与）。'
+                  : '$visibleCount 件を送ります。',
               style: const TextStyle(
                 fontSize: 12,
                 color: AppColors.textSecondary,

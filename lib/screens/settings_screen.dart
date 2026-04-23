@@ -14,7 +14,6 @@ import '../providers/profile_provider.dart';
 import '../providers/nav_provider.dart';
 import '../providers/search_provider.dart';
 import '../data/station_data.dart';
-import '../services/analytics_service.dart';
 import '../services/geocoding_service.dart';
 import '../services/location_service.dart';
 import '../widgets/line_icon.dart';
@@ -42,19 +41,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   late final TextEditingController _nameCtrl;
   final _picker = ImagePicker();
   bool _isNavigating = false;
-  bool _analyticsOptIn = true;
 
   @override
   void initState() {
     super.initState();
     _nameCtrl = TextEditingController();
     _loadPrefs();
-    _loadAnalyticsOptIn();
-  }
-
-  Future<void> _loadAnalyticsOptIn() async {
-    final value = await AnalyticsService.isOptedIn();
-    if (mounted) setState(() => _analyticsOptIn = value);
   }
 
   Future<void> _loadPrefs() async {
@@ -548,25 +540,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         await Geolocator.openAppSettings();
                       },
                     ),
-                    AnalyticsOptInTile(
-                      value: _analyticsOptIn,
-                      onChanged: (v) async {
-                        HapticFeedback.lightImpact();
-                        await AnalyticsService.setOptIn(v);
-                        if (mounted) setState(() => _analyticsOptIn = v);
-                      },
-                    ),
-                    _NavItem(
-                      icon: Icons.bookmark_rounded,
-                      label: '保存した候補',
-                      subtitle: 'あとで LINE に送る下書きをまとめて管理',
-                      color: AppColors.primary,
-                      onTap: () {
-                        Navigator.of(context).push(MaterialPageRoute(
-                          builder: (_) => const SavedDraftsScreen(),
-                        ));
-                      },
-                    ),
                     _NavItem(
                       icon: Icons.help_outline_rounded,
                       label: '使い方',
@@ -587,6 +560,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 _SectionLabel('友だちに教える'),
                 _SettingsGroup(
                   children: [
+                    _NavItem(
+                      icon: Icons.bookmark_rounded,
+                      label: '保存した候補',
+                      subtitle: 'あとで LINE に送る下書きをまとめて管理',
+                      color: AppColors.primary,
+                      onTap: () {
+                        Navigator.of(context).push(MaterialPageRoute(
+                          builder: (_) => const SavedDraftsScreen(),
+                        ));
+                      },
+                    ),
                     _NavItem(
                       leading: const LineIcon(size: 28, filled: true),
                       label: 'LINEで紹介する',

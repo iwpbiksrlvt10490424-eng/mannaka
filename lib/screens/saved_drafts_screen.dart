@@ -1,18 +1,16 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../models/saved_share_draft.dart';
-import '../providers/auth_provider.dart';
 import '../providers/saved_share_drafts_provider.dart';
 import '../services/analytics_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/line_icon.dart';
 
 /// 保存された LINE 共有の下書き一覧。あとで送りたいユーザー向け。
-/// 各下書きは Firestore /public_shares に登録してから LINE 起動する。
+/// LINE 本文には上位 3 件を入れ、4 件以上あれば Aimachi で続きを見る案内を付ける。
 class SavedDraftsScreen extends ConsumerWidget {
   const SavedDraftsScreen({super.key});
 
@@ -83,42 +81,20 @@ class _DraftCard extends ConsumerStatefulWidget {
 class _DraftCardState extends ConsumerState<_DraftCard> {
   bool _sending = false;
 
-  Future<String?> _createPublicShareDoc() async {
-    try {
-      // Firestore rules（request.auth != null）を満たすため、書込前に匿名認証を確立
-      await ensureUid();
-      final d = widget.draft;
-      final data = {
-        'createdAt': FieldValue.serverTimestamp(),
-        'stationName': d.stationName,
-        'date': d.date.isEmpty ? null : d.date,
-        'meetingTime': d.meetingTime.isEmpty ? null : d.meetingTime,
-        'participantTimes': d.participantTimes,
-        'candidates': d.candidates.map((c) => c.toJson()).toList(),
-      };
-      final doc = await FirebaseFirestore.instance
-          .collection('public_shares')
-          .add(data);
-      return 'https://mannnaka.web.app/s/${doc.id}';
-    } catch (_) {
-      return null;
-    }
-  }
-
   Future<void> _send() async {
+    if (_sending) return;
     HapticFeedback.mediumImpact();
     if (!mounted) return;
     setState(() => _sending = true);
     try {
       final d = widget.draft;
-      final shareUrl = await _createPublicShareDoc();
       await AnalyticsService.logLineShareInitiated(
         candidateCount: d.candidates.length,
         categories: d.candidates.map((c) => c.category).toSet().toList(),
-        hasWebUrl: shareUrl != null,
+        hasWebUrl: false,
         groupNames: const [],
       );
-      final text = _buildText(d, shareUrl);
+      final text = _buildText(d);
       final encoded = Uri.encodeComponent(text);
       final uri = Uri.parse('https://line.me/R/share?text=$encoded');
       if (await canLaunchUrl(uri)) {
@@ -129,7 +105,11 @@ class _DraftCardState extends ConsumerState<_DraftCard> {
     }
   }
 
-  String _buildText(SavedShareDraft d, String? shareUrl) {
+  /// LINE 本文。上位 3 件まで、残りは Aimachi 誘導で省略。
+  String _buildText(SavedShareDraft d) {
+    final top = d.candidates.take(3).toList();
+    final extra = d.candidates.length - top.length;
+
     final sb = StringBuffer();
     sb.writeln('🍽 お店の候補を共有します');
     sb.writeln('');
@@ -153,9 +133,10 @@ class _DraftCardState extends ConsumerState<_DraftCard> {
     }
     sb.writeln('');
     sb.writeln('候補のお店（${d.candidates.length}件）');
-    for (final c in d.candidates) {
+    for (var i = 0; i < top.length; i++) {
+      final c = top[i];
       sb.writeln('');
-      sb.writeln('・${c.name}');
+      sb.writeln('${i + 1}. ${c.name}');
       final meta = <String>[c.category, c.priceStr];
       if (c.rating > 0) meta.add('★${c.rating.toStringAsFixed(1)}');
       sb.writeln('  ${meta.join(' / ')}');
@@ -164,12 +145,11 @@ class _DraftCardState extends ConsumerState<_DraftCard> {
       }
     }
     sb.writeln('');
-    if (shareUrl != null) {
-      sb.writeln('🌐 Webで見る（アプリ不要）');
-      sb.writeln(shareUrl);
-      sb.writeln('');
+    if (extra > 0) {
+      sb.writeln('続きの$extra件は Aimachi（無料）で見れます👇');
+    } else {
+      sb.writeln('Aimachi（無料）');
     }
-    sb.writeln('Aimachi（無料）');
     sb.write('https://apps.apple.com/jp/app/aimachi/id6761008332');
     return sb.toString();
   }

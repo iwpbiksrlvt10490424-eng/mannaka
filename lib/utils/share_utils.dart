@@ -170,16 +170,19 @@ class ShareUtils {
   }
 
   /// 複数候補を選んで LINE でシェアするためのテキスト組み立て
-  /// - 集合駅・集合時刻・参加者移動時間を上部に
-  /// - 各候補は箇条書き（名前・ジャンル・価格・評価・Googleマップ）
-  /// - shareUrl が渡された場合は末尾に追加（Web 共有ページへのリンク）
+  /// - 集合駅・予約時刻・参加者移動時間を上部に
+  /// - 候補は**上位3件まで**を順番に表示（4件以上あるときは「続きは Aimachi で」案内）
+  /// - Web 共有ページは廃止：相手はアプリで見る前提
   static String buildLineTextForCandidates(
     SearchState state,
-    List<ScoredRestaurant> candidates, {
-    String? shareUrl,
-  }) {
+    List<ScoredRestaurant> candidates,
+  ) {
     final point = state.selectedMeetingPoint;
     if (point == null || candidates.isEmpty) return '';
+
+    // 3 件でキャップ。スコア順の上位が来ている前提。
+    final top = candidates.take(3).toList();
+    final extra = candidates.length - top.length;
 
     final sb = StringBuffer();
     sb.writeln('🍽 お店の候補を共有します');
@@ -204,10 +207,10 @@ class ShareUtils {
     }
     sb.writeln('');
     sb.writeln('候補のお店（${candidates.length}件）');
-    for (final sr in candidates) {
-      final r = sr.restaurant;
+    for (var i = 0; i < top.length; i++) {
+      final r = top[i].restaurant;
       sb.writeln('');
-      sb.writeln('・${r.name}');
+      sb.writeln('${i + 1}. ${r.name}');
       final meta = <String>[r.category, r.priceStr];
       if (r.rating > 0) meta.add('★${r.rating.toStringAsFixed(1)}');
       sb.writeln('  ${meta.join(' / ')}');
@@ -216,25 +219,21 @@ class ShareUtils {
       }
     }
     sb.writeln('');
-    if (shareUrl != null && shareUrl.isNotEmpty) {
-      sb.writeln('🌐 Webで見る（アプリ不要）');
-      sb.writeln(shareUrl);
-      sb.writeln('');
+    if (extra > 0) {
+      sb.writeln('続きの$extra件は Aimachi（無料）で見れます👇');
+    } else {
+      sb.writeln('Aimachi（無料）');
     }
-    sb.writeln('Aimachi（無料）');
     sb.write(appStoreUrl);
     return sb.toString();
   }
 
   /// 候補を LINE で共有する。
-  /// shareUrl はオプションで、Web 共有ページが生成できた場合に付加する。
   static Future<void> shareCandidatesToLine(
     SearchState state,
-    List<ScoredRestaurant> candidates, {
-    String? shareUrl,
-  }) async {
-    final text =
-        buildLineTextForCandidates(state, candidates, shareUrl: shareUrl);
+    List<ScoredRestaurant> candidates,
+  ) async {
+    final text = buildLineTextForCandidates(state, candidates);
     if (text.isEmpty) return;
     final encoded = Uri.encodeComponent(text);
     final lineUrl = Uri.parse('https://line.me/R/share?text=$encoded');

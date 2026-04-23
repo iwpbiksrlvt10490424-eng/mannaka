@@ -11,7 +11,6 @@ import 'package:mannaka/utils/share_utils.dart';
 import 'package:mannaka/providers/search_provider.dart';
 import 'package:mannaka/models/restaurant.dart';
 import 'package:mannaka/models/scored_restaurant.dart';
-import 'package:mannaka/models/meeting_point.dart';
 
 // ── テスト用ヘルパー ────────────────────────────────────────────────────
 
@@ -49,36 +48,6 @@ ScoredRestaurant _scored(Restaurant r, {double score = 0.8}) {
     fairnessScore: 0.8,
   );
 }
-
-const _meetingPointMulti = MeetingPoint(
-  stationIndex: 0,
-  stationName: '渋谷',
-  stationEmoji: '🚉',
-  lat: 35.6580,
-  lng: 139.7016,
-  totalMinutes: 20,
-  maxMinutes: 12,
-  minMinutes: 8,
-  averageMinutes: 10.0,
-  fairnessScore: 0.9,
-  overallScore: 0.85,
-  participantTimes: {'Aさん': 8, 'Bさん': 12},
-);
-
-const _meetingPointSingle = MeetingPoint(
-  stationIndex: 0,
-  stationName: '新宿',
-  stationEmoji: '🚉',
-  lat: 35.6896,
-  lng: 139.7006,
-  totalMinutes: 10,
-  maxMinutes: 10,
-  minMinutes: 10,
-  averageMinutes: 10.0,
-  fairnessScore: 1.0,
-  overallScore: 1.0,
-  participantTimes: {'Aさん': 10},
-);
 
 void main() {
   // ══════════════════════════════════════════════════════════════
@@ -158,34 +127,6 @@ void main() {
     });
   });
 
-  // ══════════════════════════════════════════════════════════════
-  // [3] buildLineText — 参加者が複数のとき 最大{max}分 サマリー追加
-  // ══════════════════════════════════════════════════════════════
-
-  group('buildLineText — 参加者の個別移動時間表示', () {
-    test('参加者が2名のとき 両方の名前と分数が含まれる', () {
-      final r = _restaurant(id: 'x', name: 'おすすめ屋');
-      final sr = _scored(r);
-      final state = SearchState(
-        selectedMeetingPoint: _meetingPointMulti,
-        sortedCache: [sr],
-      );
-      final text = ShareUtils.buildLineText(state);
-      expect(text, contains('分'), reason: '移動時間は表示される');
-      expect(text, isNot(contains('最大')),
-          reason: '「最大X分」サマリーは削除された（案B）');
-    });
-
-    test('参加者が1名のとき 最大 サマリー行が含まれない', () {
-      final r = _restaurant(id: 'y', name: '一人用屋');
-      final sr = _scored(r);
-      final state = SearchState(
-        selectedMeetingPoint: _meetingPointSingle,
-        sortedCache: [sr],
-      );
-      final text = ShareUtils.buildLineText(state);
-      expect(text, isNot(contains('最大')),
-          reason: '参加者1名のとき「最大」サマリーは不要');
-    });
-  });
+  // [3] buildLineText グループは 2026-04-24 の dead-code 整理で撤去。
+  // lib/utils/share_utils.dart から buildLineText / shareToLine を削除したため。
 }

@@ -1,15 +1,17 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mannaka/utils/share_utils.dart';
 import 'package:mannaka/providers/search_provider.dart';
 import 'package:mannaka/models/restaurant.dart';
 import 'package:mannaka/models/scored_restaurant.dart';
-import 'package:mannaka/models/meeting_point.dart';
 
 // ============================================================
-// Cycle 26 TDD テスト
-// 対象: share_utils.dart — sharePositionOrigin 修正
-//       search_provider.dart — materialIcon デッドコード削除
+// Cycle 26 TDD テスト（Cycle 30 以降で一部縮小）
+// 対象: share_utils.dart — buildRestaurantShareText 回帰テスト
+//
+// 旧スコープだった `ShareUtils.share()` と `buildMeetingPointText` は
+// 2026-04-24 の dead-code 整理で lib 側から削除されたため、対応する
+// テスト群も併せて撤去した。buildRestaurantShareText は share_preview_screen.dart
+// から呼ばれる生存コードのため回帰テストは維持する。
 // ============================================================
 
 // ── テスト用ヘルパー ─────────────────────────────────────────────────────
@@ -47,122 +49,9 @@ ScoredRestaurant _scored(Restaurant r, {double score = 0.8}) {
   );
 }
 
-const _meetingPoint = MeetingPoint(
-  stationIndex: 0,
-  stationName: '渋谷',
-  stationEmoji: '🚉',
-  lat: 35.6580,
-  lng: 139.7016,
-  totalMinutes: 20,
-  maxMinutes: 12,
-  minMinutes: 8,
-  averageMinutes: 10.0,
-  fairnessScore: 0.9,
-  overallScore: 0.85,
-  participantTimes: {'Aさん': 8, 'Bさん': 12},
-);
-
 void main() {
   // ══════════════════════════════════════════════════════════════
-  // ① ShareUtils.share() — sharePositionOrigin パラメータ
-  // 【Red フェーズ】
-  //   sharePositionOrigin 名前付きパラメータが share() に存在しないため
-  //   現状はコンパイルエラーとなり flutter test が失敗する。
-  //
-  //   Green にするには:
-  //     static Future<void> share(
-  //       BuildContext context,
-  //       SearchState state, {
-  //       Rect? sharePositionOrigin,   ← 追加
-  //     }) async {
-  //       ...
-  //       await Share.share(
-  //         text,
-  //         subject: '...',
-  //         sharePositionOrigin: sharePositionOrigin,  ← 追加
-  //       );
-  //     }
-  // ══════════════════════════════════════════════════════════════
-  group('ShareUtils.share() — sharePositionOriginパラメータ', () {
-    testWidgets(
-      'sharePositionOriginを渡して呼び出せる（Redフェーズ: コンパイルエラー）',
-      (tester) async {
-        await tester.pumpWidget(
-          const MaterialApp(home: Scaffold(body: SizedBox())),
-        );
-        final context = tester.element(find.byType(Scaffold));
-        final state = SearchState(selectedMeetingPoint: _meetingPoint);
-
-        // ↓ sharePositionOrigin パラメータが存在しないためコンパイルエラー（Red）
-        await ShareUtils.share(
-          context,
-          state,
-          sharePositionOrigin: const Rect.fromLTWH(0, 0, 100, 50),
-        );
-      },
-    );
-
-    testWidgets(
-      'sharePositionOriginを省略しても呼び出せる（後方互換）',
-      (tester) async {
-        await tester.pumpWidget(
-          const MaterialApp(home: Scaffold(body: SizedBox())),
-        );
-        final context = tester.element(find.byType(Scaffold));
-        final state = SearchState(); // meetingPoint なし → share は何もしない
-
-        // パラメータなし呼び出しは既存動作を維持する
-        // テキストが空なので Share.share() は呼ばれない（クラッシュしない）
-        await ShareUtils.share(context, state);
-      },
-    );
-  });
-
-  // ══════════════════════════════════════════════════════════════
-  // ② buildMeetingPointText — 回帰テスト
-  // 【現状 Green】materialIcon 削除後も通り続けること
-  // ══════════════════════════════════════════════════════════════
-  group('ShareUtils.buildMeetingPointText() — 回帰テスト', () {
-    test('selectedMeetingPointがnullのとき空文字を返す', () {
-      final state = SearchState();
-      expect(ShareUtils.buildMeetingPointText(state), isEmpty);
-    });
-
-    test('集合地点がある場合は駅名・参加者移動時間を含む', () {
-      final state = SearchState(selectedMeetingPoint: _meetingPoint);
-      final text = ShareUtils.buildMeetingPointText(state);
-      expect(text, isNotEmpty);
-      expect(text, contains('渋谷'));
-      expect(text, contains('Aさん'));
-      expect(text, contains('Bさん'));
-    });
-
-    test('Occasion設定に関わらずApp Storeリンクを含む', () {
-      final state = SearchState(
-        occasion: Occasion.birthday,
-        selectedMeetingPoint: const MeetingPoint(
-          stationIndex: 0,
-          stationName: '新宿',
-          stationEmoji: '🚉',
-          lat: 35.6896,
-          lng: 139.7006,
-          totalMinutes: 15,
-          maxMinutes: 10,
-          minMinutes: 5,
-          averageMinutes: 7.5,
-          fairnessScore: 0.8,
-          overallScore: 0.75,
-          participantTimes: {'Cさん': 5, 'Dさん': 10},
-        ),
-      );
-      final text = ShareUtils.buildMeetingPointText(state);
-      expect(text, contains('apps.apple.com'));
-      expect(text, contains('Aimachi'));
-    });
-  });
-
-  // ══════════════════════════════════════════════════════════════
-  // ③ buildRestaurantShareText — 回帰テスト
+  // buildRestaurantShareText — 回帰テスト
   // ══════════════════════════════════════════════════════════════
   group('ShareUtils.buildRestaurantShareText() — 回帰テスト', () {
     test('sortedRestaurantsが空でprimaryScoredもnullのとき空文字を返す', () {

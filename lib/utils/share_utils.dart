@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../models/meeting_point.dart';
 import '../models/scored_restaurant.dart';
 import '../providers/search_provider.dart';
 
@@ -170,43 +169,26 @@ class ShareUtils {
     }
   }
 
-  /// 複数のエリア（駅）で選んだ候補を LINE でまとめて共有するためのテキスト。
+  /// ユーザーが選んだ候補（駅を跨いだ順序付きリスト）を LINE で共有するテキスト。
   ///
-  /// 構成:
-  /// ```
-  /// Aimachiで検索したお店を共有します
-  ///
-  /// 🗓 4/24 19:30
-  ///
-  /// 📍 渋谷駅周辺
-  /// ⏱ あや 12分 / ゆう 8分
-  /// 1. お店A（カフェ / ¥1500〜 / ★4.2）
-  ///   Google ショップ詳細ページ
-  /// 2. ...
-  ///
-  /// 📍 新宿駅周辺
-  /// ⏱ あや 18分 / ゆう 10分
-  /// 1. ...
-  ///
-  /// 続きは Aimachi（無料）で見れます👇
-  /// <App Store URL>
-  /// ```
-  ///
-  /// 駅の並び順は、選択し始めた順（最初にその駅で候補を加えた時刻順）。
-  /// 各エリアは上位 3 件まで本文に入り、残りは末尾の Aimachi 誘導で補う。
-  /// 店舗リンクは Google Maps 検索経由で **Google の店舗詳細ページ** を開く
-  /// （口コミ・写真・メニュー等）。
-  static String buildLineTextForGroupedCandidates(
+  /// 仕様:
+  /// - 駅に関係なく **選択順** の上位 3 件のみを本文に含める
+  /// - 各店舗は「店名（駅エリア）」「ジャンル / 価格 / ★評価」「Google店舗ページURL」
+  /// - 4件目以降は本文に入らず、末尾で Aimachi DL を促す
+  static String buildLineTextForSelections(
     SearchState state,
-    Map<String, List<ScoredRestaurant>> grouped,
+    List<({String station, ScoredRestaurant scored})> selections,
   ) {
-    if (grouped.isEmpty) return '';
+    if (selections.isEmpty) return '';
+
+    final top = selections.take(3).toList();
+    final extra = selections.length - top.length;
 
     final sb = StringBuffer();
     sb.writeln('Aimachiで探したお店の候補を共有します');
     sb.writeln('');
 
-    // 日時（エリアに依存しない共通情報を先頭に）
+    // 日時
     final date = state.selectedDate;
     final time = state.selectedMeetingTime;
     if (date != null || time != null) {
@@ -219,54 +201,22 @@ class ShareUtils {
       sb.writeln('🗓 ${parts.join(' ')}');
     }
 
-    // 駅ごとの MeetingPoint を検索できるよう index 化
-    final pointByStation = <String, MeetingPoint>{
-      for (final p in state.results) p.stationName: p,
-    };
-
-    var totalExtra = 0;
-    for (final entry in grouped.entries) {
-      final station = entry.key;
-      final list = entry.value;
-      if (list.isEmpty) continue;
-      final top = list.take(3).toList();
-      final extra = list.length - top.length;
-      totalExtra += extra;
-
+    for (var i = 0; i < top.length; i++) {
+      final station = top[i].station;
+      final r = top[i].scored.restaurant;
       sb.writeln('');
-      sb.writeln('📍 $station駅周辺');
-
-      // この駅の参加者移動時間を駅単位で表示（複数駅から選ぶと上部に
-      // 1 行だけ載せるのが不自然になるため、各駅のブロック内に置く）
-      final point = pointByStation[station];
-      if (point != null && point.participantTimes.isNotEmpty) {
-        final line = point.participantTimes.entries
-            .map((e) => '${e.key} ${e.value}分')
-            .join(' / ');
-        sb.writeln('⏱ $line');
-      }
-
-      for (var i = 0; i < top.length; i++) {
-        final r = top[i].restaurant;
-        sb.writeln('${i + 1}. ${r.name}');
-        final meta = <String>[r.category, r.priceStr];
-        if (r.rating > 0) meta.add('★${r.rating.toStringAsFixed(1)}');
-        sb.writeln('  ${meta.join(' / ')}');
-        // Google の店舗詳細ページに飛ぶ短縮 URL 形式。
-        // /maps/search/?api=1&query=... より /maps?q=... のほうが短い。
-        // 住所は長くなりがちなので、店名＋最寄駅名だけにする。
-        final queryBits = <String>[r.name];
-        if (r.stationName.isNotEmpty) queryBits.add(r.stationName);
-        final query = Uri.encodeComponent(queryBits.join(' '));
-        sb.writeln('  https://www.google.com/maps?q=$query');
-      }
-      if (extra > 0) {
-        sb.writeln('  …ほか$extra件');
-      }
+      sb.writeln('${i + 1}. ${r.name}（$station駅エリア）');
+      final meta = <String>[r.category, r.priceStr];
+      if (r.rating > 0) meta.add('★${r.rating.toStringAsFixed(1)}');
+      sb.writeln('  ${meta.join(' / ')}');
+      final queryBits = <String>[r.name];
+      if (r.stationName.isNotEmpty) queryBits.add(r.stationName);
+      final query = Uri.encodeComponent(queryBits.join(' '));
+      sb.writeln('  https://www.google.com/maps?q=$query');
     }
 
     sb.writeln('');
-    if (totalExtra > 0) {
+    if (extra > 0) {
       sb.writeln('4件目以降を見るには Aimachi（無料）のダウンロードが必要です👇');
     } else {
       sb.writeln('Aimachi（無料）でお店を探せます👇');
@@ -275,12 +225,12 @@ class ShareUtils {
     return sb.toString();
   }
 
-  /// エリアごとにまとめた候補を LINE で共有する。
-  static Future<void> shareGroupedCandidatesToLine(
+  /// 選択順の候補リストを LINE で共有する（本文の実処理）。
+  static Future<void> shareSelectionsToLine(
     SearchState state,
-    Map<String, List<ScoredRestaurant>> grouped,
+    List<({String station, ScoredRestaurant scored})> selections,
   ) async {
-    final text = buildLineTextForGroupedCandidates(state, grouped);
+    final text = buildLineTextForSelections(state, selections);
     if (text.isEmpty) return;
     final encoded = Uri.encodeComponent(text);
     final lineUrl = Uri.parse('https://line.me/R/share?text=$encoded');
@@ -288,6 +238,7 @@ class ShareUtils {
       await launchUrl(lineUrl, mode: LaunchMode.externalApplication);
     }
   }
+
 
   /// 右上の LINE ボタン用：**候補の集合駅（MeetingPoint）一覧**を共有。
   ///

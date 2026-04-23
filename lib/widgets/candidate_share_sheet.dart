@@ -9,21 +9,19 @@ import '../theme/app_theme.dart';
 import '../utils/share_utils.dart';
 import 'line_icon.dart';
 
-/// 選択した候補お店を LINE でシェアするためのボトムシート。
+/// 選んだ候補お店を LINE で共有するボトムシート。
 ///
-/// 設計方針:
-/// - LINE 本文は **冒頭「Aimachiで検索したお店を共有します」** → 日時 → 参加者
-///   → 駅ごとの候補（各駅 最大3件、番号付き）→ Aimachi 誘導 の構成。
-/// - ユーザーが複数エリアで候補を選んだ場合、駅ごとに束ねて表示する。
-/// - グループ選択 UI は要望により撤去（記録用途が不明確なため）。
+/// LINE 本文には **駅を跨いで選択順の上位 3 件のみ** を載せ、4 件目以降は
+/// Aimachi のダウンロード誘導で相手に伝える。
+/// シート内のプレビューは駅ごとにまとめた形で「何を何件選んでいるか」を示す。
 class CandidateShareSheet extends ConsumerStatefulWidget {
   const CandidateShareSheet({
     super.key,
-    required this.groupedCandidates,
+    required this.selections,
   });
 
-  /// 駅名 → その駅で選ばれた候補の順序付きリスト。
-  final Map<String, List<ScoredRestaurant>> groupedCandidates;
+  /// 選択順に並んだ (駅名, ScoredRestaurant) の列。
+  final List<({String station, ScoredRestaurant scored})> selections;
 
   @override
   ConsumerState<CandidateShareSheet> createState() =>
@@ -33,8 +31,16 @@ class CandidateShareSheet extends ConsumerStatefulWidget {
 class _CandidateShareSheetState extends ConsumerState<CandidateShareSheet> {
   bool _sharing = false;
 
-  int get _totalCount =>
-      widget.groupedCandidates.values.fold(0, (a, b) => a + b.length);
+  int get _totalCount => widget.selections.length;
+
+  /// プレビュー用: 駅ごとに束ねた Map を insertion order で返す。
+  Map<String, List<ScoredRestaurant>> get _grouped {
+    final out = <String, List<ScoredRestaurant>>{};
+    for (final e in widget.selections) {
+      out.putIfAbsent(e.station, () => []).add(e.scored);
+    }
+    return out;
+  }
 
   Future<void> _share() async {
     if (_sharing) return;
@@ -42,9 +48,8 @@ class _CandidateShareSheetState extends ConsumerState<CandidateShareSheet> {
     setState(() => _sharing = true);
     final state = ref.read(searchProvider);
     try {
-      final categories = widget.groupedCandidates.values
-          .expand((l) => l)
-          .map((sr) => sr.restaurant.category)
+      final categories = widget.selections
+          .map((e) => e.scored.restaurant.category)
           .toSet()
           .toList();
       await AnalyticsService.logLineShareInitiated(
@@ -53,11 +58,7 @@ class _CandidateShareSheetState extends ConsumerState<CandidateShareSheet> {
         hasWebUrl: false,
         groupNames: const [],
       );
-
-      await ShareUtils.shareGroupedCandidatesToLine(
-        state,
-        widget.groupedCandidates,
-      );
+      await ShareUtils.shareSelectionsToLine(state, widget.selections);
       if (!mounted) return;
       Navigator.of(context).pop();
     } catch (_) {
@@ -75,6 +76,9 @@ class _CandidateShareSheetState extends ConsumerState<CandidateShareSheet> {
   @override
   Widget build(BuildContext context) {
     final viewInsets = MediaQuery.of(context).viewInsets;
+    final grouped = _grouped;
+    final sendCount = _totalCount > 3 ? 3 : _totalCount;
+    final extra = _totalCount - sendCount;
 
     return Padding(
       padding: EdgeInsets.fromLTRB(20, 12, 20, viewInsets.bottom + 20),
@@ -103,19 +107,20 @@ class _CandidateShareSheetState extends ConsumerState<CandidateShareSheet> {
               ),
             ),
             const SizedBox(height: 6),
-            const Text(
-              'お店は選んだ順に3件までLINEで送れます。\n4件目以降を見るには、相手のアプリダウンロードが必要です。',
-              style: TextStyle(
+            Text(
+              extra > 0
+                  ? '選んだ順に最初の3件を LINE に載せます。\n4件目以降の$extra件を相手が見るには、Aimachi のダウンロードが必要です。'
+                  : 'お店は選んだ順に最大3件までLINEで送れます。',
+              style: const TextStyle(
                 fontSize: 12.5,
                 color: AppColors.textSecondary,
                 height: 1.7,
               ),
             ),
-            const SizedBox(height: 16),
-            // 駅ごとのプレビュー
-            ...widget.groupedCandidates.entries.map((e) {
-              final top = e.value.take(3).toList();
-              final extra = e.value.length - top.length;
+            const SizedBox(height: 14),
+            // 駅ごとのプレビュー（「何をどの駅で選んでいるか」だけ見せる）
+            ...grouped.entries.map((e) {
+              final list = e.value;
               return Container(
                 margin: const EdgeInsets.only(bottom: 10),
                 padding: const EdgeInsets.all(12),
@@ -131,7 +136,7 @@ class _CandidateShareSheetState extends ConsumerState<CandidateShareSheet> {
                         const Icon(Icons.place,
                             size: 14, color: AppColors.primary),
                         const SizedBox(width: 4),
-                        Text('${e.key}駅周辺',
+                        Text('${e.key}駅エリア（${list.length}件）',
                             style: const TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w800,
@@ -139,9 +144,9 @@ class _CandidateShareSheetState extends ConsumerState<CandidateShareSheet> {
                       ],
                     ),
                     const SizedBox(height: 6),
-                    for (var i = 0; i < top.length; i++)
+                    for (final s in list)
                       Text(
-                        '${i + 1}. ${top[i].restaurant.name}',
+                        '・${s.restaurant.name}',
                         style: const TextStyle(
                           fontSize: 12.5,
                           color: AppColors.textSecondary,
@@ -149,22 +154,11 @@ class _CandidateShareSheetState extends ConsumerState<CandidateShareSheet> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                    if (extra > 0)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 2),
-                        child: Text(
-                          '…ほか$extra件は Aimachi で',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: AppColors.textTertiary,
-                          ),
-                        ),
-                      ),
                   ],
                 ),
               );
             }),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             SizedBox(
               height: 52,
               child: ElevatedButton.icon(
@@ -179,7 +173,11 @@ class _CandidateShareSheetState extends ConsumerState<CandidateShareSheet> {
                     : const LineIcon(
                         size: 22, filled: false, iconColor: Colors.white),
                 label: Text(
-                  _sharing ? '準備中…' : 'LINEで送る',
+                  _sharing
+                      ? '準備中…'
+                      : extra > 0
+                          ? '上位3件をLINEで送る'
+                          : '$_totalCount件をLINEで送る',
                   style: const TextStyle(
                       fontSize: 15, fontWeight: FontWeight.w700),
                 ),
@@ -201,7 +199,7 @@ class _CandidateShareSheetState extends ConsumerState<CandidateShareSheet> {
 
 void showCandidateShareSheet(
   BuildContext context, {
-  required Map<String, List<ScoredRestaurant>> groupedCandidates,
+  required List<({String station, ScoredRestaurant scored})> selections,
 }) {
   showModalBottomSheet(
     context: context,
@@ -210,7 +208,6 @@ void showCandidateShareSheet(
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
-    builder: (_) =>
-        CandidateShareSheet(groupedCandidates: groupedCandidates),
+    builder: (_) => CandidateShareSheet(selections: selections),
   );
 }

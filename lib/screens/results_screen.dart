@@ -329,12 +329,13 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
               onClear: _clearSelection,
               onShare: () {
                 HapticFeedback.mediumImpact();
-                // エリアごとに束ねて LINE 本文に並べるため Map で渡す。
-                final grouped = <String, List<ScoredRestaurant>>{};
-                for (final e in _sharedSelected.values) {
-                  grouped.putIfAbsent(e.stationName, () => []).add(e.scored);
-                }
-                showCandidateShareSheet(context, groupedCandidates: grouped);
+                // 駅は関係なく「選択順」に送る仕様。_sharedSelected.values は
+                // insertion order なので、そのまま渡す。
+                final selections = _sharedSelected.values
+                    .map((e) =>
+                        (station: e.stationName, scored: e.scored))
+                    .toList();
+                showCandidateShareSheet(context, selections: selections);
               },
               onSave: () async {
                 HapticFeedback.selectionClick();

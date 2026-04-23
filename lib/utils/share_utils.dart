@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../models/meeting_point.dart';
 import '../models/scored_restaurant.dart';
 import '../providers/search_provider.dart';
 
@@ -176,21 +177,25 @@ class ShareUtils {
   /// Aimachiで検索したお店を共有します
   ///
   /// 🗓 4/24 19:30
-  /// ⏱ あや 12分 / ゆう 8分
   ///
   /// 📍 渋谷駅周辺
+  /// ⏱ あや 12分 / ゆう 8分
   /// 1. お店A（カフェ / ¥1500〜 / ★4.2）
-  ///   Google Maps
+  ///   Google ショップ詳細ページ
   /// 2. ...
   ///
   /// 📍 新宿駅周辺
+  /// ⏱ あや 18分 / ゆう 10分
   /// 1. ...
   ///
   /// 続きは Aimachi（無料）で見れます👇
   /// <App Store URL>
   /// ```
   ///
+  /// 駅の並び順は、選択し始めた順（最初にその駅で候補を加えた時刻順）。
   /// 各エリアは上位 3 件まで本文に入り、残りは末尾の Aimachi 誘導で補う。
+  /// 店舗リンクは Google Maps 検索経由で **Google の店舗詳細ページ** を開く
+  /// （口コミ・写真・メニュー等）。
   static String buildLineTextForGroupedCandidates(
     SearchState state,
     Map<String, List<ScoredRestaurant>> grouped,
@@ -214,16 +219,10 @@ class ShareUtils {
       sb.writeln('🗓 ${parts.join(' ')}');
     }
 
-    // 参加者の移動時間は「現在選択中の集合駅」を代表として出す
-    final currentPoint = state.selectedMeetingPoint;
-    if (currentPoint != null) {
-      final participantLines = currentPoint.participantTimes.entries
-          .map((e) => '${e.key} ${e.value}分')
-          .join(' / ');
-      if (participantLines.isNotEmpty) {
-        sb.writeln('⏱ $participantLines');
-      }
-    }
+    // 駅ごとの MeetingPoint を検索できるよう index 化
+    final pointByStation = <String, MeetingPoint>{
+      for (final p in state.results) p.stationName: p,
+    };
 
     var totalExtra = 0;
     for (final entry in grouped.entries) {
@@ -236,15 +235,30 @@ class ShareUtils {
 
       sb.writeln('');
       sb.writeln('📍 $station駅周辺');
+
+      // この駅の参加者移動時間を駅単位で表示（複数駅から選ぶと上部に
+      // 1 行だけ載せるのが不自然になるため、各駅のブロック内に置く）
+      final point = pointByStation[station];
+      if (point != null && point.participantTimes.isNotEmpty) {
+        final line = point.participantTimes.entries
+            .map((e) => '${e.key} ${e.value}分')
+            .join(' / ');
+        sb.writeln('⏱ $line');
+      }
+
       for (var i = 0; i < top.length; i++) {
         final r = top[i].restaurant;
         sb.writeln('${i + 1}. ${r.name}');
         final meta = <String>[r.category, r.priceStr];
         if (r.rating > 0) meta.add('★${r.rating.toStringAsFixed(1)}');
         sb.writeln('  ${meta.join(' / ')}');
-        if (r.lat != null && r.lng != null) {
-          sb.writeln('  https://maps.google.com/maps?q=${r.lat},${r.lng}');
-        }
+        // Google の店舗詳細ページに飛ぶ検索 URL（Google Maps アプリが
+        // 単一結果を開き、口コミ・写真・営業時間などが見られる）。
+        // place_id が無いため「店名 + 住所」をクエリにする。
+        final queryParts = <String>[r.name];
+        if (r.address.isNotEmpty) queryParts.add(r.address);
+        final query = Uri.encodeComponent(queryParts.join(' '));
+        sb.writeln('  https://www.google.com/maps/search/?api=1&query=$query');
       }
       if (extra > 0) {
         sb.writeln('  …ほか$extra件');

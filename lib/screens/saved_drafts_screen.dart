@@ -140,9 +140,11 @@ class _DraftCardState extends ConsumerState<_DraftCard> {
       final meta = <String>[c.category, c.priceStr];
       if (c.rating > 0) meta.add('★${c.rating.toStringAsFixed(1)}');
       sb.writeln('  ${meta.join(' / ')}');
-      if (c.lat != null && c.lng != null) {
-        sb.writeln('  https://maps.google.com/maps?q=${c.lat},${c.lng}');
-      }
+      // Google の店舗詳細ページ（口コミ・写真・メニュー閲覧）に飛ばす
+      final queryParts = <String>[c.name];
+      if (c.address.isNotEmpty) queryParts.add(c.address);
+      final query = Uri.encodeComponent(queryParts.join(' '));
+      sb.writeln('  https://www.google.com/maps/search/?api=1&query=$query');
     }
     sb.writeln('');
     if (extra > 0) {

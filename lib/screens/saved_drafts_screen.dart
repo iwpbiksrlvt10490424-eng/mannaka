@@ -17,7 +17,7 @@ class SavedDraftsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final drafts = ref.watch(savedShareDraftsProvider);
+    final draftsAsync = ref.watch(savedShareDraftsProvider);
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -25,14 +25,18 @@ class SavedDraftsScreen extends ConsumerWidget {
         backgroundColor: AppColors.surface,
         foregroundColor: AppColors.textPrimary,
       ),
-      body: drafts.isEmpty
-          ? _empty()
-          : ListView.separated(
-              padding: const EdgeInsets.all(16),
-              itemCount: drafts.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 10),
-              itemBuilder: (_, i) => _DraftCard(draft: drafts[i]),
-            ),
+      body: draftsAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (_, __) => _empty(),
+        data: (drafts) => drafts.isEmpty
+            ? _empty()
+            : ListView.separated(
+                padding: const EdgeInsets.all(16),
+                itemCount: drafts.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                itemBuilder: (_, i) => _DraftCard(draft: drafts[i]),
+              ),
+      ),
     );
   }
 

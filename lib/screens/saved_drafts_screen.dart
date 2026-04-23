@@ -140,15 +140,15 @@ class _DraftCardState extends ConsumerState<_DraftCard> {
       final meta = <String>[c.category, c.priceStr];
       if (c.rating > 0) meta.add('★${c.rating.toStringAsFixed(1)}');
       sb.writeln('  ${meta.join(' / ')}');
-      // Google の店舗詳細ページ（口コミ・写真・メニュー閲覧）に飛ばす
-      final queryParts = <String>[c.name];
-      if (c.address.isNotEmpty) queryParts.add(c.address);
-      final query = Uri.encodeComponent(queryParts.join(' '));
-      sb.writeln('  https://www.google.com/maps/search/?api=1&query=$query');
+      // Google の店舗詳細ページ（口コミ・写真・メニュー閲覧）に短縮URLで飛ばす
+      final queryBits = <String>[c.name];
+      if (d.stationName.isNotEmpty) queryBits.add(d.stationName);
+      final query = Uri.encodeComponent(queryBits.join(' '));
+      sb.writeln('  https://www.google.com/maps?q=$query');
     }
     sb.writeln('');
     if (extra > 0) {
-      sb.writeln('続きの$extra件は Aimachi（無料）で見れます👇');
+      sb.writeln('4件目以降を見るには Aimachi（無料）のダウンロードが必要です👇');
     } else {
       sb.writeln('Aimachi（無料）');
     }

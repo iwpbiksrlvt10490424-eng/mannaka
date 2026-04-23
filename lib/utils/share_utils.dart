@@ -253,13 +253,13 @@ class ShareUtils {
         final meta = <String>[r.category, r.priceStr];
         if (r.rating > 0) meta.add('★${r.rating.toStringAsFixed(1)}');
         sb.writeln('  ${meta.join(' / ')}');
-        // Google の店舗詳細ページに飛ぶ検索 URL（Google Maps アプリが
-        // 単一結果を開き、口コミ・写真・営業時間などが見られる）。
-        // place_id が無いため「店名 + 住所」をクエリにする。
-        final queryParts = <String>[r.name];
-        if (r.address.isNotEmpty) queryParts.add(r.address);
-        final query = Uri.encodeComponent(queryParts.join(' '));
-        sb.writeln('  https://www.google.com/maps/search/?api=1&query=$query');
+        // Google の店舗詳細ページに飛ぶ短縮 URL 形式。
+        // /maps/search/?api=1&query=... より /maps?q=... のほうが短い。
+        // 住所は長くなりがちなので、店名＋最寄駅名だけにする。
+        final queryBits = <String>[r.name];
+        if (r.stationName.isNotEmpty) queryBits.add(r.stationName);
+        final query = Uri.encodeComponent(queryBits.join(' '));
+        sb.writeln('  https://www.google.com/maps?q=$query');
       }
       if (extra > 0) {
         sb.writeln('  …ほか$extra件');
@@ -268,7 +268,7 @@ class ShareUtils {
 
     sb.writeln('');
     if (totalExtra > 0) {
-      sb.writeln('これ以上見るには Aimachi（無料）をダウンロード👇');
+      sb.writeln('4件目以降を見るには Aimachi（無料）のダウンロードが必要です👇');
     } else {
       sb.writeln('Aimachi（無料）でお店を探せます👇');
     }

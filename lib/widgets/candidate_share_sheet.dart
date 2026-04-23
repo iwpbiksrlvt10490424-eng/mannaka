@@ -104,7 +104,7 @@ class _CandidateShareSheetState extends ConsumerState<CandidateShareSheet> {
             ),
             const SizedBox(height: 6),
             const Text(
-              '上位3件だけLINEで共有されます。\nそれ以上見る場合は相手にアプリのダウンロードをお願いします。',
+              'お店は選んだ順に3件までLINEで送れます。\n4件目以降を見るには、相手のアプリダウンロードが必要です。',
               style: TextStyle(
                 fontSize: 12.5,
                 color: AppColors.textSecondary,

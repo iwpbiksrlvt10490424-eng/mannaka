@@ -1,5 +1,3 @@
-import 'package:flutter/material.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/scored_restaurant.dart';
 import '../providers/search_provider.dart';
@@ -18,15 +16,18 @@ class ShareUtils {
   /// 1. `hotpepperUrl`（約 40 文字固定、日本語エンコード不要）
   /// 2. Google Maps 検索 URL（日本語エンコードで長くなる）
   ///
-  /// Hotpepper 由来のお店は (1) が返る。Foursquare/Overpass フォールバック等で
-  /// hotpepperUrl が無い場合だけ (2) に落ちる。
+  /// Hotpepper 由来のお店は (1)。Google Places フォールバック経由で
+  /// hotpepperUrl が null のときだけ (2) に落ちる。
+  /// 空白のみの `hotpepperUrl` は意味を持たない URL 扱いで (2) に落とす。
   static String shortStoreUrl(
       String? hotpepperUrl, String name, String stationName) {
-    if (hotpepperUrl != null && hotpepperUrl.isNotEmpty) {
+    if (hotpepperUrl != null && hotpepperUrl.trim().isNotEmpty) {
       return hotpepperUrl;
     }
-    final bits = <String>[name];
-    if (stationName.isNotEmpty) bits.add(stationName);
+    final bits = <String>[
+      if (name.isNotEmpty) name,
+      if (stationName.isNotEmpty) stationName,
+    ];
     return 'https://maps.google.com/?q=${Uri.encodeComponent(bits.join(' '))}';
   }
 
@@ -79,112 +80,6 @@ class ShareUtils {
     sb.writeln(appStoreUrl);
 
     return sb.toString();
-  }
-
-  /// 集合場所テキスト（エリアベース）
-  static String buildMeetingPointText(SearchState state) {
-    final point = state.selectedMeetingPoint;
-    if (point == null) return '';
-
-    final participantLines = point.participantTimes.entries
-        .map((e) => '  ${e.key}：${e.value}分')
-        .join('\n');
-
-    final topRestaurants = state.sortedRestaurants.take(3).toList();
-    final restaurantSection = topRestaurants.isNotEmpty
-        ? '\n\nおすすめのお店\n'
-            '${topRestaurants.map((sr) => '  ${sr.restaurant.name}（${sr.restaurant.priceStr}）').join('\n')}'
-        : '';
-
-    final topName = topRestaurants.isNotEmpty
-        ? topRestaurants.first.restaurant.name
-        : '${point.stationName}駅周辺のお店';
-
-    return 'お店の候補を共有します\n\n'
-        '$topName\n'
-        '${point.stationName}駅周辺\n\n'
-        '各自の移動時間\n'
-        '$participantLines'
-        '$restaurantSection\n\n'
-        'Aimachi でみんなの中間地点からお店を提案\n'
-        '$appStoreUrl';
-  }
-
-  static String buildLineText(SearchState state) {
-    final point = state.selectedMeetingPoint;
-    if (point == null) return '';
-
-    final topRestaurants = state.sortedRestaurants.take(3).toList();
-    final top = topRestaurants.isNotEmpty ? topRestaurants.first : null;
-    final topRestaurant = top?.restaurant;
-
-    final topName = topRestaurant?.name ?? '${point.stationName}駅周辺のお店';
-    final address = topRestaurant?.address ?? '';
-
-    final mapsUrl = (topRestaurant?.lat != null && topRestaurant?.lng != null)
-        ? 'https://maps.google.com/maps?q=${topRestaurant!.lat},${topRestaurant.lng}'
-        : '';
-
-    final participantLines = point.participantTimes.entries
-        .map((e) => '${e.key} ${e.value}分')
-        .join(' / ');
-
-    final otherCandidates = topRestaurants
-        .skip(1)
-        .map((sr) => '・${sr.restaurant.name}（${sr.restaurant.priceStr}）')
-        .join('\n');
-
-    final sb = StringBuffer();
-    // まだ予約前（候補の提示）なので「決まった」と断定しない文言にする
-    sb.writeln('🍽 ちょうどいいお店の候補が見つかりました');
-    sb.writeln('');
-    sb.writeln('📍 $topName');
-    sb.writeln('${point.stationName}駅周辺');
-    if (address.isNotEmpty) sb.writeln(address);
-    if (mapsUrl.isNotEmpty) {
-      sb.writeln('');
-      sb.writeln(mapsUrl);
-    }
-    if (participantLines.isNotEmpty) {
-      sb.writeln('');
-      sb.writeln('⏱ 移動時間');
-      sb.writeln(participantLines);
-    }
-    if (otherCandidates.isNotEmpty) {
-      sb.writeln('');
-      sb.writeln('他の候補');
-      sb.writeln(otherCandidates);
-    }
-    sb.writeln('');
-    sb.writeln('Aimachi で決めました');
-    sb.write(appStoreUrl);
-    return sb.toString();
-  }
-
-  /// ネイティブ共有シートを開く
-  static Future<void> share(
-    BuildContext context,
-    SearchState state, {
-    Rect? sharePositionOrigin,
-  }) async {
-    final text = buildMeetingPointText(state);
-    if (text.isEmpty) return;
-    await Share.share(
-      text,
-      subject: 'Aimachi でお店を見つけました',
-      sharePositionOrigin: sharePositionOrigin,
-    );
-  }
-
-  /// LINEアプリで直接共有
-  static Future<void> shareToLine(SearchState state) async {
-    final text = buildLineText(state);
-    if (text.isEmpty) return;
-    final encoded = Uri.encodeComponent(text);
-    final lineUrl = Uri.parse('https://line.me/R/share?text=$encoded');
-    if (await canLaunchUrl(lineUrl)) {
-      await launchUrl(lineUrl, mode: LaunchMode.externalApplication);
-    }
   }
 
   /// ユーザーが選んだ候補（駅を跨いだ順序付きリスト）を LINE で共有するテキスト。

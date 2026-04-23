@@ -53,9 +53,11 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
       return;
     }
     setState(() {
-      if (alreadySelected) {
+      // setState 実行までに別イベントで状態が変わる可能性を考慮し、
+      // コールバック内でも最新の length を再検証する（連打耐性）。
+      if (_sharedSelected.containsKey(id)) {
         _sharedSelected.remove(id);
-      } else {
+      } else if (_sharedSelected.length < _kMaxSelect) {
         _sharedSelected[id] =
             _SelectedEntry(scored: sr, stationName: stationName);
       }

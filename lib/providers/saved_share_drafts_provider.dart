@@ -19,6 +19,19 @@ class SavedShareDraftsNotifier
     extends AsyncNotifier<List<SavedShareDraft>> {
   static const _key = 'saved_share_drafts_v1';
 
+  /// add/remove を直列化するためのミューテックス。
+  /// 理由: 高速連打で state 読込→state 書込→prefs 書込の並び替えが起きると
+  /// 最新状態の上書き消失（lost update）が発生する。Completer でチェーンして
+  /// 必ず「前回完了後に次を実行」を保証する。
+  Future<void> _mutationChain = Future<void>.value();
+
+  Future<void> _serialize(Future<void> Function() task) async {
+    final previous = _mutationChain;
+    final next = previous.then((_) => task());
+    _mutationChain = next.catchError((_) {});
+    await next;
+  }
+
   @override
   Future<List<SavedShareDraft>> build() async {
     final prefs = await SharedPreferences.getInstance();
@@ -49,17 +62,21 @@ class SavedShareDraftsNotifier
   }
 
   Future<void> add(SavedShareDraft draft) async {
-    final current = await future;
-    final next = [draft, ...current];
-    state = AsyncData(next);
-    await _save(next);
+    await _serialize(() async {
+      final current = await future;
+      final next = [draft, ...current];
+      state = AsyncData(next);
+      await _save(next);
+    });
   }
 
   Future<void> remove(String id) async {
-    final current = await future;
-    final next = current.where((d) => d.id != id).toList();
-    state = AsyncData(next);
-    await _save(next);
+    await _serialize(() async {
+      final current = await future;
+      final next = current.where((d) => d.id != id).toList();
+      state = AsyncData(next);
+      await _save(next);
+    });
   }
 }
 

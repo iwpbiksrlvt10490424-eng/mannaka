@@ -399,7 +399,7 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
 }
 
 /// 選択中の候補をまとめて共有する固定フッタ。駅タブを跨いで常時表示。
-class _SelectionShareBar extends StatelessWidget {
+class _SelectionShareBar extends StatefulWidget {
   const _SelectionShareBar({
     required this.count,
     required this.onClear,
@@ -409,7 +409,26 @@ class _SelectionShareBar extends StatelessWidget {
   final int count;
   final VoidCallback onClear;
   final VoidCallback onShare;
-  final VoidCallback onSave;
+  /// `await` できるように Future を返す関数にし、完了まで多重発火を抑止する。
+  final Future<void> Function() onSave;
+
+  @override
+  State<_SelectionShareBar> createState() => _SelectionShareBarState();
+}
+
+class _SelectionShareBarState extends State<_SelectionShareBar> {
+  /// 保存処理中は true。ボタン表示を無効化し多重発火を防ぐ。
+  bool _saving = false;
+
+  Future<void> _handleSave() async {
+    if (_saving) return; // 連打ガード
+    setState(() => _saving = true);
+    try {
+      await widget.onSave();
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -430,7 +449,7 @@ class _SelectionShareBar extends StatelessWidget {
         child: Row(
           children: [
             GestureDetector(
-              onTap: onClear,
+              onTap: widget.onClear,
               child: Container(
                 padding: const EdgeInsets.symmetric(
                     horizontal: 12, vertical: 10),
@@ -442,24 +461,34 @@ class _SelectionShareBar extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 4),
-            // 下書き保存（あとで送る）
+            // 下書き保存（あとで送る）。保存中は無効化＋スピナー表示。
             GestureDetector(
-              onTap: onSave,
+              onTap: _saving ? null : _handleSave,
               child: Container(
                 padding: const EdgeInsets.symmetric(
                     horizontal: 14, vertical: 13),
                 decoration: BoxDecoration(
-                  color: AppColors.primaryLight,
+                  color: _saving
+                      ? AppColors.primaryLight.withValues(alpha: 0.5)
+                      : AppColors.primaryLight,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
-                  children: const [
-                    Icon(Icons.bookmark_add_outlined,
-                        size: 18, color: AppColors.primary),
-                    SizedBox(width: 6),
-                    Text('保存',
-                        style: TextStyle(
+                  children: [
+                    if (_saving)
+                      const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: AppColors.primary),
+                      )
+                    else
+                      const Icon(Icons.bookmark_add_outlined,
+                          size: 18, color: AppColors.primary),
+                    const SizedBox(width: 6),
+                    Text(_saving ? '保存中…' : '保存',
+                        style: const TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w800,
                             color: AppColors.primary)),
@@ -470,7 +499,7 @@ class _SelectionShareBar extends StatelessWidget {
             const SizedBox(width: 8),
             Expanded(
               child: GestureDetector(
-                onTap: onShare,
+                onTap: widget.onShare,
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 13),
                   decoration: BoxDecoration(
@@ -484,7 +513,7 @@ class _SelectionShareBar extends StatelessWidget {
                           size: 20, filled: false, iconColor: Colors.white),
                       const SizedBox(width: 8),
                       Text(
-                        '$count件をLINEで送る',
+                        '${widget.count}件をLINEで送る',
                         style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w800,

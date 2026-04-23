@@ -42,15 +42,22 @@ class TutorialScreen extends ConsumerWidget {
       icon: Icons.chat_rounded,
       title: 'まとめてLINEで送る',
       body: '下部の「N件をLINEで送る」で一気に共有。\n'
-          'グループを選んで送ることもできます。',
+          '駅ごとにまとまった形式で、上位3件をLINE本文に入れます。',
       where: '検索結果画面の下部バー',
     ),
     _Section(
-      icon: Icons.public_rounded,
-      title: 'アプリ未インストールの相手も見れる',
-      body: 'LINE 本文に Web ページの URL が付きます。\n'
-          '相手はタップするだけで候補を閲覧できます。',
-      where: '送信時に自動付与',
+      icon: Icons.flash_on_rounded,
+      title: '候補の一覧をワンタップでLINE',
+      body: '右上の「共有」で、表示中の候補駅の上位3件を\n'
+          'まとめて LINE 送信用に準備します。',
+      where: '検索結果画面 右上の緑ボタン',
+    ),
+    _Section(
+      icon: Icons.storefront_rounded,
+      title: '店舗リンクは Google へ',
+      body: 'LINE 本文の店舗リンクをタップすると\n'
+          'Google の店舗ページ（口コミ・写真・メニュー）が開きます。',
+      where: 'LINE で受信した本文のリンク',
     ),
     _Section(
       icon: Icons.bookmark_rounded,

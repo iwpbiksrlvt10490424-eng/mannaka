@@ -175,11 +175,35 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
               child: GestureDetector(
                 onTap: () {
                   HapticFeedback.mediumImpact();
-                  ShareUtils.shareToLine(state);
+                  // 候補の駅一覧（state.results）の top 3 をまとめて共有。
+                  // タブ横断で「候補として表示されている各駅の上位3件」を送る。
+                  ShareUtils.shareTopCandidatesAcrossAreas(state);
                 },
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 4),
-                  child: LineIcon(size: 36, filled: true),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF06C755),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      LineIcon(
+                          size: 16,
+                          filled: false,
+                          iconColor: Colors.white),
+                      SizedBox(width: 4),
+                      Text(
+                        '共有',
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            height: 1.0),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

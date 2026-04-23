@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../models/meeting_point.dart';
 import '../models/scored_restaurant.dart';
 import '../providers/search_provider.dart';
+import '../services/midpoint_service.dart';
 
 class ShareUtils {
   static const appStoreId = '6761008332';
@@ -203,7 +204,7 @@ class ShareUtils {
     if (grouped.isEmpty) return '';
 
     final sb = StringBuffer();
-    sb.writeln('Aimachiで検索したお店を共有します');
+    sb.writeln('Aimachiで探したお店の候補を共有します');
     sb.writeln('');
 
     // 日時（エリアに依存しない共通情報を先頭に）
@@ -267,7 +268,7 @@ class ShareUtils {
 
     sb.writeln('');
     if (totalExtra > 0) {
-      sb.writeln('続きは Aimachi（無料）で見れます👇');
+      sb.writeln('これ以上見るには Aimachi（無料）をダウンロード👇');
     } else {
       sb.writeln('Aimachi（無料）でお店を探せます👇');
     }
@@ -287,5 +288,54 @@ class ShareUtils {
     if (await canLaunchUrl(lineUrl)) {
       await launchUrl(lineUrl, mode: LaunchMode.externalApplication);
     }
+  }
+
+  /// 右上の LINE ボタン用：候補の**駅（MeetingPoint）一覧**の top 3 をまとめて共有。
+  ///
+  /// 方針:
+  /// - state.results の上位 3 駅までを対象
+  /// - 各駅に対応する cached restaurants を MidpointService で再スコア
+  ///   （既存のソフトフィルタをそのまま尊重）
+  /// - 各駅 top 3 を grouped に積んで LINE 起動
+  /// - キャッシュが無い駅はスキップ（タブ未訪問時など）
+  static Future<void> shareTopCandidatesAcrossAreas(SearchState state) async {
+    if (state.results.isEmpty) return;
+
+    final grouped = <String, List<ScoredRestaurant>>{};
+    for (final point in state.results.take(3)) {
+      final cached = state.restaurantCache[point.stationName];
+      if (cached == null || cached.isEmpty) continue;
+      final scored = MidpointService.scoreRestaurants(
+        participants: state.participants,
+        centroidLat: point.lat,
+        centroidLng: point.lng,
+        baseRestaurants: cached,
+        categories: state.restaurantCategories,
+        femaleFriendly: state.showFemaleFriendly,
+        hasPrivateRoom: state.showPrivateRoom,
+        hasFreeDrink: state.showFreeDrink,
+        excludeChains: state.excludeChains,
+        timeSlot: state.timeSlot,
+        maxBudget: state.maxBudget,
+        occasion: state.occasion != Occasion.none ? state.occasion.label : null,
+        groupRelation: state.groupRelation,
+        selectedDate: state.selectedDate,
+      );
+      if (scored.isNotEmpty) {
+        grouped[point.stationName] = scored.take(3).toList();
+      }
+    }
+
+    // どの駅もキャッシュが無いときは、現タブの sortedRestaurants だけで作る
+    if (grouped.isEmpty) {
+      final currentPoint = state.selectedMeetingPoint;
+      if (currentPoint != null && state.sortedRestaurants.isNotEmpty) {
+        grouped[currentPoint.stationName] =
+            state.sortedRestaurants.take(3).toList();
+      }
+    }
+
+    if (grouped.isEmpty) return;
+    await shareGroupedCandidatesToLine(state, grouped);
   }
 }

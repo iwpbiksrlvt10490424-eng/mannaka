@@ -75,7 +75,6 @@ class _CandidateShareSheetState extends ConsumerState<CandidateShareSheet> {
   @override
   Widget build(BuildContext context) {
     final viewInsets = MediaQuery.of(context).viewInsets;
-    final areaCount = widget.groupedCandidates.length;
 
     return Padding(
       padding: EdgeInsets.fromLTRB(20, 12, 20, viewInsets.bottom + 20),
@@ -104,11 +103,9 @@ class _CandidateShareSheetState extends ConsumerState<CandidateShareSheet> {
               ),
             ),
             const SizedBox(height: 6),
-            Text(
-              areaCount > 1
-                  ? '$areaCount エリア・$_totalCount 件を、駅ごとに順番にまとめて送ります。各エリア 上位 3 件まで本文に入り、それ以降は Aimachi へ誘導します。'
-                  : '$_totalCount 件を順番に送ります。上位 3 件は本文に、それ以降は Aimachi へ誘導します。',
-              style: const TextStyle(
+            const Text(
+              '上位3件だけLINEで共有されます。\nそれ以上見る場合は相手にアプリのダウンロードをお願いします。',
+              style: TextStyle(
                 fontSize: 12.5,
                 color: AppColors.textSecondary,
                 height: 1.7,

@@ -1,7 +1,9 @@
 import 'dart:developer' as developer;
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import '../providers/auth_provider.dart';
 import '../services/location_session_service.dart';
 import '../theme/app_theme.dart';
 
@@ -28,11 +30,28 @@ class _LocationShareScreenState extends State<LocationShareScreen> {
 
   Future<void> _loadSession() async {
     try {
+      // 送信側の UID を確定させてから owner チェックする。
+      // 未ログインだと uid が null で比較が壊れるため。
+      await ensureUid();
       final data = await LocationSessionService.getSession(widget.sessionId);
       if (data == null) {
         if (!mounted) return;
         setState(() {
           _error = 'このリンクは無効または期限切れです';
+          _loading = false;
+        });
+        return;
+      }
+      // 自分（host）が自分の招待リンクを開いた場合は送信させない。
+      // Firestore rules でも update は owner 以外のみ許可するが、
+      // UI でも早期に案内を出して誤操作を防ぐ。
+      final ownerUid = data['ownerUid'] as String?;
+      final myUid = FirebaseAuth.instance.currentUser?.uid;
+      if (ownerUid != null && myUid != null && ownerUid == myUid) {
+        if (!mounted) return;
+        setState(() {
+          _error = 'このリンクは相手に送って使ってもらうための招待です。\n'
+              '自分の現在地を追加したい場合は、探す画面の駅入力欄で設定してください。';
           _loading = false;
         });
         return;
@@ -213,6 +232,7 @@ class _LocationShareScreenState extends State<LocationShareScreen> {
   Widget _buildDone() {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Container(
           width: 80,
@@ -223,9 +243,11 @@ class _LocationShareScreenState extends State<LocationShareScreen> {
               size: 44, color: Color(0xFF059669)),
         ),
         const SizedBox(height: 24),
-        const Text('送信しました！',
-            style:
-                TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
+        const Text(
+          '送信しました！',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+        ),
         const SizedBox(height: 8),
         Text(
           '$_hostNameさんのアプリに\n出発エリアが届きました',

@@ -19,13 +19,17 @@ service cloud.firestore {
       allow delete: if request.auth != null
           && request.auth.uid == resource.data.hostUid;
     }
-    // 位置情報セッション: 作成者のみ書き込み可能
+    // 位置情報セッション:
+    // - create は本人（host）のみ
+    // - update（位置情報の送信）は **招待された相手** のみ可
+    //   （owner 本人が自分のセッションに送れないよう明示的に弾く）
+    // - delete は host のみ
     match /location_sessions/{sessionId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null
           && request.auth.uid == request.resource.data.ownerUid;
       allow update: if request.auth != null
-          && request.auth.uid == resource.data.ownerUid;
+          && request.auth.uid != resource.data.ownerUid;
       allow delete: if request.auth != null
           && request.auth.uid == resource.data.ownerUid;
     }

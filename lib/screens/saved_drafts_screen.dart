@@ -27,7 +27,7 @@ class SavedDraftsScreen extends ConsumerWidget {
       ),
       body: draftsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, __) => _empty(),
+        error: (_, __) => _errorUi(ref),
         data: (drafts) => drafts.isEmpty
             ? _empty()
             : ListView.separated(
@@ -63,6 +63,42 @@ class SavedDraftsScreen extends ConsumerWidget {
                   fontSize: 12,
                   color: AppColors.textSecondary,
                   height: 1.6),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _errorUi(WidgetRef ref) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline_rounded,
+                size: 56, color: AppColors.textTertiary),
+            const SizedBox(height: 12),
+            const Text('読み込みに失敗しました',
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary)),
+            const SizedBox(height: 6),
+            const Text(
+              '保存した候補を読み込めませんでした。\nしばらく経ってからもう一度開いてください',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                  height: 1.6),
+            ),
+            const SizedBox(height: 12),
+            TextButton.icon(
+              onPressed: () => ref.invalidate(savedShareDraftsProvider),
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text('再読み込み'),
             ),
           ],
         ),
@@ -148,8 +184,8 @@ class _DraftCardState extends ConsumerState<_DraftCard> {
     if (extra > 0) {
       sb.writeln('1回で送れるのは5件までです');
     }
-    sb.writeln('あなたもAimachi（無料）で同じ条件のお店を探してみましょう👇');
-    sb.write('https://apps.apple.com/jp/app/aimachi/id6761008332');
+    sb.writeln('あなたもまんなか（無料）で同じ条件のお店を探してみましょう👇');
+    sb.write(ShareUtils.appStoreUrl);
     return sb.toString();
   }
 

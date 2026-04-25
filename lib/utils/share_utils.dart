@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart' show TimeOfDay;
 import 'package:url_launcher/url_launcher.dart';
 import '../models/scored_restaurant.dart';
 import '../providers/search_provider.dart';
@@ -9,6 +10,62 @@ class ShareUtils {
   /// レビューを直接書き込むダイアログを開く iOS ネイティブURL
   static const appStoreReviewUrl =
       'itms-apps://itunes.apple.com/app/id$appStoreId?action=write-review';
+
+  /// Hotpepper 予約後の LINE 本文を組み立てる。
+  ///
+  /// 「Aimachi で予約した」事実 + 店舗情報 + 予約日時（集合日時）+ チームメンバー
+  /// を 1 つのテキストにまとめる。data が無いフィールドは黙って省く。
+  ///
+  /// 呼び出し元: restaurant_detail_screen の予約完了 → LINE 共有フロー。
+  /// 純関数として切り出してあるのでテスト容易（widget 不要）。
+  static String buildReservationLineText({
+    required String restaurantName,
+    required String category,
+    required String stationName,
+    required int? walkMinutes,
+    required double? lat,
+    required double? lng,
+    required DateTime? meetingDate,
+    required TimeOfDay? meetingTime,
+    required List<String> groupNames,
+  }) {
+    final sb = StringBuffer();
+    sb.writeln('🎉 Aimachiで予約しました');
+    sb.writeln('');
+    sb.writeln('📍 $restaurantName');
+    if (category.isNotEmpty) sb.writeln(category);
+
+    final walkInfo = <String>[
+      if (stationName.isNotEmpty) '$stationName駅',
+      if (walkMinutes != null && walkMinutes > 0) '徒歩$walkMinutes分',
+    ].join('から');
+    if (walkInfo.isNotEmpty) sb.writeln(walkInfo);
+
+    if (meetingDate != null || meetingTime != null) {
+      final parts = <String>[];
+      if (meetingDate != null) {
+        parts.add('${meetingDate.month}/${meetingDate.day}');
+      }
+      if (meetingTime != null) {
+        final h = meetingTime.hour.toString().padLeft(2, '0');
+        final m = meetingTime.minute.toString().padLeft(2, '0');
+        parts.add('$h:$m');
+      }
+      sb.writeln('');
+      sb.writeln('🗓 ${parts.join(' ')}');
+    }
+
+    final cleanGroup = groupNames.where((n) => n.isNotEmpty).toList();
+    if (cleanGroup.isNotEmpty) {
+      sb.writeln('👥 ${cleanGroup.join('、')}');
+    }
+
+    if (lat != null && lng != null) {
+      sb.writeln('');
+      sb.write('https://maps.google.com/maps?q=$lat,$lng');
+    }
+    return sb.toString();
+  }
 
   /// LINE 本文に入れる「お店ページへのリンク」を**なるべく短く**返す。
   ///

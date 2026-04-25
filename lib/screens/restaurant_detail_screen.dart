@@ -15,6 +15,7 @@ import '../providers/reserved_restaurants_provider.dart';
 import '../providers/search_provider.dart';
 import '../services/hotpepper_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/share_utils.dart';
 
 /// Google Maps ルート検索 URL を構築する。
 String buildGoogleMapsRouteUrl(double lat, double lng) =>
@@ -283,6 +284,11 @@ class _RestaurantDetailScreenState extends ConsumerState<RestaurantDetailScreen>
 
   void _showLineShare({bool alreadySaved = false}) {
     if (!mounted) return;
+    // 予約フローの「集合日時」と「チーム」を SearchState から取り出す。
+    // 履歴経由でこの画面を開いた場合は widget.groupNames に名前リストが入る。
+    final state = ref.read(searchProvider);
+    final groupNames = widget.groupNames ??
+        state.participants.map((p) => p.name).toList();
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -290,6 +296,9 @@ class _RestaurantDetailScreenState extends ConsumerState<RestaurantDetailScreen>
       builder: (_) => _LineShareSheet(
         restaurant: widget.restaurant,
         onShared: alreadySaved ? null : _onShared,
+        meetingDate: state.selectedDate,
+        meetingTime: state.selectedMeetingTime,
+        groupNames: groupNames,
       ),
     );
   }
@@ -708,36 +717,34 @@ class _LineShareSheet extends StatelessWidget {
   const _LineShareSheet({
     required this.restaurant,
     required this.onShared,
+    this.meetingDate,
+    this.meetingTime,
+    this.groupNames = const [],
   });
   final Restaurant restaurant;
   final void Function(ReservedRestaurant)? onShared;
+  final DateTime? meetingDate;
+  final TimeOfDay? meetingTime;
+  final List<String> groupNames;
 
   Future<void> _shareLine(BuildContext context) async {
     final r = restaurant;
     final station =
         r.lat != null && r.lng != null ? _nearestStationName(r.lat!, r.lng!) : '';
 
-    // Google マップの地点URL（LINEチャットでマップカードとして表示される）
-    // 送信者の位置情報は含まない
-    final mapsUrl = r.lat != null && r.lng != null
-        ? 'https://maps.google.com/maps?q=${r.lat},${r.lng}'
-        : '';
-
-    final walkInfo = [
-      if (station.isNotEmpty) '$station駅',
-      if (r.distanceMinutes > 0) '徒歩${r.distanceMinutes}分',
-    ].join('から');
-
-    final lines = <String>[
-      r.name,
-      if (r.category.isNotEmpty) r.category,
-      if (walkInfo.isNotEmpty) walkInfo,
-      if (mapsUrl.isNotEmpty) ...[
-        '',
-        mapsUrl,
-      ],
-    ];
-    final text = lines.join('\n');
+    // 「Aimachiで予約しました」+ 集合日時 + チーム + 地図リンクを 1 本のテキストに。
+    // 送信者の生 GPS は含めない（プライバシー）— 店舗座標のみ。
+    final text = ShareUtils.buildReservationLineText(
+      restaurantName: r.name,
+      category: r.category,
+      stationName: station,
+      walkMinutes: r.distanceMinutes,
+      lat: r.lat,
+      lng: r.lng,
+      meetingDate: meetingDate,
+      meetingTime: meetingTime,
+      groupNames: groupNames,
+    );
     final encoded = Uri.encodeComponent(text);
     final lineUri = Uri.parse('https://line.me/R/share?text=$encoded');
 

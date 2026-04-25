@@ -107,7 +107,7 @@ class _CandidateShareSheetState extends ConsumerState<CandidateShareSheet> {
             ),
             const SizedBox(height: 6),
             const Text(
-              '1回で送れるのは5件までです。\n相手にもAimachiを使ってもらえば、同じ条件で自分で探せます。',
+              '1回で送れるのは5件までです。',
               style: TextStyle(
                 fontSize: 12.5,
                 color: AppColors.textSecondary,

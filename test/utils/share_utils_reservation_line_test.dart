@@ -33,6 +33,8 @@ void main() {
 
       expect(text, contains('Aimachiで予約しました'),
           reason: 'ヘッダーで「Aimachiで予約した」事実が伝わるべき');
+      expect(text, isNot(contains('🎉')),
+          reason: 'クラッカー絵文字は使わない（過剰演出）');
       expect(text, contains('まんなか食堂'), reason: '店名は必須');
       expect(text, contains('イタリアン'), reason: 'カテゴリも入れる');
       expect(text, contains('渋谷駅'), reason: '最寄り駅情報を含める');
@@ -43,6 +45,31 @@ void main() {
       expect(text, contains('ゆう'), reason: 'チームメンバー名を含める');
       expect(text, contains('たく'), reason: 'チームメンバー名を含める');
       expect(text, contains('maps.google.com'), reason: '地図リンクを含める');
+      expect(text, contains('Aimachi'),
+          reason: 'DL 誘導文に Aimachi のブランド名が含まれる');
+      expect(text, contains('apps.apple.com'),
+          reason: 'DL 誘導文に App Store URL が含まれる');
+    });
+
+    test('お店情報のあとに DL 誘導文と App Store URL が続く', () {
+      final text = ShareUtils.buildReservationLineText(
+        restaurantName: 'テスト店',
+        category: '',
+        stationName: '',
+        walkMinutes: null,
+        lat: null,
+        lng: null,
+        meetingDate: null,
+        meetingTime: null,
+        groupNames: const [],
+      );
+      // 誘導文は最後にあり、その直後に App Store URL が続く
+      final inviteIdx = text.indexOf('Aimachiならすぐ決まります');
+      final urlIdx = text.indexOf('apps.apple.com');
+      expect(inviteIdx, greaterThan(0),
+          reason: '誘導文が本文中に存在する');
+      expect(urlIdx, greaterThan(inviteIdx),
+          reason: 'App Store URL は誘導文の後ろに置く');
     });
 
     test('日付だけあって時刻が無いとき 日付だけが表示される', () {
@@ -58,8 +85,10 @@ void main() {
         groupNames: const [],
       );
       expect(text, contains('5/10'));
-      expect(text, isNot(contains(':')),
-          reason: '時刻が無いときは時刻フォーマットが現れない');
+      // 時刻フォーマット (XX:XX) が含まれないこと。
+      // URL の `https://` に含まれる `:` は対象外なので正規表現で日付横の時刻だけ検査。
+      expect(RegExp(r'\d{2}:\d{2}').hasMatch(text), isFalse,
+          reason: '時刻が無いときは HH:MM フォーマットが現れない');
     });
 
     test('時刻だけあって日付が無いとき 時刻だけが表示される', () {

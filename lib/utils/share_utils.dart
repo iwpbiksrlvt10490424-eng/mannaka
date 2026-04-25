@@ -30,7 +30,7 @@ class ShareUtils {
     required List<String> groupNames,
   }) {
     final sb = StringBuffer();
-    sb.writeln('🎉 Aimachiで予約しました');
+    sb.writeln('Aimachiで予約しました');
     sb.writeln('');
     sb.writeln('📍 $restaurantName');
     if (category.isNotEmpty) sb.writeln(category);
@@ -62,8 +62,14 @@ class ShareUtils {
 
     if (lat != null && lng != null) {
       sb.writeln('');
-      sb.write('https://maps.google.com/maps?q=$lat,$lng');
+      sb.writeln('https://maps.google.com/maps?q=$lat,$lng');
     }
+
+    // DL 誘導：受信した友人が「次は自分の集まりでも使ってみよう」と思える表現に。
+    // 押し売り感は出さず、価値（みんなの集合場所が早く決まる）を一行で伝える。
+    sb.writeln('');
+    sb.writeln('みんなの集合場所、Aimachiならすぐ決まります');
+    sb.write(appStoreUrl);
     return sb.toString();
   }
 

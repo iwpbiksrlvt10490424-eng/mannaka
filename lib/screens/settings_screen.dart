@@ -714,7 +714,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         MaterialPageRoute(builder: (_) => const TermsScreen()),
                       ),
                     ),
-                    _InfoItem(label: 'バージョン', value: '1.0.3'),
+                    _InfoItem(label: 'バージョン', value: '1.0.4'),
                   ],
                 ),
 

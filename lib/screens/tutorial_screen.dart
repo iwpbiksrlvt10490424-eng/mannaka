@@ -27,8 +27,7 @@ class TutorialScreen extends ConsumerWidget {
     _Section(
       icon: Icons.event_available_rounded,
       title: '日付と予約時間を決める',
-      body: 'その時間に開いているお店だけを提案。\n'
-          '日曜は赤・土曜は青で分かりやすく表示。',
+      body: 'その時間に開いているお店だけを提案。',
       where: '「探す」画面の日付バー',
     ),
     _Section(
@@ -58,13 +57,6 @@ class TutorialScreen extends ConsumerWidget {
       body: 'LINE 本文の店舗リンクをタップすると\n'
           'Google の店舗ページ（口コミ・写真・メニュー）が開きます。',
       where: 'LINE で受信した本文のリンク',
-    ),
-    _Section(
-      icon: Icons.bookmark_rounded,
-      title: 'あとで送るなら保存',
-      body: '忙しいときは「保存」をタップ。\n'
-          'マイページの「保存した候補」からあとで送れます。',
-      where: 'マイページ > 保存した候補',
     ),
     _Section(
       icon: Icons.check_circle_rounded,

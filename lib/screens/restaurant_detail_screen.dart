@@ -1357,7 +1357,9 @@ class _ExpandableInfoRowState extends State<_ExpandableInfoRow> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(widget.icon, size: 18, color: AppColors.primary),
+          // 情報行のアイコンは中立色に。ピンクは Primary CTA / 選択中のみに集約する
+          // （UX critique #15: ピンクの使いすぎが安っぽさにつながる）。
+          Icon(widget.icon, size: 18, color: Colors.grey.shade500),
           const SizedBox(width: 10),
           SizedBox(
             width: 68,
@@ -1442,7 +1444,8 @@ class _InfoRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 18, color: AppColors.primary),
+          // 情報行のアイコンは中立色に統一（UX critique #15）。
+          Icon(icon, size: 18, color: Colors.grey.shade500),
           const SizedBox(width: 10),
           SizedBox(
             width: 68,

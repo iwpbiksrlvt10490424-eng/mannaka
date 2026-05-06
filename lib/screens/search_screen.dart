@@ -136,31 +136,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       body: ListView(
         padding: EdgeInsets.zero,
         children: [
-          // ─── 使い方ガイド ─────────────────────────────────────
-          Builder(builder: (_) {
-            final located = state.participants.where((p) => p.hasLocation).length;
-            final hasCondition = state.groupRelation != null ||
-                state.restaurantCategories.isNotEmpty ||
-                state.occasion != Occasion.none ||
-                state.selectedDate != null ||
-                state.selectedMeetingTime != null;
-            // activeStep は 1〜3 の進捗。step n は activeStep >= n のとき光る。
-            // → ②が点灯するとき①も残ったまま、③が点灯するとき①②も残る。
-            final activeStep = hasCondition ? 3 : (located >= 2 ? 2 : 1);
-            return Container(
-              color: AppColors.primary,
-              padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
-              child: Row(
-                children: [
-                  _StepBadge('1', '駅を入れよう', isActive: activeStep >= 1),
-                  const _StepArrow(),
-                  _StepBadge('2', '好みを選ぼう', isActive: activeStep >= 2),
-                  const _StepArrow(),
-                  _StepBadge('3', '探す', isActive: activeStep >= 3),
-                ],
-              ),
-            );
-          }),
+          // 旧: 大きなピンクのステップバー（1 駅を入れよう / 2 好みを選ぼう / 3 探す）
+          // → UX critique を受けて撤去。チュートリアル画面っぽさを下げる。
+          // 駅未入力のときの誘導は「先にメンバーの駅を入れてね」（下方の小さい区切り）が担う。
 
           const SizedBox(height: 8),
 
@@ -327,7 +305,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             ),
           if (located < 2) const SizedBox(height: 8),
 
-          // ─── 好みを選ぼう（ステップ2：駅が2人分入力されるまでロック） ────
+          // ─── 好みを選ぼう（駅が2人分入力されるまでロック）───────────────
+          // 初期表示は「お店の条件」（ジャンル / 予算）だけ。
+          // 日程・誰と・集合場所の選び方・こだわり・シーンは「詳細条件」として
+          // 折りたたみ。UX critique: 「最初から完璧な条件を入れたいわけではない」。
           IgnorePointer(
             ignoring: located < 2,
             child: AnimatedOpacity(
@@ -335,48 +316,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               opacity: located >= 2 ? 1.0 : 0.35,
               child: Column(
                 children: [
-                  // ─── 日程・時間帯 ─────────────────────────────────────
-                  Container(
-                    color: AppColors.surface,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                          child: Text(
-                            '日程・時間帯',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey.shade500,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ),
-                        _DateTimeChip(
-                          state: state,
-                          onTap: () => _showTimeSlotSheet(),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // ─── ご飯ジャンル ─────────────────────────────────────
+                  // ─── ご飯ジャンル（Primary 表示） ─────────────────────
                   const SizedBox(height: 8),
                   _FoodCategoryChips(
                     selected: state.restaurantCategories,
                     onSelect: (cat) => notifier.toggleRestaurantCategory(cat),
                   ),
 
-                  // ─── 誰と行く？ ───────────────────────────────────────
-                  const SizedBox(height: 8),
-                  _GroupRelationChips(
-                    selected: state.groupRelation,
-                    onSelect: (relation) =>
-                        notifier.setGroupRelation(relation),
-                  ),
-
-                  // ─── 予算 ────────────────────────────────────────────
+                  // ─── 予算（Primary 表示） ────────────────────────────
                   const SizedBox(height: 8),
                   _BudgetChips(
                     selected: state.maxBudget,
@@ -384,32 +331,109 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                         budget == state.maxBudget ? 0 : budget),
                   ),
 
-                  // ─── 集合場所の選び方（真ん中重視 / 主要駅重視）───
-                  const SizedBox(height: 8),
-                  _MeetingPreferenceToggle(
-                    preferMajor: state.preferMajorStations,
-                    onChanged: notifier.setPreferMajorStations,
-                  ),
+                  // ─── 詳細条件（折りたたみ） ───────────────────────────
+                  const SizedBox(height: 12),
+                  Theme(
+                    data: Theme.of(context).copyWith(
+                      dividerColor: Colors.transparent,
+                    ),
+                    child: ExpansionTile(
+                      tilePadding:
+                          const EdgeInsets.symmetric(horizontal: 16),
+                      childrenPadding: EdgeInsets.zero,
+                      backgroundColor: AppColors.surface,
+                      collapsedBackgroundColor: AppColors.surface,
+                      iconColor: AppColors.textSecondary,
+                      collapsedIconColor: AppColors.textSecondary,
+                      title: Row(
+                        children: [
+                          Icon(Icons.tune_rounded,
+                              size: 18, color: AppColors.textSecondary),
+                          const SizedBox(width: 8),
+                          const Text(
+                            '詳細条件',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            '日程・誰と・個室・シーンなど',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: AppColors.textTertiary,
+                            ),
+                          ),
+                        ],
+                      ),
+                      children: [
+                        // ─── 日程・時間帯 ─────────────────────────────
+                        Container(
+                          color: AppColors.surface,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Padding(
+                                padding:
+                                    const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                                child: Text(
+                                  '日程・時間帯',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey.shade500,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ),
+                              _DateTimeChip(
+                                state: state,
+                                onTap: () => _showTimeSlotSheet(),
+                              ),
+                            ],
+                          ),
+                        ),
 
-                  // ─── こだわり（個室・飲み放題）─────────────────────
-                  const SizedBox(height: 8),
-                  _RequestToggles(
-                    privateRoom: state.showPrivateRoom,
-                    freeDrink: state.showFreeDrink,
-                    excludeChains: state.excludeChains,
-                    onPrivateRoomChanged: notifier.setPrivateRoom,
-                    onFreeDrinkChanged: notifier.setFreeDrink,
-                    onExcludeChainsChanged: notifier.setExcludeChains,
-                  ),
+                        // ─── 誰と行く？ ───────────────────────────────
+                        const SizedBox(height: 8),
+                        _GroupRelationChips(
+                          selected: state.groupRelation,
+                          onSelect: (relation) =>
+                              notifier.setGroupRelation(relation),
+                        ),
 
-                  // ─── シーン選択 ───────────────────────────────────────
-                  const SizedBox(height: 8),
-                  _OccasionChips(
-                    selected: state.occasion,
-                    onSelect: (o) {
-                      notifier.setOccasion(
-                          state.occasion == o ? Occasion.none : o);
-                    },
+                        // ─── 集合場所の選び方 ─────────────────────────
+                        const SizedBox(height: 8),
+                        _MeetingPreferenceToggle(
+                          preferMajor: state.preferMajorStations,
+                          onChanged: notifier.setPreferMajorStations,
+                        ),
+
+                        // ─── こだわり ────────────────────────────────
+                        const SizedBox(height: 8),
+                        _RequestToggles(
+                          privateRoom: state.showPrivateRoom,
+                          freeDrink: state.showFreeDrink,
+                          excludeChains: state.excludeChains,
+                          onPrivateRoomChanged: notifier.setPrivateRoom,
+                          onFreeDrinkChanged: notifier.setFreeDrink,
+                          onExcludeChainsChanged: notifier.setExcludeChains,
+                        ),
+
+                        // ─── シーン ──────────────────────────────────
+                        const SizedBox(height: 8),
+                        _OccasionChips(
+                          selected: state.occasion,
+                          onSelect: (o) {
+                            notifier.setOccasion(
+                                state.occasion == o ? Occasion.none : o);
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -1337,23 +1361,41 @@ class _DateTimeChip extends StatelessWidget {
   }
 }
 
-// ─── 女子会モードトグル ────────────────────────────────────────────────────────
+// ─── シーン選択チップ（初期 4 個 + もっと見る） ───────────────────────────────
 
-class _OccasionChips extends StatelessWidget {
+class _OccasionChips extends StatefulWidget {
   const _OccasionChips({required this.selected, required this.onSelect});
   final Occasion selected;
   final ValueChanged<Occasion> onSelect;
 
+  // UX critique: 初期表示の選択肢を絞って判断コストを下げる。
+  // 利用頻度の高そうな 4 個を先に出し、残りは「もっと見る」で展開。
+  // 既に選択済みのオプションが折りたたまれている場合は自動展開する。
   static const _options = [
     (Occasion.dinner, 'ごはん会'),
     (Occasion.drinking, '飲み会'),
     (Occasion.girlsNight, '女子会'),
-    (Occasion.birthday, '誕生日'),
     (Occasion.lunch, 'ランチ'),
+    (Occasion.date, 'デート'),
+    (Occasion.birthday, '誕生日'),
     (Occasion.mixer, '合コン'),
     (Occasion.welcome, '歓迎会'),
-    (Occasion.date, 'デート'),
   ];
+  static const _initialCount = 4;
+
+  @override
+  State<_OccasionChips> createState() => _OccasionChipsState();
+}
+
+class _OccasionChipsState extends State<_OccasionChips> {
+  bool _expanded = false;
+
+  bool _isHiddenSelected() {
+    // 折りたたみ時に隠れている選択肢が「選択中」の場合は強制展開
+    final hidden =
+        _OccasionChips._options.skip(_OccasionChips._initialCount).map((e) => e.$1);
+    return hidden.contains(widget.selected);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1378,46 +1420,85 @@ class _OccasionChips extends StatelessWidget {
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: _options.map((opt) {
-                final (occasion, label) = opt;
-                final isSelected = selected == occasion;
-                return GestureDetector(
-                  onTap: () => onSelect(occasion),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? AppColors.chipSelectedBg
-                          : Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: isSelected
-                            ? AppColors.chipSelectedBg
-                            : AppColors.divider,
-                        width: 1,
+            child: Builder(builder: (_) {
+              final showAll = _expanded || _isHiddenSelected();
+              final visible = showAll
+                  ? _OccasionChips._options
+                  : _OccasionChips._options
+                      .take(_OccasionChips._initialCount)
+                      .toList();
+              return Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  ...visible.map((opt) {
+                    final (occasion, label) = opt;
+                    final isSelected = widget.selected == occasion;
+                    return GestureDetector(
+                      onTap: () => widget.onSelect(occasion),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? AppColors.chipSelectedBg
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: isSelected
+                                ? AppColors.chipSelectedBg
+                                : AppColors.divider,
+                            width: 1,
+                          ),
+                        ),
+                        child: Text(
+                          label,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: isSelected
+                                ? FontWeight.w600
+                                : FontWeight.w400,
+                            color: isSelected
+                                ? AppColors.chipSelectedText
+                                : AppColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                  if (!showAll)
+                    GestureDetector(
+                      onTap: () => setState(() => _expanded = true),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                              color: AppColors.divider, width: 1),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text(
+                              'もっと見る',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Icon(Icons.expand_more_rounded,
+                                size: 16,
+                                color: AppColors.textSecondary),
+                          ],
+                        ),
                       ),
                     ),
-                    child: Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: isSelected
-                            ? FontWeight.w600
-                            : FontWeight.w400,
-                        color: isSelected
-                            ? AppColors.chipSelectedText
-                            : AppColors.textSecondary,
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
+                ],
+              );
+            }),
           ),
           const SizedBox(height: 1, child: ColoredBox(color: Color(0xFFEEEEEE))),
         ],
@@ -1426,24 +1507,41 @@ class _OccasionChips extends StatelessWidget {
   }
 }
 
-// ─── ご飯ジャンルチップ ────────────────────────────────────────────────────────
+// ─── ご飯ジャンルチップ（初期 6 個 + もっと見る） ──────────────────────────────
 
-class _FoodCategoryChips extends StatelessWidget {
+class _FoodCategoryChips extends StatefulWidget {
   const _FoodCategoryChips({required this.selected, required this.onSelect});
   final Set<String> selected;
   final ValueChanged<String> onSelect;
 
+  // UX critique: 初期表示の選択肢を絞って判断コストを下げる。
+  // 利用頻度の高そうな 6 個を先に出し、残りは「もっと見る」で展開。
   static const _options = [
-    ('カフェ', 'カフェ'),
-    ('イタリアン', 'イタリアン'),
-    ('フレンチ', 'フレンチ'),
-    ('韓国料理', '韓国料理'),
-    ('和食', '和食'),
     ('居酒屋', '居酒屋'),
+    ('カフェ', 'カフェ'),
     ('焼肉', '焼肉'),
+    ('イタリアン', 'イタリアン'),
+    ('和食', '和食'),
+    ('韓国料理', '韓国料理'),
+    ('フレンチ', 'フレンチ'),
     ('ラーメン', 'ラーメン'),
     ('中華', '中華'),
   ];
+  static const _initialCount = 6;
+
+  @override
+  State<_FoodCategoryChips> createState() => _FoodCategoryChipsState();
+}
+
+class _FoodCategoryChipsState extends State<_FoodCategoryChips> {
+  bool _expanded = false;
+
+  bool _isHiddenSelected() {
+    final hiddenKeys = _FoodCategoryChips._options
+        .skip(_FoodCategoryChips._initialCount)
+        .map((e) => e.$1);
+    return widget.selected.any(hiddenKeys.contains);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1468,46 +1566,84 @@ class _FoodCategoryChips extends StatelessWidget {
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: _options.map((opt) {
-                final (key, label) = opt;
-                final isSelected = selected.contains(key);
-                return GestureDetector(
-                  onTap: () => onSelect(key),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? AppColors.chipSelectedBg
-                          : Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: isSelected
-                            ? AppColors.chipSelectedBg
-                            : AppColors.divider,
-                        width: 1,
+            child: Builder(builder: (_) {
+              final showAll = _expanded || _isHiddenSelected();
+              final visible = showAll
+                  ? _FoodCategoryChips._options
+                  : _FoodCategoryChips._options
+                      .take(_FoodCategoryChips._initialCount)
+                      .toList();
+              return Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  ...visible.map((opt) {
+                    final (key, label) = opt;
+                    final isSelected = widget.selected.contains(key);
+                    return GestureDetector(
+                      onTap: () => widget.onSelect(key),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? AppColors.chipSelectedBg
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: isSelected
+                                ? AppColors.chipSelectedBg
+                                : AppColors.divider,
+                            width: 1,
+                          ),
+                        ),
+                        child: Text(
+                          label,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: isSelected
+                                ? FontWeight.w600
+                                : FontWeight.w400,
+                            color: isSelected
+                                ? AppColors.chipSelectedText
+                                : AppColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                  if (!showAll)
+                    GestureDetector(
+                      onTap: () => setState(() => _expanded = true),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                              color: AppColors.divider, width: 1),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text(
+                              'もっと見る',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Icon(Icons.expand_more_rounded,
+                                size: 16, color: AppColors.textSecondary),
+                          ],
+                        ),
                       ),
                     ),
-                    child: Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: isSelected
-                            ? FontWeight.w600
-                            : FontWeight.w400,
-                        color: isSelected
-                            ? AppColors.chipSelectedText
-                            : AppColors.textSecondary,
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
+                ],
+              );
+            }),
           ),
           const SizedBox(height: 1, child: ColoredBox(color: Color(0xFFEEEEEE))),
         ],
@@ -1911,71 +2047,6 @@ class _TimeSlotSheetState extends State<_TimeSlotSheet> {
   }
 }
 
-// ─── ステップバッジ ────────────────────────────────────────────────────────────
-
-class _StepBadge extends StatelessWidget {
-  const _StepBadge(this.step, this.label, {this.isActive = false});
-  final String step;
-  final String label;
-  final bool isActive;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: AnimatedOpacity(
-        duration: const Duration(milliseconds: 250),
-        opacity: isActive ? 1.0 : 0.45,
-        child: Column(
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              width: isActive ? 30 : 24,
-              height: isActive ? 30 : 24,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-                boxShadow: isActive
-                    ? [BoxShadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 2))]
-                    : [],
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                step,
-                style: TextStyle(
-                  fontSize: isActive ? 14 : 12,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.primary,
-                ),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: isActive ? 12 : 11,
-                fontWeight: isActive ? FontWeight.w700 : FontWeight.w600,
-                color: Colors.white,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _StepArrow extends StatelessWidget {
-  const _StepArrow();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.only(bottom: 16),
-      child: Icon(Icons.chevron_right_rounded, color: Colors.white70, size: 20),
-    );
-  }
-}
-
 // ─── 使い方ガイド（初回のみ表示） ──────────────────────────────────────────────
 
 class _HowToSheet extends StatelessWidget {
@@ -2236,15 +2307,15 @@ class _MeetingPreferenceToggle extends StatelessWidget {
             child: Column(
               children: [
                 _segment(
-                  'まんなか重視',
-                  '全員の移動時間が一番近くなる駅を選ぶ',
+                  '移動時間を公平にする',
+                  '全員の移動時間差が小さい駅を選びます',
                   !preferMajor,
                   () => onChanged(false),
                 ),
                 const SizedBox(height: 8),
                 _segment(
-                  '主要駅重視',
-                  '乗換しやすい有名な駅の中からまんなかそうな場所を選ぶ',
+                  '行きやすい駅を優先する',
+                  '乗換しやすい大きな駅から選びます',
                   preferMajor,
                   () => onChanged(true),
                 ),

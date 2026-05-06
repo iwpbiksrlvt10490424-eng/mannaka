@@ -18,7 +18,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
       body: const SingleChildScrollView(
         padding: EdgeInsets.all(20),
         child: _PolicyContent(
-          header: 'Aimachi プライバシーポリシー\n制定日：2024年4月1日\n最終改定日：2026年4月24日',
+          header: 'Aimachi プライバシーポリシー\n制定日：2024年4月1日\n最終改定日：2026年5月7日',
           sections: [
             _PolicySection(
               title: '第1条（個人情報の定義）',
@@ -37,10 +37,16 @@ class PrivacyPolicyScreen extends StatelessWidget {
                   '利用目的：アプリ機能の提供（出発駅の自動入力、ホーム駅の設定等）\n'
                   '保存場所：端末内のSharedPreferences\n'
                   '保存期間：ユーザーがアプリを削除するまで保持\n\n'
-                  '【飲食記録・検索履歴】\n'
-                  '利用目的：履歴表示・再検索機能の提供\n'
-                  '保存場所：端末内のみ\n'
+                  '【検索履歴】\n'
+                  '利用目的：過去に詳細を開いたお店の振り返り\n'
+                  '保存場所：端末内のみ（SharedPreferences）\n'
                   '保存期間：ユーザーが削除するまで保持\n\n'
+                  '【飲食記録（行ったお店・予約済みのお店）】\n'
+                  '利用目的：行ったお店・予約したお店の記録表示、グループ間での共有\n'
+                  '保存場所：Firebase（Google LLC）の Firestore サーバー\n'
+                  '内容：店名・住所・最寄り駅・グループ名・予約日時／訪問日時・店舗写真の参照情報\n'
+                  '保存期間：ユーザーが削除するまで保持。アプリをアンインストールしても'
+                  'サーバー上の記録は残ります（削除をご希望の場合はアプリ内の削除機能をご利用ください）\n\n'
                   '【匿名の利用統計】\n'
                   '利用目的：アプリ品質改善・ユーザー体験の向上・混雑駅の需要分析・掲載店舗の評価指標\n'
                   '保存場所：Firebase（Google LLC）のサーバー\n'
@@ -78,8 +84,9 @@ class PrivacyPolicyScreen extends StatelessWidget {
                   '利用目的：周辺施設情報の取得（フォールバック）\n'
                   'プライバシーポリシー：https://wiki.osmfoundation.org/wiki/Privacy_Policy\n\n'
                   '【Google LLC（Firebase）】\n'
-                  '提供情報：匿名の利用統計・クラッシュ情報\n'
-                  '利用目的：アプリ品質改善\n'
+                  '提供情報：匿名の利用統計・クラッシュ情報、'
+                  '飲食記録（行ったお店・予約済みのお店：店名・住所・最寄り駅・グループ名・日時・写真参照情報）\n'
+                  '利用目的：アプリ品質改善、ユーザーの飲食記録の保存・表示\n'
                   'プライバシーポリシー：https://policies.google.com/privacy\n\n'
                   '【LINEヤフー株式会社（LINE 共有）】\n'
                   '提供情報：ユーザーが「LINEでシェア」を操作した際、LINE アプリに渡されるシェア文言（集合駅名・お店名・URL等）\n'

@@ -1533,12 +1533,12 @@ class _SmallBadge extends StatelessWidget {
 //
 // 既存の駅ヘッダー（小さい表示）を置き換え、Aimachi のアイデンティティを前面に出す。
 
-class _MeetingPointSpotlightCard extends StatelessWidget {
+class _MeetingPointSpotlightCard extends ConsumerWidget {
   const _MeetingPointSpotlightCard({required this.point});
   final MeetingPoint point;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final diff = point.timeDifference;
     final fairnessLabel = _fairnessLabel(diff);
     final hasIndividualTimes = point.participantTimes.isNotEmpty;
@@ -1659,6 +1659,47 @@ class _MeetingPointSpotlightCard extends StatelessWidget {
               style: TextStyle(
                 fontSize: 11,
                 color: AppColors.textTertiary,
+              ),
+            ),
+          ),
+          // ─── LINE で共有ボタン（集合駅と候補をすぐ送れる） ───────
+          // 集合場所カードに直接置いて、Aimachi の体験の中心に LINE 共有を据える。
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            height: 42,
+            child: OutlinedButton.icon(
+              onPressed: () async {
+                HapticFeedback.mediumImpact();
+                final messenger = ScaffoldMessenger.of(context);
+                final state = ref.read(searchProvider);
+                final ok =
+                    await ShareUtils.shareMeetingPointsToLine(state);
+                if (!ok) {
+                  messenger.showSnackBar(
+                    const SnackBar(
+                      content: Text('LINE がインストールされていません'),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              },
+              icon: const LineIcon(
+                  size: 16,
+                  filled: false,
+                  iconColor: Color(0xFF06C755)),
+              label: const Text(
+                'この集合場所を LINE で共有',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF06C755),
+                side: const BorderSide(color: Color(0xFF06C755), width: 1.5),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
               ),
             ),
           ),

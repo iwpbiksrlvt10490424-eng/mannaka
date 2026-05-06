@@ -14,6 +14,7 @@ import '../theme/app_theme.dart';
 import '../data/station_data.dart';
 import '../services/location_service.dart';
 import '../providers/profile_provider.dart';
+import '../providers/history_provider.dart';
 
 typedef NavigateCallback = void Function(int tabIndex, {Occasion? occasion});
 
@@ -424,6 +425,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               ],
                             ),
                           ),
+                          // ─── 前回の集合場所（履歴があれば表示） ──────
+                          // 地図はそれだけだと「Google Map を置いただけ」に見えるため、
+                          // ホームに前回の集合場所を再現できるカードを置いて
+                          // 地図と Aimachi の体験を結びつける（UX critique #2）。
+                          const _LastMeetingPointCard(),
                           // ─── シーンで絞り込む ──────────────
                           const SizedBox(height: 12),
                           const Padding(
@@ -458,6 +464,102 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 }
 
 
+
+// ─── 前回の集合場所カード（履歴があれば表示） ─────────────────────────────────
+//
+// ホームの地図に意味付けをするためのカード。最も新しい履歴エントリーから
+// 駅名・メンバー・日付を取り出して表示し、タップで探すタブへ誘導する。
+// 履歴が無い場合は何も表示しない（初期ユーザーには CTA だけが目立つ）。
+
+class _LastMeetingPointCard extends ConsumerWidget {
+  const _LastMeetingPointCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final history = ref.watch(historyProvider);
+    if (history.isEmpty) return const SizedBox.shrink();
+    final last = history.first; // historyProvider は新しい順
+    final mp = last.meetingPoint;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+      child: Material(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        elevation: 0,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () {
+            // 探すタブへ遷移（参加者再入力は引き続きユーザー側で行う）。
+            // 完全な再検索は履歴データに参加者の駅を保存していないため未対応。
+            HapticFeedback.lightImpact();
+            (context.findAncestorStateOfType<_HomeScreenState>()?.widget)
+                ?.onNavigate
+                ?.call(1);
+          },
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryLight,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.train_rounded,
+                      size: 20, color: AppColors.primary),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '前回の集合場所',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textTertiary,
+                          letterSpacing: 0.4,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${mp.stationName}駅',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        last.participantNames.join('・'),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textSecondary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right_rounded,
+                    color: AppColors.textTertiary),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 // ─── 目的グリッド（横スクロール・ピル形状） ─────────────────────────────────
 

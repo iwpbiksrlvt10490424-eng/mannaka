@@ -6,51 +6,31 @@ import '../theme/app_theme.dart';
 import '../widgets/illustrations.dart';
 
 class _Slide {
-  const _Slide({required this.title, required this.body, this.caption});
+  const _Slide({required this.title, required this.body});
   final String title;
   final String body;
-  final String? caption; // ボタン直前に表示する一言
 }
 
+// UX critique を反映: オンボーディングは Aimachi の「価値」を 4 枚に圧縮。
+// 操作説明（GPS 設定 / 保存 / 予約記録）は使い方ガイドや FAQ で補完する。
+// 4 枚に絞る理由: 8 枚は離脱率が高い。Aimachi が普通のグルメ検索ではなく
+// 「集合場所を計算するアプリ」だと最初に伝えることが最重要。
 const _slides = [
   _Slide(
-    title: '集合場所、\nもう迷わない。',
-    body: '渋谷、池袋、横浜——バラバラでも大丈夫。\nみんなにちょうどいいお店が、すぐ見つかる。',
+    title: 'みんなの真ん中で、\nお店を探そう。',
+    body: '友達それぞれの出発駅から、\nみんなが集まりやすい場所を提案します。',
   ),
   _Slide(
-    title: '「どこにしよう」の\n迷いをなくそう。',
-    body: '駅を入れるだけで、\nみんなにちょうどいいお店が見つかる。',
-    caption: '探すタブの「+」で参加者を追加',
+    title: '移動時間のバランスを\n見える化。',
+    body: '誰かだけ遠くならないように、\n集合駅ごとの移動時間を比較できます。',
   ),
   _Slide(
-    title: '現在地設定で\nもっとラクに。',
-    body: '位置情報を許可すると、\n最寄り駅が自動で入ります。',
-    caption: 'マイページ > 位置情報の設定',
+    title: '条件に合うお店をまとめて表示。',
+    body: 'ジャンル・予算・個室・予約可などで、\nちょうどいいお店を探せます。',
   ),
   _Slide(
-    title: '予約時間も決められる。',
-    body: '日にち・予約したい時間を選べば、\nその時間に開いているお店を提案。',
-    caption: '「日程・予約時間を選択」から',
-  ),
-  _Slide(
-    title: '候補を選んでまとめてLINE。',
-    body: '気になるお店のカード右上の「+」で候補に追加。\n何件でも選べて、まとめて LINE で送れます。',
-    caption: '駅タブを跨いで選択が保持されます',
-  ),
-  _Slide(
-    title: 'あとで送りたいときは保存。',
-    body: '忙しくて今送れないときは「保存」をタップ。\nマイページから後でまとめて送れます。',
-    caption: 'マイページ > 保存した候補',
-  ),
-  _Slide(
-    title: '予約・訪問の記録も。',
-    body: '予約できた・行けたお店を手動で追加できます。\nグループ単位で履歴を振り返れます。',
-    caption: '予定 / 行ったお店 画面の「+」',
-  ),
-  _Slide(
-    title: '今日から、もっと\n気軽に集まれる。',
-    body: 'Aimachi は無料。\nさっそく今日の集合場所を探してみましょう。',
-    caption: null,
+    title: 'LINEで共有して、\nみんなで決める。',
+    body: '候補のお店や集合場所を、\n友達にそのまま送れます。',
   ),
 ];
 
@@ -92,7 +72,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final currentSlide = _slides[_page];
     return Scaffold(
       body: SafeArea(
         child: Column(
@@ -129,23 +108,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               }),
             ),
             const SizedBox(height: 24),
-            // キャプション（最終スライドのみ）
-            AnimatedOpacity(
-              opacity: currentSlide.caption != null ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 300),
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: Text(
-                  currentSlide.caption ?? '',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey.shade500,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: GestureDetector(

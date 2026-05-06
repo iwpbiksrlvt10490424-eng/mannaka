@@ -1103,9 +1103,7 @@ class _HeroCard extends StatelessWidget {
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              r.isReservable
-                                  ? 'ここから予約可能 · No.1'
-                                  : 'おすすめ No.1',
+                              r.isReservable ? '予約可' : 'おすすめ',
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,
@@ -1117,23 +1115,9 @@ class _HeroCard extends StatelessWidget {
                           ],
                         ),
                       ),
-                      if (scored.curationLabel.isNotEmpty)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            scored.curationLabel,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                        ),
+                      // 「外さない」「おしゃれ」「穴場」等の主観ラベル（curationLabel）は
+                      // UX critique を受けて削除。ラベルは事実ベース（駅近・予約可・個室）に絞る。
+                      // 並び順 1 位は表示順序で示すので「No.1」表記は重複表現として削除。
                     ],
                   ),
                   const SizedBox(height: 10),
@@ -1215,7 +1199,7 @@ class _HeroCard extends StatelessWidget {
                             color: AppColors.primary.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(5),
                           ),
-                          child: const Text('おすすめ',
+                          child: const Text('高評価',
                               style: TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w700,
@@ -1552,18 +1536,11 @@ class _CompactCard extends StatelessWidget {
                                     color: AppColors.textPrimary)),
                           ],
                         ),
-                      if (r.isReservable)
-                        _SmallBadge('ここから予約可能', AppColors.success),
-                      if (r.hasPrivateRoom)
-                        _SmallBadge('個室', const Color(0xFF7C3AED)),
-                      if (r.isFemalePopular)
-                        _SmallBadge('女性人気', AppColors.primary),
-                      if (scored.curationLabel.isNotEmpty &&
-                          !r.isReservable &&
-                          !r.hasPrivateRoom &&
-                          !r.isFemalePopular)
-                        _SmallBadge(
-                            scored.curationLabel, AppColors.textSecondary),
+                      // ラベルは事実ベースに絞り、最大 2 つまで表示。
+                      // 優先順: 駅近(<=5分) > 予約可 > 個室 > 高評価。
+                      // 「女性人気」「外さない」「おしゃれ」「穴場」等の主観ラベルは
+                      // UX critique を受けて削除（判断コストを下げる）。
+                      ..._FactBadges.build(r),
                     ],
                   ),
                 ],
@@ -1599,6 +1576,30 @@ class _SmallBadge extends StatelessWidget {
           style: TextStyle(
               fontSize: 10, fontWeight: FontWeight.w600, color: color)),
     );
+  }
+}
+
+// ─── 事実ベースの店舗ラベル生成（最大2つ） ─────────────────────────────────────
+
+/// 店舗カードの右上に出すラベルは事実ベース（駅近・予約可・個室・高評価）に絞る。
+/// 主観ラベル（外さない・おしゃれ・穴場・女性人気）は UX critique を受けて削除。
+/// 表示件数は最大 2 つ — 多すぎると判断コストが上がる（Hick's Law）。
+class _FactBadges {
+  static List<Widget> build(Restaurant r) {
+    final badges = <Widget>[];
+    if (r.distanceMinutes <= 5) {
+      badges.add(_SmallBadge('駅近', AppColors.success));
+    }
+    if (r.isReservable && badges.length < 2) {
+      badges.add(_SmallBadge('予約可', AppColors.success));
+    }
+    if (r.hasPrivateRoom && badges.length < 2) {
+      badges.add(_SmallBadge('個室', const Color(0xFF7C3AED)));
+    }
+    if ((r.rating ?? 0) >= 4.0 && badges.length < 2) {
+      badges.add(_SmallBadge('高評価', AppColors.primary));
+    }
+    return badges;
   }
 }
 

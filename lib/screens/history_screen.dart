@@ -201,72 +201,70 @@ class _SearchHistoryTab extends ConsumerWidget {
                           ),
                         ),
                       ),
-                    // ヘッダー行
+                    // ヘッダー: 駅 + 日付
                     Row(
                       children: [
-                        const Icon(Icons.location_on,
-                            size: 13, color: AppColors.primary),
-                        const SizedBox(width: 4),
+                        Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            color: AppColors.primaryLight,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.train_rounded,
+                              size: 16, color: AppColors.primary),
+                        ),
+                        const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            '${entry.meetingPoint.stationName}駅',
+                            '${entry.meetingPoint.stationName}駅周辺で検索',
                             style: const TextStyle(
-                                fontWeight: FontWeight.w700, fontSize: 15),
+                                fontWeight: FontWeight.w800, fontSize: 15),
                           ),
                         ),
                         Text(_formatDate(entry.createdAt),
                             style: TextStyle(
-                                fontSize: 11, color: Colors.grey.shade400)),
+                                fontSize: 11, color: Colors.grey.shade500)),
                         const SizedBox(width: 4),
                         const Icon(Icons.chevron_right,
-                            size: 16, color: AppColors.textTertiary),
+                            size: 18, color: AppColors.textTertiary),
                       ],
                     ),
-                    const SizedBox(height: 2),
-                    Text(entry.participantNames.join('、'),
+                    const SizedBox(height: 6),
+                    Text(entry.participantNames.join('・'),
                         style: TextStyle(
-                            fontSize: 12, color: Colors.grey.shade500)),
-                    // お店リスト（保存された全店を表示）
-                    // 過去は take(3) で隠れていたが、ユーザー観点で「検索結果が全部見たい」
-                    // という DoD に合わせて全件表示に変更。
+                            fontSize: 12, color: Colors.grey.shade600)),
+                    // 候補要約: 最初の店 + 件数（履歴は再利用の入口、店舗の縦並びでなく要約）
+                    // タップした店だけが残る新仕様により、件数は通常 1〜5 件。
                     if (entry.restaurants.isNotEmpty) ...[
                       const SizedBox(height: 10),
-                      ...entry.restaurants.map((r) => Padding(
-                        padding: const EdgeInsets.only(bottom: 5),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: AppColors.background,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                         child: Row(
                           children: [
+                            const Icon(Icons.bookmark_outline,
+                                size: 14, color: AppColors.textSecondary),
+                            const SizedBox(width: 6),
                             Expanded(
                               child: Text(
-                                r.name,
+                                _candidatesSummary(entry.restaurants),
                                 style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.textPrimary),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textPrimary,
+                                ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
-                            const SizedBox(width: 8),
-                            Text(
-                              r.category,
-                              style: TextStyle(
-                                  fontSize: 11, color: Colors.grey.shade500),
-                            ),
-                            if ((r.rating ?? 0) > 0) ...[
-                              const SizedBox(width: 6),
-                              Icon(Icons.star_rounded,
-                                  size: 11, color: AppColors.star),
-                              const SizedBox(width: 2),
-                              Text(
-                                r.rating!.toStringAsFixed(1),
-                                style: TextStyle(
-                                    fontSize: 11,
-                                    color: Colors.grey.shade600),
-                              ),
-                            ],
                           ],
                         ),
-                      )),
+                      ),
                     ],
                   ],
                 ),
@@ -280,6 +278,15 @@ class _SearchHistoryTab extends ConsumerWidget {
 
   String _formatDate(DateTime dt) =>
       '${dt.year}/${dt.month.toString().padLeft(2, '0')}/${dt.day.toString().padLeft(2, '0')}';
+
+  /// 候補要約: 「○○ 他 N 件」形式（履歴カードが縦に伸びるのを防ぐ）。
+  /// 1 件のみなら店名だけ、複数なら「先頭店 他 N 件」。
+  String _candidatesSummary(List<HistoryRestaurant> restaurants) {
+    if (restaurants.isEmpty) return '';
+    final first = restaurants.first.name;
+    if (restaurants.length == 1) return first;
+    return '$first 他 ${restaurants.length - 1} 件';
+  }
 }
 
 // ─── 行ったお店タブ ─────────────────────────────────────────────────────────────

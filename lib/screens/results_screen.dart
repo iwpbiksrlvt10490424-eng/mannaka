@@ -790,17 +790,6 @@ class _MeetingPointTabState extends ConsumerState<_MeetingPointTab> {
             !state.restaurantCache.containsKey(name));
   }
 
-  /// 駅ヘッダー用の個別移動時間ラベル。
-  /// 「田中 12分 / 鈴木 8分」形式。空のときはフォールバック文言。
-  String _participantTimesLabel(MeetingPoint p) {
-    if (p.participantTimes.isEmpty) {
-      return '平均 ${p.averageMinutes.toStringAsFixed(0)}分・最大 ${p.maxMinutes}分';
-    }
-    final entries = p.participantTimes.entries.toList()
-      ..sort((a, b) => a.value.compareTo(b.value));
-    return entries.map((e) => '${e.key} ${e.value}分').join(' / ');
-  }
-
   @override
   Widget build(BuildContext context) {
     final point = widget.point;
@@ -809,60 +798,11 @@ class _MeetingPointTabState extends ConsumerState<_MeetingPointTab> {
 
     return Column(
       children: [
-        // ─ 駅ヘッダー ──────────────────────────────────────────────────────
-        Container(
-          color: AppColors.surface,
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-          child: Row(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: AppColors.primaryLight,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.train_rounded,
-                    size: 22, color: AppColors.primary),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${point.stationName}駅',
-                      style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.textPrimary),
-                    ),
-                    const SizedBox(height: 4),
-                    // 個別表示: 「田中 12分 / 鈴木 8分 / 佐藤 5分」
-                    // ダミー値禁止に従い、participantTimes が空ならフォールバックの平均/最大を出す。
-                    Text(
-                      _participantTimesLabel(point),
-                      style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
-                          height: 1.4),
-                    ),
-                    if (point.participantTimes.isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        '平均 ${point.averageMinutes.toStringAsFixed(0)}分・最大 ${point.maxMinutes}分',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: AppColors.textTertiary,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
+        // ─ 集合場所カード（Aimachi の主役 UI） ───────────────────────────
+        // ANA のフライトカードに相当する、アプリの「顔」となるカード。
+        // 単なる店舗検索ではなく「集合場所の納得感」を提供することが
+        // Aimachi の差別化なので、結果画面の最上部にこのカードを置く。
+        _MeetingPointSpotlightCard(point: point),
         const SizedBox(height: 1, child: ColoredBox(color: Color(0xFFEEEEEE))),
 
         // ─ ジャンルフィルター ────────────────────────────────────────────
@@ -1575,6 +1515,213 @@ class _SmallBadge extends StatelessWidget {
       child: Text(label,
           style: TextStyle(
               fontSize: 10, fontWeight: FontWeight.w600, color: color)),
+    );
+  }
+}
+
+// ─── 集合場所カード（Spotlight） ───────────────────────────────────────────────
+//
+// Aimachi の中核 UI。検索結果上部に固定表示する「集合駅の納得感」カード。
+// 食べログ / Hotpepper との差別化はここに集約される。
+//
+// 表示要素:
+//   - 「○○駅がおすすめです」: 集合駅名（rank 1 用文言）
+//   - 各メンバーの移動時間（参加者数 ≤ 6 のみ）
+//   - 移動時間の差: maxMinutes - minMinutes（== timeDifference）
+//   - 公平さの一言評価（差分から計算）
+//   - 選び方: 「移動時間を公平にする」or「行きやすい駅を優先する」（既定: 公平）
+//
+// 既存の駅ヘッダー（小さい表示）を置き換え、Aimachi のアイデンティティを前面に出す。
+
+class _MeetingPointSpotlightCard extends StatelessWidget {
+  const _MeetingPointSpotlightCard({required this.point});
+  final MeetingPoint point;
+
+  @override
+  Widget build(BuildContext context) {
+    final diff = point.timeDifference;
+    final fairnessLabel = _fairnessLabel(diff);
+    final hasIndividualTimes = point.participantTimes.isNotEmpty;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.primary.withValues(alpha: 0.06),
+            AppColors.surface,
+          ],
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 主役: 駅名
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.train_rounded,
+                    color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${point.stationName}駅',
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.textPrimary,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'みんなが集まりやすい場所',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          // 個別の移動時間（最大 6 人まで一覧、それ以上は要約）
+          if (hasIndividualTimes) _ParticipantTimes(times: point.participantTimes),
+          if (hasIndividualTimes) const SizedBox(height: 10),
+          // 移動時間差 + 公平さの評価
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: const Color(0xFFE5E7EB),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.compare_arrows_rounded,
+                    size: 18, color: AppColors.textSecondary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: RichText(
+                    text: TextSpan(
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textPrimary,
+                        height: 1.45,
+                      ),
+                      children: [
+                        const TextSpan(text: '移動時間の差: '),
+                        TextSpan(
+                          text: '$diff 分',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        TextSpan(
+                          text: '   $fairnessLabel',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 6),
+          Padding(
+            padding: const EdgeInsets.only(left: 4),
+            child: Text(
+              '選び方: 移動時間を公平にする',
+              style: TextStyle(
+                fontSize: 11,
+                color: AppColors.textTertiary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 移動時間の差から「公平さ」の一言評価を返す。
+  /// 0-2 分: 全員ほぼ同じ / 3-5 分: 公平 / 6-10 分: ほぼ公平 / 11+ 分: 多少差あり
+  static String _fairnessLabel(int diff) {
+    if (diff <= 2) return '全員ほぼ同じ時間で集まれます';
+    if (diff <= 5) return '公平に集まれる場所です';
+    if (diff <= 10) return 'ほぼ公平に集まれます';
+    return '少し差があります';
+  }
+}
+
+class _ParticipantTimes extends StatelessWidget {
+  const _ParticipantTimes({required this.times});
+  final Map<String, int> times;
+
+  @override
+  Widget build(BuildContext context) {
+    // 短い時間の人から順に並べる（最も近い人が左に来る）。
+    final entries = times.entries.toList()
+      ..sort((a, b) => a.value.compareTo(b.value));
+    // 6 人以上は要約（カード崩れ防止）
+    final visible = entries.length <= 6 ? entries : entries.take(5).toList();
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: [
+        ...visible.map((e) => _PersonChip(name: e.key, minutes: e.value)),
+        if (entries.length > 6)
+          _PersonChip(name: '他 ${entries.length - 5} 人', minutes: -1),
+      ],
+    );
+  }
+}
+
+class _PersonChip extends StatelessWidget {
+  const _PersonChip({required this.name, required this.minutes});
+  final String name;
+  final int minutes;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
+      ),
+      child: Text(
+        minutes >= 0 ? '$name $minutes分' : name,
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: AppColors.textPrimary,
+        ),
+      ),
     );
   }
 }

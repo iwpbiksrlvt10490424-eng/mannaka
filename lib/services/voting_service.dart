@@ -1,10 +1,26 @@
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/scored_restaurant.dart';
+import '../utils/photo_ref.dart';
 
 class VotingService {
   static final _db = FirebaseFirestore.instance;
   static const _col = 'voting_sessions';
+
+  static List<Map<String, dynamic>> buildCandidateData(
+          List<ScoredRestaurant> candidates) =>
+      candidates
+          .map((s) => <String, dynamic>{
+                'id': s.restaurant.id,
+                'name': s.restaurant.name,
+                'category': s.restaurant.category,
+                'priceStr': s.restaurant.priceStr,
+                'address': s.restaurant.address,
+                'imageUrl': PhotoRef.toRef(s.restaurant.imageUrl ?? ''),
+                'votes': 0,
+                'voters': <String>[],
+              })
+          .toList();
 
   // 投票セッション作成
   static Future<String> createSession({
@@ -16,16 +32,7 @@ class VotingService {
       throw ArgumentError('hostName は1〜50文字にしてください');
     }
     final id = _generateId();
-    final candidateData = candidates.map((s) => {
-      'id': s.restaurant.id,
-      'name': s.restaurant.name,
-      'category': s.restaurant.category,
-      'priceStr': s.restaurant.priceStr,
-      'address': s.restaurant.address,
-      'imageUrl': s.restaurant.imageUrl ?? '',
-      'votes': 0,
-      'voters': <String>[],
-    }).toList();
+    final candidateData = buildCandidateData(candidates);
 
     await _db.collection(_col).doc(id).set({
       'hostName': hostName,

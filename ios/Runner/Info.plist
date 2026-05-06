@@ -46,6 +46,7 @@
 	<array>
 		<string>instagram</string>
 		<string>itms-apps</string>
+		<string>line</string>
 	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>

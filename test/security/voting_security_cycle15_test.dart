@@ -64,7 +64,7 @@ void main() {
     );
 
     test(
-      'voting_sessions の allow update が hostUid チェックなしのとき '
+      'voting_sessions の allow update branch (b)（参加者投票分岐）に hostUid 制約がないとき '
       '参加者が tx.update() で candidates を更新できる',
       () {
         final file = File('firestore.rules');
@@ -73,36 +73,35 @@ void main() {
         }
         final content = file.readAsStringSync();
 
-        // voting_sessions ブロックを抽出
-        final votingSessionsBlock = _extractBlock(content, 'voting_sessions');
-
-        // `allow update:` ルールが `request.auth != null` のみで
-        // `resource.data.hostUid` を含まないことを確認
+        // Cycle 37 で branch (a)（host による status/decided 系限定更新）が
+        // `request.auth.uid == resource.data.hostUid` を含むようになったため、
+        // voting_sessions ブロック全体を対象にした旧 regex は branch (a) と
+        // 衝突して誤検出する。
         //
-        // 許容パターン:
-        //   allow update: if request.auth != null;
+        // ここでは branch (b)（hasOnly(['candidates']) を含む参加者投票分岐）
+        // のみを抽出し、その中に hostUid トークンが含まれないことを検査する。
         //
-        // 拒否パターン（hostUid チェックつき update）:
-        //   allow update: if request.auth != null && ... hostUid ...
-        //   allow update, delete: if ... hostUid ...
-        final hasUpdateWithHostUidOnly = RegExp(
-          r'allow\s+update[^;]*resource\.data\.hostUid',
-        ).hasMatch(votingSessionsBlock);
+        // 許容: branch (b) は `request.auth != null` のみが前提条件
+        // 拒否: branch (b) に hostUid 制約があるとホスト以外が投票できない
+        final branchB = _extractCandidatesBranch(content);
+        if (branchB.isEmpty) {
+          fail('voting_sessions update に '
+              "hasOnly(['candidates']) を含む branch (b) が見つかりません。");
+        }
 
         expect(
-          hasUpdateWithHostUidOnly,
+          branchB.contains('hostUid'),
           isFalse,
-          reason: '`voting_sessions` の `allow update` ルールに `resource.data.hostUid` '
-              'チェックが含まれています。\n'
+          reason: '`voting_sessions` の branch (b)（参加者投票分岐）に `hostUid` '
+              'トークンが含まれています。\n'
               '\n'
-              '問題: update に hostUid チェックがあると、ホスト以外が投票できません。\n'
-              '      `VotingService.vote()` は参加者（ホスト以外）が呼び出すため、\n'
-              '      update は全認証ユーザーに許可する必要があります。\n'
+              '問題: branch (b) は `VotingService.vote()` を呼び出す参加者（host 以外）用の\n'
+              '      ブランチです。hostUid 制約が入ると本番で投票機能が動作しません。\n'
               '\n'
-              '修正:\n'
-              '  allow update: if request.auth != null;\n'
+              '修正: branch (b) には `hasOnly([\'candidates\'])` と candidates 配列の\n'
+              '      単調追加・identity 不変条件のみを置き、hostUid 制約は入れない。\n'
               '\n'
-              'voting_sessions ブロック:\n$votingSessionsBlock',
+              'branch (b):\n$branchB',
         );
       },
     );
@@ -481,6 +480,36 @@ void main() {
 // ─────────────────────────────────────────────────────
 // ヘルパー
 // ─────────────────────────────────────────────────────
+
+/// voting_sessions update 内の branch (b) — `hasOnly(['candidates'])` を含む
+/// 括弧グループ — を抽出する。見つからないとき空文字を返す。
+String _extractCandidatesBranch(String content) {
+  final candIdx = content.indexOf("hasOnly(['candidates'])");
+  if (candIdx < 0) return '';
+  var start = candIdx;
+  var depth = 0;
+  while (start > 0) {
+    final ch = content[start];
+    if (ch == ')') {
+      depth++;
+    } else if (ch == '(') {
+      if (depth == 0) break;
+      depth--;
+    }
+    start--;
+  }
+  if (start < 0 || content[start] != '(') return '';
+  var end = start + 1;
+  depth = 1;
+  while (end < content.length && depth > 0) {
+    final ch = content[end];
+    if (ch == '(') depth++;
+    if (ch == ')') depth--;
+    end++;
+  }
+  if (depth != 0) return '';
+  return content.substring(start, end);
+}
 
 /// ファイル内容から指定コレクション名の match ブロックを抽出する
 String _extractBlock(String content, String collectionName) {

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/station_data.dart';
 import '../data/all_stations_data.dart';
 import '../data/station_furigana.dart';
+import '../data/transit_graph_data.dart';
 import '../providers/favorites_provider.dart';
 import '../services/station_search_service.dart';
 import '../theme/app_theme.dart';
@@ -50,11 +51,14 @@ class _StationSearchSheetState extends State<StationSearchSheet> {
     for (int i = 0; i < kStations.length; i++) kStations[i]: i,
   };
 
-  // ローカル全駅リスト（重複除去済み）
+  // ローカル全駅リスト（重複除去済み + 経路計算可能な駅のみ）
+  // kTransitGraph に存在しない駅は選んでも移動時間計算ができないため除外する。
+  // 検索 UX（インクリメンタル検索）はそのまま、表示候補のみ絞る。
   static final List<TokyoStation> _allLocalStations = () {
     final seen = <String>{};
     final result = <TokyoStation>[];
     for (final s in kAllTokyoStations) {
+      if (!kTransitGraph.containsKey(s.name)) continue;
       if (seen.add(s.name)) result.add(s);
     }
     return result;

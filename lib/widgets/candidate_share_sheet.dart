@@ -58,8 +58,15 @@ class _CandidateShareSheetState extends ConsumerState<CandidateShareSheet> {
         hasWebUrl: false,
         groupNames: const [],
       );
-      await ShareUtils.shareSelectionsToLine(state, widget.selections);
+      final ok = await ShareUtils.shareSelectionsToLine(state, widget.selections);
       if (!mounted) return;
+      if (!ok) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('LINE がインストールされていません'),
+          behavior: SnackBarBehavior.floating,
+        ));
+        return;
+      }
       Navigator.of(context).pop();
     } catch (_) {
       if (mounted) {

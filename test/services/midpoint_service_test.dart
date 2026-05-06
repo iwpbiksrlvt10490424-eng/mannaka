@@ -16,7 +16,7 @@ void main() {
       expect(results, isNotEmpty);
     });
 
-    test('結果がoverallScore降順である', () {
+    test('結果が公平性バケット降順で並ぶ（公平性ファースト）', () {
       final participants = [
         const Participant(
             id: '1', name: 'Alice', stationIndex: 0, stationName: '渋谷'),
@@ -27,9 +27,14 @@ void main() {
       ];
       final results = MidpointService.calculate(participants);
       expect(results.length, greaterThanOrEqualTo(2));
+      // 新方針: 公平性が高い駅が上位。0.02 のバケット幅でグループ化されるので
+      // 厳密な overallScore 単調降順は保証されないが、fairnessScore のバケットは降順。
+      const bucketWidth = 0.02;
       for (int i = 0; i < results.length - 1; i++) {
-        expect(results[i].overallScore,
-            greaterThanOrEqualTo(results[i + 1].overallScore));
+        final a = (results[i].fairnessScore / bucketWidth).floor();
+        final b = (results[i + 1].fairnessScore / bucketWidth).floor();
+        expect(a, greaterThanOrEqualTo(b),
+            reason: '公平性バケットは降順で並ぶ');
       }
     });
 

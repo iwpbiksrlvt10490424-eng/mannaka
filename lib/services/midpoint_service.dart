@@ -24,72 +24,6 @@ enum ScoringMode {
 }
 
 class MidpointService {
-  /// 駅圏クラスタ定義: 同一圏の駅はTop5に1駅だけ残す
-  /// キー = サブ駅名, 値 = 代表駅名
-  /// 都心密集ケースも考慮し、近接でも商圏が異なる駅は統合しない
-  static const Map<String, String> _kClusterMap = {
-    // ─── 新宿圏 ──────────────────────────────────────────────────────
-    '代々木':     '新宿',
-    '新宿三丁目': '新宿',
-    '西新宿':     '新宿',
-    '南新宿':     '新宿',
-    '参宮橋':     '新宿',
-    // ─── 渋谷・表参道圏 ──────────────────────────────────────────────
-    '代官山':       '渋谷',
-    '明治神宮前':   '表参道',
-    '外苑前':       '表参道',
-    // ─── 池袋圏 ──────────────────────────────────────────────────────
-    '東池袋':   '池袋',
-    '雑司が谷': '池袋',
-    '北池袋':   '池袋',
-    // ─── 上野圏 ──────────────────────────────────────────────────────
-    '御徒町':     '上野',
-    '仲御徒町':   '上野',
-    '湯島':       '上野',
-    '上野広小路': '上野',
-    // ─── 東京駅圏 ────────────────────────────────────────────────────
-    '大手町':   '東京',
-    '二重橋前': '東京',
-    '竹橋':     '東京',
-    // ─── 銀座圏 ──────────────────────────────────────────────────────
-    '銀座一丁目': '銀座',
-    '東銀座':     '銀座',
-    '宝町':       '銀座',
-    // ─── 六本木圏 ────────────────────────────────────────────────────
-    '六本木一丁目': '六本木',
-    '神谷町':       '六本木',
-    // ─── 秋葉原圏 ────────────────────────────────────────────────────
-    '岩本町': '秋葉原',
-    '末広町': '秋葉原',
-    '新御茶ノ水': '秋葉原',
-    // ─── 神保町・飯田橋圏 ────────────────────────────────────────────
-    '水道橋': '飯田橋',
-    '九段下': '神保町',
-    '小川町': '神保町',
-    '淡路町': '神保町',
-    // ─── 目黒・五反田圏 ──────────────────────────────────────────────
-    '不動前': '目黒',
-    '高輪台': '五反田',
-    // ─── 品川圏 ──────────────────────────────────────────────────────
-    '高輪ゲートウェイ': '品川',
-    '泉岳寺':          '品川',
-    // ─── 押上圏 ──────────────────────────────────────────────────────
-    'とうきょうスカイツリー': '押上',
-    '曳舟':                   '押上',
-    // ─── 浅草圏 ──────────────────────────────────────────────────────
-    '蔵前':   '浅草',
-    '田原町': '浅草',
-    // ─── 錦糸町・両国圏 ──────────────────────────────────────────────
-    '両国': '錦糸町',
-    // ─── 三軒茶屋・下北沢圏 ──────────────────────────────────────────
-    '世田谷代田': '下北沢',
-    '東北沢':     '下北沢',
-    // ─── 赤坂見附圏 ──────────────────────────────────────────────────
-    '国会議事堂前': '赤坂見附',
-    '永田町':       '赤坂見附',
-    '溜池山王':     '赤坂見附',
-  };
-
   /// 参加者から候補駅への移動時間（分）を返す
   /// 戻り値: null = 鉄道ネットワーク未接続（候補除外）
   /// GPS 座標のみの参加者は Haversine 推定（信頼度低）
@@ -106,15 +40,9 @@ class MidpointService {
     }
 
     if (fromName != null) {
-      // Dijkstra のみ。未接続なら null を返す（Haversine には落とさない）
+      // Dijkstra のみ。未接続なら null を返す。
+      // 駅入力は UI で必須化されており、GPS 単独参加者は排除済み。
       return TransitRouter.instance.travelMinutesByName(fromName, candidateName);
-    }
-
-    // 駅名なし・GPS 座標のみの場合のみ Haversine 推定（精度低）
-    if (p.lat != null && p.lng != null) {
-      return TransitRouter.instance.haversineFallback(
-        p.lat!, p.lng!, candidateCoords.$1, candidateCoords.$2,
-      );
     }
     return null;
   }
@@ -124,24 +52,17 @@ class MidpointService {
     ScoringMode mode = ScoringMode.balanced,
     bool preferMajorStations = false,
   }) {
-    // stationIndex がなくても stationName か座標があれば参加者として含める
+    // 駅入力必須化に伴い、GPS のみ参加者は除外。
     final active = participants
-        .where((p) => p.hasStation || p.stationName != null || p.hasLocation)
+        .where((p) => p.hasStation || p.stationName != null)
         .toList();
     if (active.isEmpty) return [];
 
     // ── 都心密集モード検出 ────────────────────────────────────────────────
-    // 参加者の地理的重心と最大散らばり距離を計算
-    // 全員が5km圏内 = 都心密集モード（近接駅排除を緩め、クラスタ粒度を細かく）
-    final locatedParticipants = active.where((p) => p.lat != null && p.lng != null).toList();
-    double? geoCentroidLat;
-    double? geoCentroidLng;
-    if (locatedParticipants.isNotEmpty) {
-      geoCentroidLat = locatedParticipants.map((p) => p.lat!).reduce((a, b) => a + b) / locatedParticipants.length;
-      geoCentroidLng = locatedParticipants.map((p) => p.lng!).reduce((a, b) => a + b) / locatedParticipants.length;
-    }
-
-    // 参加者間の最大距離
+    // 参加者間の最大ペア距離が 7km 未満 = 都心密集モード（コリドーフィルタの閾値を緩める）。
+    // クラスタリングは廃止したのでこの値はコリドーフィルタの絶対閾値判定にのみ使用。
+    final locatedParticipants =
+        active.where((p) => p.lat != null && p.lng != null).toList();
     double maxInterParticipantKm = 0;
     for (int i = 0; i < locatedParticipants.length; i++) {
       for (int j = i + 1; j < locatedParticipants.length; j++) {
@@ -152,8 +73,8 @@ class MidpointService {
         if (d > maxInterParticipantKm) maxInterParticipantKm = d;
       }
     }
-    // 全員が7km以内 = 都心密集モード
-    final isDenseCityMode = maxInterParticipantKm < 7.0 && locatedParticipants.length >= 2;
+    final isDenseCityMode =
+        maxInterParticipantKm < 7.0 && locatedParticipants.length >= 2;
 
     final results = <MeetingPoint>[];
 
@@ -251,22 +172,19 @@ class MidpointService {
     final minGap  = filtered.map((r) => r.maxMinutes - r.minMinutes).reduce(min);
     final maxGap  = filtered.map((r) => r.maxMinutes - r.minMinutes).reduce(max);
 
-    // モード別重み [eff, maxTime, fair]
-    final (double wEff, double wMax, double wFair) = switch (mode) {
-      ScoringMode.efficient => (0.65, 0.25, 0.10),
-      ScoringMode.fair      => (0.30, 0.25, 0.45),
-      ScoringMode.balanced  => (0.50, 0.30, 0.20),
-    };
+    // 各候補駅の 3 軸スコアと、ソート用キーを計算する。
+    // 並び順は「公平性で 0.02 幅にバケット分け → 同バケット内で効率+最遠者の合算」。
+    // ScoringMode は API 互換のため受け取るが、結果には影響しない（公平性ファースト固定）。
+    const fairBucketWidth = 0.02;
 
     final scored = filtered.map((r) {
       // 軸1: 合計移動時間最小化（全体効率）
       final effScore = maxTotal == minTotal ? 1.0
           : (maxTotal - r.totalMinutes) / (maxTotal - minTotal);
-      // 軸2: 最遠者の移動時間最小化（主）
+      // 軸2: 最遠者の移動時間最小化
       final maxTimeScore = maxMax == minMax ? 1.0
           : (maxMax - r.maxMinutes) / (maxMax - minMax);
       // 軸3: 公平性 = max-minギャップ(70%) + stdDev(30%)
-      // ユーザー体感は「1人だけ損すること」への反発が強いため gap を主にする
       final gap = r.maxMinutes - r.minMinutes;
       final gapScore = maxGap == minGap ? 1.0
           : (maxGap - gap) / (maxGap - minGap);
@@ -274,71 +192,46 @@ class MidpointService {
           : (maxStd - r.stdDev) / (maxStd - minStd);
       final fairScore = 0.7 * gapScore + 0.3 * stdScore;
 
-      final overall = wEff * effScore + wMax * maxTimeScore + wFair * fairScore;
+      // 同バケット内の二次キー: 効率 + 最遠者を等重みで合算（0..2）
+      final secondaryScore = effScore + maxTimeScore;
 
-      // ── 方角偏りペナルティ（軽微）────────────────────────────────────────
-      // 候補駅が参加者の重心から大きく外れた方向にある場合、小さく減点する
-      // 強く効かせると地理重心に戻ってしまうため上限0.08に制限する
-      double directionPenalty = 0.0;
-      if (geoCentroidLat != null && geoCentroidLng != null) {
-        final distFromGeoCentroid = GeoUtils.distKm(
-          r.lat, r.lng, geoCentroidLat, geoCentroidLng,
-        );
-        // 重心から3km超の候補に対して距離に応じた軽微ペナルティ
-        if (distFromGeoCentroid > 3.0) {
-          directionPenalty = ((distFromGeoCentroid - 3.0) * 0.01).clamp(0.0, 0.08);
-        }
-      }
-      final adjustedOverall = (overall - directionPenalty).clamp(0.0, 1.0);
+      // 表示用の overall は公平性主導 + 二次キーを軽く混ぜたもの。
+      // 並び順は別途 fairScore のバケット → secondaryScore で決める。
+      final overallForDisplay = (fairScore * 0.7 + secondaryScore * 0.15).clamp(0.0, 1.0);
 
-      return MeetingPoint(
-        stationIndex: r.stationIndex,
-        stationName: r.stationName,
-        stationEmoji: r.stationEmoji,
-        lat: r.lat,
-        lng: r.lng,
-        totalMinutes: r.totalMinutes,
-        maxMinutes: r.maxMinutes,
-        minMinutes: r.minMinutes,
-        averageMinutes: r.averageMinutes,
-        fairnessScore: fairScore,
-        overallScore: adjustedOverall,
-        participantTimes: r.participantTimes,
-        stdDev: r.stdDev,
-        reason: null,
+      return _ScoredCandidate(
+        meetingPoint: MeetingPoint(
+          stationIndex: r.stationIndex,
+          stationName: r.stationName,
+          stationEmoji: r.stationEmoji,
+          lat: r.lat,
+          lng: r.lng,
+          totalMinutes: r.totalMinutes,
+          maxMinutes: r.maxMinutes,
+          minMinutes: r.minMinutes,
+          averageMinutes: r.averageMinutes,
+          fairnessScore: fairScore,
+          overallScore: overallForDisplay,
+          participantTimes: r.participantTimes,
+          stdDev: r.stdDev,
+          reason: null,
+        ),
+        fairBucket: (fairScore / fairBucketWidth).floor(),
+        secondaryScore: secondaryScore,
       );
     }).toList();
 
-    scored.sort((a, b) => b.overallScore.compareTo(a.overallScore));
-
-    // ── 駅圏クラスタによる重複排除 ────────────────────────────────────────
-    // クラスタマップ優先: 同一圏の駅はスコア上位1駅だけ残す
-    // クラスタ外の近接（0.8km未満）も排除するが、都心密集ケースの誤マージを
-    // 防ぐため閾値を 0.8km に絞る（以前の 1.2km は広すぎた）
-    final usedClusters = <String>{};
-    final deduplicated = <MeetingPoint>[];
-    for (final m in scored) {
-      final clusterKey = _kClusterMap[m.stationName] ?? m.stationName;
-      if (usedClusters.contains(clusterKey)) continue;
-
-      // クラスタ外の純粋な近接チェック
-      // 都心密集モードでは近接排除を緩める（0.5km）、通常は0.8km
-      final proximityKm = isDenseCityMode ? 0.5 : 0.8;
-      bool tooClose = false;
-      for (final selected in deduplicated) {
-        // 両駅が同一クラスタなら既にクラスタで処理済みのはず。
-        // 残るのは別クラスタだが物理的に近い駅（例: 四ッ谷と市ヶ谷）
-        if (GeoUtils.distKm(m.lat, m.lng, selected.lat, selected.lng) < proximityKm) {
-          tooClose = true;
-          break;
-        }
+    // 1) 公平性バケットの大きい順
+    // 2) 同じバケット内では二次キー（効率+最遠者）の高い順
+    scored.sort((a, b) {
+      if (a.fairBucket != b.fairBucket) {
+        return b.fairBucket.compareTo(a.fairBucket);
       }
-      if (tooClose) continue;
+      return b.secondaryScore.compareTo(a.secondaryScore);
+    });
 
-      deduplicated.add(m);
-      usedClusters.add(clusterKey);
-      if (deduplicated.length >= 5) break;
-    }
+    // 駅圏クラスタリングは廃止。スコア上位 5 件を純粋に取得する。
+    final deduplicated = scored.take(5).map((c) => c.meetingPoint).toList();
 
     // reasonフィールドを生成して最終リストを返す
     final bestTotalMinutes = deduplicated.isEmpty
@@ -415,7 +308,7 @@ class MidpointService {
       list = list.where((r) => r.isDinnerAvailable).toList();
     }
 
-    list.sort((a, b) => b.rating.compareTo(a.rating));
+    list.sort(compareByRatingWithReviewThreshold);
     return list;
   }
 
@@ -662,13 +555,17 @@ class MidpointService {
 
       // ── 軸3a: trustScore（信頼性）────────────────────────────────────────
       // 評価・レビュー件数を項目ごとの信頼度で評価する
-      final double ratingFactor = r.ratingConfidence == 'unknown'
-          ? 0.45 // unknown = provisional ニュートラル
-          : r.rating >= 4.0 ? 1.0
-          : r.rating >= 3.5 ? 0.65
-          : r.rating >= 3.0 ? 0.35
-          : r.rating > 0    ? 0.10
-          : 0.45; // データなし = provisional ニュートラル
+      final double ratingFactor;
+      if (r.ratingConfidence == 'unknown' || r.rating == null) {
+        ratingFactor = 0.45; // unknown / null = provisional ニュートラル
+      } else {
+        final rating = r.rating!;
+        ratingFactor = rating >= 4.0 ? 1.0
+            : rating >= 3.5 ? 0.65
+            : rating >= 3.0 ? 0.35
+            : rating > 0    ? 0.10
+            : 0.45;
+      }
 
       final double reviewFactor = r.reviewConfidence == 'unknown'
           ? 0.40 // unknown = provisional ニュートラル
@@ -916,7 +813,7 @@ class MidpointService {
         accessScore >= 0.55 &&
         r.reviewCount >= 30 &&
         r.isReservable &&
-        r.rating >= 3.5 &&
+        (r.rating ?? 0) >= 3.5 &&
         trustScore >= 0.55 &&    // 0.50 → 0.55（本スコアとの一貫性を強化）
         usabilityScore >= 0.45;  // usabilityが低い店には付与しない
 
@@ -933,7 +830,7 @@ class MidpointService {
     final isAnaba = r.hasAdequateInfo &&
         r.reviewCount >= 10 &&
         r.reviewCount < 80 &&
-        r.rating >= 3.5 &&
+        (r.rating ?? 0) >= 3.5 &&
         r.distanceMinutes >= 4 &&
         r.distanceMinutes <= 12 &&
         trustScore >= 0.35; // trustScore が低すぎる店には穴場ラベルを付けない
@@ -1120,4 +1017,16 @@ class MidpointService {
     return 4;
   }
 
+}
+
+/// 駅候補のソート用ラッパー。fairBucket と secondaryScore を保持。
+class _ScoredCandidate {
+  _ScoredCandidate({
+    required this.meetingPoint,
+    required this.fairBucket,
+    required this.secondaryScore,
+  });
+  final MeetingPoint meetingPoint;
+  final int fairBucket;
+  final double secondaryScore;
 }

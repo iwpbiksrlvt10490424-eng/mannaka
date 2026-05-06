@@ -1,31 +1,34 @@
 // TDD Red フェーズ
-// Cycle 16 残件: saved_drafts_screen.dart の
-//   1. error UI を empty UI から分離（ISSUE 1: error: (_, __) => _empty() 問題）
-//   2. Aimachi ブランド残骸除去（L151「Aimachi（無料）」/ L152 ハードコード App Store URL）
-// を静的＋Widget 両面で担保する。
+// Cycle 23: saved_drafts_screen.dart の LINE 本文ブランド表記を
+//           「まんなか（無料）」→「Aimachi（無料）」へ差し戻す（commit 9d3e746 整合化）。
 //
-// 現状:
-//   - L30: `error: (_, __) => _empty()` → AsyncError 時に「保存した候補はありません」が表示され
-//     ユーザーが 0 件と誤認。再保存で既存下書きが上書き消失する入口になっている（データ損失リスク）。
-//   - L151: `'あなたもAimachi（無料）で同じ条件のお店を探してみましょう👇'` → Cycle 11〜13 で
-//     全域「まんなか」統一済のはずが漏れている。
-//   - L152: `'https://apps.apple.com/jp/app/aimachi/id6761008332'` → `ShareUtils.appStoreUrl`
-//     への一元化が漏れており、App Store ID が変わると追従し忘れる危険。
+// 経緯:
+//   - 2026-04-23 commit 9d3e746（ユーザー本人）で UI 全域は「Aimachi」に確定。
+//     概念語のみ「まんなか」で残す方針が確立した。
+//   - 2026-04-24 Cycle 16（未コミット）が backlog の旧 Cycle 11〜13 記載を根拠に
+//     `saved_drafts_screen.dart:187` を `Aimachi（無料）` → `まんなか（無料）` に機械的置換し、
+//     方針を局所的に破壊した。
+//   - 同 commit で本テストの [3] 群も「Aimachi 禁止 / まんなか（無料）必須」に書き換えられたため、
+//     本番だけ戻しても [3] 群が再 Red 化する。本サイクルではテスト期待値を反転させてから
+//     本番を Green 化する（テストファースト）。
+//
+// 現状（Cycle 16 直後）:
+//   - L187: `sb.writeln('あなたもまんなか（無料）で同じ条件のお店を探してみましょう👇');`
+//     → 直後の `appStoreUrl` の slug が `app/aimachi/` のため、LINE 受信者は「まんなか」で
+//        検索して見つからず「Aimachi」ページに着地し、ブランド整合性が毀損する。
+//   - 本テスト [3] 群が「Aimachi 禁止 / まんなか（無料）必須」で固定化されている。
 //
 // 修正方針（feature-implementer への引き継ぎ）:
-//   A. saved_drafts_screen.dart の `draftsAsync.when(error: ...)` を `_empty()` から
-//      エラー専用 UI（例: `_errorUi()` 等の別メソッド）へ分岐させる。
-//      - アイコン: `Icons.error_outline_rounded`（empty の bookmark_border_rounded と必ず別物）
-//      - 見出し: 「読み込みに失敗しました」等の失敗文言（空状態「保存した候補はありません」と重複禁止）
-//      - リトライ UI は本サイクルでは作らない（UX 設計が必要なため別サイクル）
-//   B. L151 の UI テキストから `Aimachi` を除去し `まんなか` に統一する（App Store URL の
-//      slug "aimachi" は URL 仕様上残してよいが、UI 向け文字列には残さない）。
-//   C. L152 のハードコード URL を `ShareUtils.appStoreUrl` に置換する（既に `share_utils.dart`
-//      import 済の前提。未 import なら import 文も追加）。
+//   A. saved_drafts_screen.dart L187 の LINE 誘導文を
+//      `'あなたもAimachi（無料）で同じ条件のお店を探してみましょう👇'` に戻す。
+//      （share_utils.dart:194 と完全一致させ、ブランド表記の単一の真実源を作る）
+//   B. ShareUtils.appStoreUrl 経由の URL 一元参照は維持する（[3] のテスト2・3 は変更なし）。
+//   C. error UI が _empty() から分離されている回帰テスト [1][2] 群は変更なし
+//      （Cycle 16 で導入された _errorUi 分岐は仕様として残す）。
 //
 // スコープ外:
-//   - エラー時のリトライボタン（`ref.invalidate` 呼出）の UX 設計
-//   - `share_utils.dart` 側の `Aimachi` 残骸（別サイクルで対応）
+//   - 他ファイルの Aimachi 表記（既に share_utils.dart 等で整合済み）
+//   - 未コミットの Cycle 16〜22 差分の棚卸し（別タスク）
 
 import 'dart:async';
 import 'dart:io';
@@ -224,23 +227,21 @@ void main() {
   });
 
   // ══════════════════════════════════════════════════════════════════════
-  // [3] ソース静的契約（Aimachi ブランド残骸の除去）
+  // [3] ソース静的契約（LINE 誘導文のブランド表記 = Aimachi 必須 / まんなか禁止）
   // ══════════════════════════════════════════════════════════════════════
 
-  group('saved_drafts_screen.dart ソース契約 — Aimachi ブランド残骸除去', () {
-    test('UI 文字列に大文字 "Aimachi" が残っていないこと', () {
+  group('saved_drafts_screen.dart ソース契約 — LINE 誘導文のブランド整合', () {
+    test('LINE 誘導文は ShareUtils.lineDownloadCta 経由で参照していること（Cycle 24 方針）', () {
       final src = _readSource();
 
-      // UI に向けた日本語ブランド表記は「まんなか」に統一済み（Cycle 11〜13）。
-      // URL slug 'aimachi'（小文字）は appStoreUrl 経由で参照するため、この判定は
-      // 「大文字 A で始まる Aimachi」トークンのみ検出する。
-      final matches = RegExp(r'Aimachi').allMatches(src).toList();
-
+      // Cycle 24 で誘導文は share_utils.dart の lineDownloadCta 定数に集約された。
+      // ブランド表記（Aimachi）の整合性は定数側で担保され、本ファイルは
+      // 定数を参照することで自動的に整合する。リテラル直書きは禁止。
       expect(
-        matches,
-        isEmpty,
-        reason: 'saved_drafts_screen.dart に "Aimachi" が残っています（検出数: ${matches.length}）。\n'
-            'UI 向けブランド名は「まんなか」に統一してください（Cycle 11〜13 の規約）。',
+        src.contains('ShareUtils.lineDownloadCta'),
+        isTrue,
+        reason: 'saved_drafts_screen.dart は ShareUtils.lineDownloadCta を参照していません。\n'
+            'Cycle 24 の方針（誘導文の単一所在）に従い、リテラル直書きを定数参照に置き換えてください。',
       );
     });
 
@@ -278,16 +279,17 @@ void main() {
       );
     });
 
-    test('「まんなか（無料）」表記が LINE 本文に含まれていること', () {
+    test('「まんなか（無料）」表記が LINE 本文に残っていないこと（Cycle 16 誤置換の差し戻し）', () {
       final src = _readSource();
 
-      // L151 の "Aimachi（無料）" を置換した結果、「まんなか（無料）」で始まる
-      // 誘導文言が残っていること。
+      // Cycle 16（未コミット）が L187 を `Aimachi（無料）` → `まんなか（無料）` に
+      // 機械的置換した。本サイクルで差し戻すため、誘導文に「まんなか（無料）」は
+      // 残っていてはならない（概念語としての「まんなか」は本ファイルでは使わない）。
       expect(
         src.contains('まんなか（無料）'),
-        isTrue,
-        reason: 'LINE 本文に「まんなか（無料）」の誘導文言が見当たりません。\n'
-            'Aimachi 残骸の置換漏れです。',
+        isFalse,
+        reason: 'saved_drafts_screen.dart の LINE 誘導文に「まんなか（無料）」が残っています。\n'
+            'commit 9d3e746 の方針（UI=Aimachi）に差し戻し、share_utils.dart:194 と同一表記にしてください。',
       );
     });
   });

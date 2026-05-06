@@ -1,3 +1,6 @@
+import '../config/secrets.dart';
+import '../utils/photo_ref.dart';
+
 /// LINE で送る前に保留した候補シェアの下書き。
 /// あとで送信したいユーザー向けに SharedPreferences にローカル保存する。
 class SavedShareDraft {
@@ -59,7 +62,7 @@ class SavedShareCandidate {
     required this.name,
     required this.category,
     required this.priceStr,
-    required this.rating,
+    this.rating,
     required this.lat,
     required this.lng,
     required this.address,
@@ -71,7 +74,7 @@ class SavedShareCandidate {
   final String name;
   final String category;
   final String priceStr;
-  final double rating;
+  final double? rating;
   final double? lat;
   final double? lng;
   final String address;
@@ -87,7 +90,7 @@ class SavedShareCandidate {
         'lat': lat,
         'lng': lng,
         'address': address,
-        'imageUrl': imageUrl,
+        'imageUrl': imageUrl == null ? null : PhotoRef.toRef(imageUrl!),
         'hotpepperUrl': hotpepperUrl,
         'isReservable': isReservable,
       };
@@ -97,11 +100,14 @@ class SavedShareCandidate {
         name: j['name'] as String? ?? '',
         category: j['category'] as String? ?? '',
         priceStr: j['priceStr'] as String? ?? '',
-        rating: (j['rating'] as num?)?.toDouble() ?? 0,
+        rating: (j['rating'] as num?)?.toDouble(),
         lat: (j['lat'] as num?)?.toDouble(),
         lng: (j['lng'] as num?)?.toDouble(),
         address: j['address'] as String? ?? '',
-        imageUrl: j['imageUrl'] as String?,
+        imageUrl: (j['imageUrl'] as String?) == null
+            ? null
+            : PhotoRef.toUrl(j['imageUrl'] as String,
+                googleApiKey: Secrets.placesApiKey),
         hotpepperUrl: j['hotpepperUrl'] as String?,
         isReservable: j['isReservable'] as bool? ?? true,
       );

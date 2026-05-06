@@ -155,8 +155,10 @@ class HotpepperService {
         ? LocationService.nearestStationIndex(shopLat, shopLng)
         : 0;
 
-    final hasInfo = (s['catch']?.toString() ?? '').isNotEmpty;
-    final rating = hasInfo ? 3.5 : 3.0;
+    // Hotpepper API は rating を返さないので必ず null。
+    // ダミー値（過去 3.5/3.0）は禁止ルール違反のため撤去。
+    // 評価は Google Places enrichment で別途取得する。
+    const double? rating = null;
 
     // pc.l / pc.m / mobile.l はすべて同一画像の異なるサイズ。最大サイズのみ使用。
     final pcPhoto = (s['photo'] as Map?)?['pc'] as Map?;
@@ -229,7 +231,7 @@ class HotpepperService {
       course: course,
       sourceApi: 'hotpepper',
       confidenceLevel: 'high',
-      ratingConfidence: 'known',
+      ratingConfidence: 'unknown',
       reviewConfidence: 'known',
       planInfoConfidence: 'known',
     );

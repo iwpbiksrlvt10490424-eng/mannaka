@@ -1,10 +1,13 @@
+import '../config/secrets.dart';
+import '../utils/photo_ref.dart';
+
 class Restaurant {
   const Restaurant({
     required this.id,
     required this.name,
     required this.stationIndex,
     required this.category,
-    required this.rating,
+    this.rating,
     required this.reviewCount,
     required this.priceLabel,
     required this.priceAvg,
@@ -45,7 +48,9 @@ class Restaurant {
   final String name;
   final int stationIndex;
   final String category;
-  final double rating;
+  /// 評価。データソースから取得できない場合は null。
+  /// ダミー値（0.0 や 3.5）で埋めることは禁止。null は UI で「-」表示。
+  final double? rating;
   final int reviewCount;
   final String priceLabel;
   final int priceAvg;
@@ -92,7 +97,20 @@ class Restaurant {
       reviewConfidence == 'known' &&
       (reviewCount > 0 || confidenceLevel == 'high');
 
-  String get ratingStr => rating.toStringAsFixed(1);
+  String get ratingStr => rating == null ? '-' : rating!.toStringAsFixed(1);
+  bool get hasRating => rating != null;
+
+  /// 評価ソート用のグループ分類:
+  /// 0 = 評価あり + レビュー 50 件以上（信頼できる評価）
+  /// 1 = 評価あり + レビュー 50 件未満（評価はあるが母数が少ない）
+  /// 2 = 評価なし（マッチ失敗・取得不能）
+  /// 上位グループほど先頭、同グループ内は rating 降順で並べる。
+  int get ratingTrustGroup {
+    if (rating == null) return 2;
+    if (reviewCount >= 50) return 0;
+    return 1;
+  }
+
   // priceAvg==0 は情報なし（Hotpepperで budget.code が無いか、
   // Google Places で priceLevel 未設定）なので金額を出さない
   String get priceStr =>
@@ -162,8 +180,8 @@ class Restaurant {
     'lat': lat,
     'lng': lng,
     'hotpepperUrl': hotpepperUrl,
-    'imageUrl': imageUrl,
-    'imageUrls': imageUrls,
+    'imageUrl': imageUrl == null ? null : PhotoRef.toRef(imageUrl!),
+    'imageUrls': PhotoRef.listToRefs(imageUrls),
     'accessInfo': accessInfo,
     'stationName': stationName,
     'closeDay': closeDay,
@@ -187,7 +205,7 @@ class Restaurant {
     name: j['name'] as String,
     stationIndex: j['stationIndex'] as int,
     category: j['category'] as String,
-    rating: (j['rating'] as num).toDouble(),
+    rating: (j['rating'] as num?)?.toDouble(),
     reviewCount: j['reviewCount'] as int,
     priceLabel: j['priceLabel'] as String,
     priceAvg: j['priceAvg'] as int,
@@ -204,8 +222,14 @@ class Restaurant {
     lat: (j['lat'] as num?)?.toDouble(),
     lng: (j['lng'] as num?)?.toDouble(),
     hotpepperUrl: j['hotpepperUrl'] as String?,
-    imageUrl: j['imageUrl'] as String?,
-    imageUrls: List<String>.from(j['imageUrls'] as List? ?? []),
+    imageUrl: (j['imageUrl'] as String?) == null
+        ? null
+        : PhotoRef.toUrl(j['imageUrl'] as String,
+            googleApiKey: Secrets.placesApiKey),
+    imageUrls: PhotoRef.listToUrls(
+      List<String>.from(j['imageUrls'] as List? ?? []),
+      googleApiKey: Secrets.placesApiKey,
+    ),
     accessInfo: j['accessInfo'] as String? ?? '',
     stationName: j['stationName'] as String? ?? '',
     closeDay: j['closeDay'] as String? ?? '',
@@ -223,4 +247,14 @@ class Restaurant {
     reviewConfidence: j['reviewConfidence'] as String? ?? 'known',
     planInfoConfidence: j['planInfoConfidence'] as String? ?? 'known',
   );
+}
+
+/// レビュー数 50 を閾値にした評価ソートの共通比較関数。
+/// グループ昇順（信頼度高い → 低い → 評価なし）→ 同グループ内で rating 降順。
+int compareByRatingWithReviewThreshold(Restaurant a, Restaurant b) {
+  final ga = a.ratingTrustGroup;
+  final gb = b.ratingTrustGroup;
+  if (ga != gb) return ga.compareTo(gb);
+  return (b.rating ?? double.negativeInfinity)
+      .compareTo(a.rating ?? double.negativeInfinity);
 }

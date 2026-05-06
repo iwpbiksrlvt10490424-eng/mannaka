@@ -1,11 +1,14 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../config/secrets.dart';
 import '../models/restaurant.dart';
 import '../models/visited_restaurant.dart';
 import '../providers/history_provider.dart';
 import '../providers/visited_restaurants_provider.dart';
 import '../theme/app_theme.dart';
+import '../utils/photo_ref.dart';
 import '../widgets/manual_restaurant_add_sheet.dart';
 import 'restaurant_detail_screen.dart';
 
@@ -179,6 +182,25 @@ class _SearchHistoryTab extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // 1 位の店の写真をカード上部に 5 枚スワイプで表示（予約済みと同形式）
+                    if (entry.restaurants.isNotEmpty &&
+                        entry.restaurants.first.photoRefs.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: SizedBox(
+                            height: 160,
+                            width: double.infinity,
+                            child: _VisitedPhotoCarousel(
+                              urls: PhotoRef.listToUrls(
+                                entry.restaurants.first.photoRefs,
+                                googleApiKey: Secrets.placesApiKey,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                     // ヘッダー行
                     Row(
                       children: [
@@ -187,7 +209,7 @@ class _SearchHistoryTab extends ConsumerWidget {
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
-                            '${entry.meetingPoint.stationName}駅エリア',
+                            '${entry.meetingPoint.stationName}駅',
                             style: const TextStyle(
                                 fontWeight: FontWeight.w700, fontSize: 15),
                           ),
@@ -204,10 +226,12 @@ class _SearchHistoryTab extends ConsumerWidget {
                     Text(entry.participantNames.join('、'),
                         style: TextStyle(
                             fontSize: 12, color: Colors.grey.shade500)),
-                    // お店リスト
+                    // お店リスト（保存された全店を表示）
+                    // 過去は take(3) で隠れていたが、ユーザー観点で「検索結果が全部見たい」
+                    // という DoD に合わせて全件表示に変更。
                     if (entry.restaurants.isNotEmpty) ...[
                       const SizedBox(height: 10),
-                      ...entry.restaurants.take(3).map((r) => Padding(
+                      ...entry.restaurants.map((r) => Padding(
                         padding: const EdgeInsets.only(bottom: 5),
                         child: Row(
                           children: [
@@ -228,13 +252,13 @@ class _SearchHistoryTab extends ConsumerWidget {
                               style: TextStyle(
                                   fontSize: 11, color: Colors.grey.shade500),
                             ),
-                            if (r.rating > 0) ...[
+                            if ((r.rating ?? 0) > 0) ...[
                               const SizedBox(width: 6),
                               Icon(Icons.star_rounded,
                                   size: 11, color: AppColors.star),
                               const SizedBox(width: 2),
                               Text(
-                                r.rating.toStringAsFixed(1),
+                                r.rating!.toStringAsFixed(1),
                                 style: TextStyle(
                                     fontSize: 11,
                                     color: Colors.grey.shade600),
@@ -328,6 +352,22 @@ class _VisitedCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // 5 枚スワイプ写真プレビュー（予約済みカードと同形式）
+            if (entry.photoRefs.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: SizedBox(
+                    height: 160,
+                    width: double.infinity,
+                    child: _VisitedPhotoCarousel(
+                      urls: PhotoRef.listToUrls(entry.photoRefs,
+                          googleApiKey: Secrets.placesApiKey),
+                    ),
+                  ),
+                ),
+              ),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -402,7 +442,13 @@ class _HistoryRestaurantSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final r = entry;
-    return Container(
+    // 履歴 1 件あたり最大 10 店 + 写真カルーセルで縦長になるため、
+    // SizedBox で固定高さを与えてから Column + Expanded で内部をスクロール可能にする。
+    // mainAxisSize.min と Expanded は同時使用で layout 矛盾を起こすので max（デフォルト）。
+    final sheetHeight = MediaQuery.of(context).size.height * 0.85;
+    return SizedBox(
+      height: sheetHeight,
+      child: Container(
       padding: EdgeInsets.fromLTRB(
           24, 16, 24, MediaQuery.of(context).padding.bottom + 16),
       decoration: const BoxDecoration(
@@ -410,7 +456,6 @@ class _HistoryRestaurantSheet extends StatelessWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Center(
@@ -429,7 +474,7 @@ class _HistoryRestaurantSheet extends StatelessWidget {
               const Icon(Icons.location_on, size: 14, color: AppColors.primary),
               const SizedBox(width: 4),
               Text(
-                '${r.meetingPoint.stationName}駅エリア',
+                '${r.meetingPoint.stationName}駅',
                 style: const TextStyle(
                     fontSize: 15, fontWeight: FontWeight.w700),
               ),
@@ -441,39 +486,54 @@ class _HistoryRestaurantSheet extends StatelessWidget {
             style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
           ),
           const SizedBox(height: 16),
-          ...r.restaurants.map((rest) => _RestaurantRow(
-                restaurant: rest,
-                groupNames: r.participantNames,
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => RestaurantDetailScreen(
-                      restaurant: Restaurant(
-                        id: 'hist_${rest.name}',
-                        name: rest.name,
-                        stationIndex: r.meetingPoint.stationIndex,
-                        category: rest.category,
-                        rating: rest.rating,
-                        reviewCount: 0,
-                        priceLabel: '',
-                        priceAvg: 0,
-                        tags: const [],
-                        emoji: '',
-                        description: '',
-                        distanceMinutes: 0,
-                        address: rest.address,
-                        openHours: '',
-                        lat: rest.lat,
-                        lng: rest.lng,
-                        hotpepperUrl: rest.hotpepperUrl,
-                        imageUrl: rest.imageUrl,
-                      ),
-                      groupNames: r.participantNames,
-                    ),
-                  ));
-                },
-              )),
+          // 店リストを Expanded + SingleChildScrollView でスクロール可能に
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: r.restaurants
+                    .map((rest) => _RestaurantRow(
+                          restaurant: rest,
+                          groupNames: r.participantNames,
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.of(context).push(MaterialPageRoute(
+                              builder: (_) => RestaurantDetailScreen(
+                                restaurant: Restaurant(
+                                  id: 'hist_${rest.name}',
+                                  name: rest.name,
+                                  stationIndex: r.meetingPoint.stationIndex,
+                                  category: rest.category,
+                                  rating: rest.rating,
+                                  reviewCount: 0,
+                                  priceLabel: '',
+                                  priceAvg: 0,
+                                  tags: const [],
+                                  emoji: '',
+                                  description: '',
+                                  distanceMinutes: 0,
+                                  address: rest.address,
+                                  openHours: '',
+                                  lat: rest.lat,
+                                  lng: rest.lng,
+                                  hotpepperUrl: rest.hotpepperUrl,
+                                  imageUrl: rest.imageUrl,
+                                  imageUrls: PhotoRef.listToUrls(
+                                    rest.photoRefs,
+                                    googleApiKey: Secrets.placesApiKey,
+                                  ),
+                                ),
+                                groupNames: r.participantNames,
+                              ),
+                            ));
+                          },
+                        ))
+                    .toList(),
+              ),
+            ),
+          ),
         ],
+      ),
       ),
     );
   }
@@ -491,48 +551,193 @@ class _RestaurantRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final photoUrls = PhotoRef.listToUrls(
+      restaurant.photoRefs,
+      googleApiKey: Secrets.placesApiKey,
+    );
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(10),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 10),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    restaurant.name,
-                    style: const TextStyle(
-                        fontSize: 14, fontWeight: FontWeight.w700),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+            // 詳細画面を開く前に 5 枚スワイプで写真を確認できる。
+            if (photoUrls.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: SizedBox(
+                    height: 140,
+                    width: double.infinity,
+                    child: _RowPhotoCarousel(urls: photoUrls),
                   ),
-                  const SizedBox(height: 2),
+                ),
+              ),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        restaurant.name,
+                        style: const TextStyle(
+                            fontSize: 14, fontWeight: FontWeight.w700),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        restaurant.category,
+                        style: TextStyle(
+                            fontSize: 12, color: Colors.grey.shade500),
+                      ),
+                    ],
+                  ),
+                ),
+                if ((restaurant.rating ?? 0) > 0) ...[
+                  Icon(Icons.star_rounded, size: 12, color: AppColors.star),
+                  const SizedBox(width: 2),
                   Text(
-                    restaurant.category,
+                    restaurant.rating!.toStringAsFixed(1),
                     style: TextStyle(
-                        fontSize: 12, color: Colors.grey.shade500),
+                        fontSize: 12, color: Colors.grey.shade600),
                   ),
+                  const SizedBox(width: 8),
                 ],
-              ),
+                const Icon(Icons.chevron_right,
+                    size: 16, color: AppColors.textTertiary),
+              ],
             ),
-            if (restaurant.rating > 0) ...[
-              Icon(Icons.star_rounded, size: 12, color: AppColors.star),
-              const SizedBox(width: 2),
-              Text(
-                restaurant.rating.toStringAsFixed(1),
-                style: TextStyle(
-                    fontSize: 12, color: Colors.grey.shade600),
-              ),
-              const SizedBox(width: 8),
-            ],
-            const Icon(Icons.chevron_right,
-                size: 16, color: AppColors.textTertiary),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// 履歴行用の小型 PageView 写真カルーセル。
+/// 詳細画面の _PhotoCarousel と違いインジケータがコンパクト。
+class _RowPhotoCarousel extends StatefulWidget {
+  const _RowPhotoCarousel({required this.urls});
+  final List<String> urls;
+
+  @override
+  State<_RowPhotoCarousel> createState() => _RowPhotoCarouselState();
+}
+
+class _RowPhotoCarouselState extends State<_RowPhotoCarousel> {
+  int _index = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.urls.length == 1) {
+      return CachedNetworkImage(
+        imageUrl: widget.urls.first,
+        fit: BoxFit.cover,
+        placeholder: (_, __) =>
+            Container(color: Colors.grey.shade100),
+        errorWidget: (_, __, ___) =>
+            Container(color: Colors.grey.shade200),
+      );
+    }
+    return Stack(
+      children: [
+        PageView.builder(
+          itemCount: widget.urls.length,
+          onPageChanged: (i) => setState(() => _index = i),
+          itemBuilder: (_, i) => CachedNetworkImage(
+            imageUrl: widget.urls[i],
+            fit: BoxFit.cover,
+            placeholder: (_, __) =>
+                Container(color: Colors.grey.shade100),
+            errorWidget: (_, __, ___) =>
+                Container(color: Colors.grey.shade200),
+          ),
+        ),
+        Positioned(
+          bottom: 6,
+          right: 6,
+          child: Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.55),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              '${_index + 1} / ${widget.urls.length}',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// 行ったお店カード用の小型 PageView 写真カルーセル。
+/// 予約済みカードの _ReservedPhotoCarousel と同じ見た目。
+class _VisitedPhotoCarousel extends StatefulWidget {
+  const _VisitedPhotoCarousel({required this.urls});
+  final List<String> urls;
+
+  @override
+  State<_VisitedPhotoCarousel> createState() => _VisitedPhotoCarouselState();
+}
+
+class _VisitedPhotoCarouselState extends State<_VisitedPhotoCarousel> {
+  int _index = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.urls.length == 1) {
+      return CachedNetworkImage(
+        imageUrl: widget.urls.first,
+        fit: BoxFit.cover,
+        placeholder: (_, __) => Container(color: Colors.grey.shade100),
+        errorWidget: (_, __, ___) => Container(color: Colors.grey.shade200),
+      );
+    }
+    return Stack(
+      children: [
+        PageView.builder(
+          itemCount: widget.urls.length,
+          onPageChanged: (i) => setState(() => _index = i),
+          itemBuilder: (_, i) => CachedNetworkImage(
+            imageUrl: widget.urls[i],
+            fit: BoxFit.cover,
+            placeholder: (_, __) => Container(color: Colors.grey.shade100),
+            errorWidget: (_, __, ___) => Container(color: Colors.grey.shade200),
+          ),
+        ),
+        Positioned(
+          bottom: 6,
+          right: 6,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.55),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              '${_index + 1} / ${widget.urls.length}',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

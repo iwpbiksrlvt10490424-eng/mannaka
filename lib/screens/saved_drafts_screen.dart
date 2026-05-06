@@ -1,7 +1,7 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../models/saved_share_draft.dart';
 import '../providers/saved_share_drafts_provider.dart';
@@ -132,10 +132,13 @@ class _DraftCardState extends ConsumerState<_DraftCard> {
         groupNames: const [],
       );
       final text = _buildText(d);
-      final encoded = Uri.encodeComponent(text);
-      final uri = Uri.parse('https://line.me/R/share?text=$encoded');
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      final ok = await ShareUtils.launchLineWithText(text);
+      if (!ok && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('LINE が見つかりませんでした。インストール後に再度お試しください'),
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _sending = false);
@@ -175,16 +178,16 @@ class _DraftCardState extends ConsumerState<_DraftCard> {
       sb.writeln('');
       sb.writeln('${i + 1}. ${c.name}');
       final meta = <String>[c.category, c.priceStr];
-      if (c.rating > 0) meta.add('★${c.rating.toStringAsFixed(1)}');
+      if ((c.rating ?? 0) > 0) meta.add('★${c.rating!.toStringAsFixed(1)}');
       sb.writeln('  ${meta.join(' / ')}');
       // Hotpepper 由来なら固定長の公式ページURL、無ければ Google 検索にフォールバック。
-      sb.writeln('  ${ShareUtils.shortStoreUrl(c.hotpepperUrl, c.name, d.stationName)}');
+      sb.writeln('  ${ShareUtils.shortStoreUrl(c.hotpepperUrl, c.name, d.stationName, lat: c.lat, lng: c.lng)}');
     }
     sb.writeln('');
     if (extra > 0) {
       sb.writeln('1回で送れるのは5件までです');
     }
-    sb.writeln('あなたもまんなか（無料）で同じ条件のお店を探してみましょう👇');
+    sb.writeln(ShareUtils.lineDownloadCta);
     sb.write(ShareUtils.appStoreUrl);
     return sb.toString();
   }
@@ -231,24 +234,62 @@ class _DraftCardState extends ConsumerState<_DraftCard> {
             ],
           ),
           const SizedBox(height: 8),
-          for (final c in d.candidates.take(3))
+          // LINE で送れる上限の 5 件まで全件表示。各候補に写真サムネを横付け。
+          // 過去は take(3) + 「ほか X 件」だったが、ユーザー観点では「保存した候補が
+          // 全部見えない」状態だったので 5 件全部見せる方針に変更。
+          for (final c in d.candidates.take(5))
             Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Text(
-                '・${c.name}（${c.category}）',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: AppColors.textSecondary,
-                ),
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: SizedBox(
+                      width: 44,
+                      height: 44,
+                      child: c.imageUrl != null && c.imageUrl!.isNotEmpty
+                          ? CachedNetworkImage(
+                              imageUrl: c.imageUrl!,
+                              fit: BoxFit.cover,
+                              placeholder: (_, __) =>
+                                  Container(color: Colors.grey.shade100),
+                              errorWidget: (_, __, ___) =>
+                                  Container(color: Colors.grey.shade200),
+                            )
+                          : Container(color: Colors.grey.shade200),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          c.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          c.category,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ),
-          if (d.candidates.length > 3)
-            Text(
-              '...ほか${d.candidates.length - 3}件',
-              style: const TextStyle(
-                  fontSize: 11, color: AppColors.textTertiary),
             ),
           const SizedBox(height: 10),
           Row(

@@ -1,12 +1,15 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../config/secrets.dart';
 import '../models/reserved_restaurant.dart';
 import '../models/visited_restaurant.dart';
 import '../providers/reserved_restaurants_provider.dart';
 import '../providers/visited_restaurants_provider.dart';
 import '../theme/app_theme.dart';
+import '../utils/photo_ref.dart';
 import '../widgets/manual_restaurant_add_sheet.dart';
 
 class ReservedScreen extends ConsumerStatefulWidget {
@@ -116,6 +119,7 @@ class _ReservedCard extends ConsumerWidget {
       nearestStation: entry.nearestStation,
       hotpepperUrl: entry.hotpepperUrl,
       imageUrl: entry.imageUrl,
+      photoRefs: entry.photoRefs,
       lat: entry.lat,
       lng: entry.lng,
     );
@@ -148,6 +152,22 @@ class _ReservedCard extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // 5 枚スワイプ写真プレビュー（詳細画面に行く前から見える）
+            if (entry.photoRefs.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: SizedBox(
+                    height: 160,
+                    width: double.infinity,
+                    child: _ReservedPhotoCarousel(
+                      urls: PhotoRef.listToUrls(entry.photoRefs,
+                          googleApiKey: Secrets.placesApiKey),
+                    ),
+                  ),
+                ),
+              ),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -307,4 +327,63 @@ class _ReservedCard extends ConsumerWidget {
 
   String _formatDate(DateTime dt) =>
       '${dt.year}/${dt.month.toString().padLeft(2, '0')}/${dt.day.toString().padLeft(2, '0')}';
+}
+
+/// 予約済みカード用の小型 PageView 写真カルーセル。
+class _ReservedPhotoCarousel extends StatefulWidget {
+  const _ReservedPhotoCarousel({required this.urls});
+  final List<String> urls;
+
+  @override
+  State<_ReservedPhotoCarousel> createState() => _ReservedPhotoCarouselState();
+}
+
+class _ReservedPhotoCarouselState extends State<_ReservedPhotoCarousel> {
+  int _index = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.urls.length == 1) {
+      return CachedNetworkImage(
+        imageUrl: widget.urls.first,
+        fit: BoxFit.cover,
+        placeholder: (_, __) => Container(color: Colors.grey.shade100),
+        errorWidget: (_, __, ___) => Container(color: Colors.grey.shade200),
+      );
+    }
+    return Stack(
+      children: [
+        PageView.builder(
+          itemCount: widget.urls.length,
+          onPageChanged: (i) => setState(() => _index = i),
+          itemBuilder: (_, i) => CachedNetworkImage(
+            imageUrl: widget.urls[i],
+            fit: BoxFit.cover,
+            placeholder: (_, __) => Container(color: Colors.grey.shade100),
+            errorWidget: (_, __, ___) => Container(color: Colors.grey.shade200),
+          ),
+        ),
+        Positioned(
+          bottom: 6,
+          right: 6,
+          child: Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.55),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              '${_index + 1} / ${widget.urls.length}',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }

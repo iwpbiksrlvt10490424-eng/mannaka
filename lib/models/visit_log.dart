@@ -1,5 +1,8 @@
 import 'dart:convert';
 
+import '../config/secrets.dart';
+import '../utils/photo_ref.dart';
+
 class VisitLog {
   const VisitLog({
     required this.id,
@@ -36,7 +39,7 @@ class VisitLog {
         'visitedAt': visitedAt.toIso8601String(),
         'userRating': userRating,
         'memo': memo,
-        'imageUrl': imageUrl,
+        'imageUrl': imageUrl == null ? null : PhotoRef.toRef(imageUrl!),
         'address': address,
         'hotpepperUrl': hotpepperUrl,
       };
@@ -50,7 +53,10 @@ class VisitLog {
         visitedAt: DateTime.parse(j['visitedAt'] as String),
         userRating: j['userRating'] as int?,
         memo: j['memo'] as String? ?? '',
-        imageUrl: j['imageUrl'] as String?,
+        imageUrl: (j['imageUrl'] as String?) == null
+            ? null
+            : PhotoRef.toUrl(j['imageUrl'] as String,
+                googleApiKey: Secrets.placesApiKey),
         address: j['address'] as String? ?? '',
         hotpepperUrl: j['hotpepperUrl'] as String?,
       );

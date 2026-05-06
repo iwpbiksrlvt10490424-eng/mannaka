@@ -15,6 +15,7 @@ import '../providers/reserved_restaurants_provider.dart';
 import '../providers/search_provider.dart';
 import '../services/hotpepper_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/photo_ref.dart';
 import '../utils/share_utils.dart';
 
 /// Google Maps ルート検索 URL を構築する。
@@ -244,6 +245,7 @@ class _RestaurantDetailScreenState extends ConsumerState<RestaurantDetailScreen>
                 address: r.address,
                 hotpepperUrl: r.hotpepperUrl,
                 imageUrl: r.imageUrl,
+                photoRefs: PhotoRef.listToRefs(r.imageUrls),
                 lat: r.lat,
                 lng: r.lng,
                 nearestStation: station,
@@ -319,6 +321,7 @@ class _RestaurantDetailScreenState extends ConsumerState<RestaurantDetailScreen>
       address: entry.address,
       hotpepperUrl: entry.hotpepperUrl,
       imageUrl: entry.imageUrl,
+      photoRefs: entry.photoRefs,
       lat: entry.lat,
       lng: entry.lng,
       nearestStation: entry.nearestStation,
@@ -342,10 +345,12 @@ class _RestaurantDetailScreenState extends ConsumerState<RestaurantDetailScreen>
     final basePhotos = r.imageUrls.isNotEmpty
         ? r.imageUrls
         : (r.imageUrl != null ? [r.imageUrl!] : <String>[]);
-    final photos = [
+    // 5 枚を上限にする（仕様）。基本写真を優先し、足りない分だけ詳細画面で拡張取得した写真で埋める。
+    final merged = <String>[
       ...basePhotos,
       ..._extraPhotos.where((u) => !basePhotos.contains(u)),
     ];
+    final photos = merged.length > 5 ? merged.sublist(0, 5) : merged;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -379,11 +384,15 @@ class _RestaurantDetailScreenState extends ConsumerState<RestaurantDetailScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
-                        child: Text(r.name,
-                            style: const TextStyle(
-                                fontSize: 24, fontWeight: FontWeight.w800)),
+                        child: Text(
+                          r.name,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 24, fontWeight: FontWeight.w800),
+                        ),
                       ),
-                      if (r.rating > 0)
+                      if (r.hasRating && r.rating! > 0)
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
@@ -451,7 +460,7 @@ class _RestaurantDetailScreenState extends ConsumerState<RestaurantDetailScreen>
                       if (r.isReservable)
                         _Badge(
                             icon: Icons.calendar_today_rounded,
-                            label: '予約可',
+                            label: 'ここから予約可能',
                             color: const Color(0xFF10B981)),
                       if (r.freeDrink)
                         _Badge(
@@ -508,6 +517,30 @@ class _PhotoCarousel extends StatefulWidget {
 
 class _PhotoCarouselState extends State<_PhotoCarousel> {
   int _page = 0;
+  bool _initialPrecacheDone = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_initialPrecacheDone && widget.photos.length > 1) {
+      _initialPrecacheDone = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _precacheNeighbors(0);
+      });
+    }
+  }
+
+  /// 現在ページの前後を裏で先読み。スワイプ時のチラつきを抑える。
+  void _precacheNeighbors(int center) {
+    final ctx = context;
+    for (final i in [center - 1, center + 1, center + 2]) {
+      if (i < 0 || i >= widget.photos.length) continue;
+      precacheImage(
+        CachedNetworkImageProvider(widget.photos[i]),
+        ctx,
+      ).catchError((_) {});
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -516,10 +549,14 @@ class _PhotoCarouselState extends State<_PhotoCarousel> {
       children: [
         PageView.builder(
           itemCount: widget.photos.length,
-          onPageChanged: (i) => setState(() => _page = i),
+          onPageChanged: (i) {
+            setState(() => _page = i);
+            _precacheNeighbors(i);
+          },
           itemBuilder: (_, i) => CachedNetworkImage(
             imageUrl: widget.photos[i],
             fit: BoxFit.cover,
+            fadeInDuration: const Duration(milliseconds: 120),
             placeholder: (context, url) => Container(
               decoration: BoxDecoration(color: Colors.grey.shade100),
             ),
@@ -745,14 +782,18 @@ class _LineShareSheet extends StatelessWidget {
       meetingTime: meetingTime,
       groupNames: groupNames,
     );
-    final encoded = Uri.encodeComponent(text);
-    final lineUri = Uri.parse('https://line.me/R/share?text=$encoded');
+    final ok = await ShareUtils.launchLineWithText(text);
 
-    if (await canLaunchUrl(lineUri)) {
-      await launchUrl(lineUri, mode: LaunchMode.externalApplication);
+    if (!context.mounted) return;
+    if (ok) {
+      Navigator.pop(context);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('LINE を開けませんでした。インストール後に再度お試しください'),
+        ),
+      );
     }
-
-    if (context.mounted) Navigator.pop(context);
   }
 
   void _saveOnly(BuildContext context) {
@@ -764,6 +805,8 @@ class _LineShareSheet extends StatelessWidget {
   }
 
   ReservedRestaurant _buildEntry(dynamic r, String station) {
+    final List<String> imageUrls =
+        (r.imageUrls as List?)?.cast<String>() ?? const [];
     return ReservedRestaurant(
       id: '${r.id}_${DateTime.now().millisecondsSinceEpoch}',
       restaurantName: r.name,
@@ -772,6 +815,7 @@ class _LineShareSheet extends StatelessWidget {
       address: r.address,
       hotpepperUrl: r.hotpepperUrl,
       imageUrl: r.imageUrl,
+      photoRefs: PhotoRef.listToRefs(imageUrls),
       lat: r.lat,
       lng: r.lng,
       nearestStation: station,
@@ -837,6 +881,8 @@ class _LineShareSheet extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(r.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                         fontSize: 14, fontWeight: FontWeight.w800)),
                 if (r.category.isNotEmpty) ...[
@@ -1345,29 +1391,42 @@ class _NearbySearchButtonState extends State<_NearbySearchButton> {
   @override
   Widget build(BuildContext context) {
     final hasLocation = widget.restaurant.lat != null;
+    // 視認性の高い primaryLight 背景 + primary テキストの組合せ。
+    // 過去は OutlinedButton で枠線が暗く見える問題があったので、塗りボタンに変更。
     return SizedBox(
       width: double.infinity,
       height: 48,
-      child: OutlinedButton.icon(
+      child: ElevatedButton.icon(
         onPressed: hasLocation && !_loading ? _search : null,
         icon: _loading
             ? const SizedBox(
                 width: 16,
                 height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2))
-            : const Icon(Icons.search_rounded, size: 18),
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: AppColors.primary))
+            : const Icon(Icons.search_rounded,
+                size: 18, color: AppColors.primary),
         label: Text(
           hasLocation ? 'このエリアで他のお店を探す' : '位置情報が取得できません',
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-        ),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.primary,
-          side: BorderSide(
-            color: hasLocation ? AppColors.primary : Colors.grey.shade300,
-            width: 1.5,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: AppColors.primary,
           ),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: hasLocation
+              ? AppColors.primaryLight
+              : Colors.grey.shade100,
+          foregroundColor: AppColors.primary,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(
+              color: hasLocation ? AppColors.primary : Colors.grey.shade300,
+              width: 1.5,
+            ),
+          ),
         ),
       ),
     );
@@ -1455,10 +1514,14 @@ class _NearbyResultsSheet extends StatelessWidget {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(r.name,
-                                      style: const TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w600)),
+                                  Text(
+                                    r.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600),
+                                  ),
                                   const SizedBox(height: 4),
                                   Row(
                                     children: [
@@ -1491,7 +1554,7 @@ class _NearbyResultsSheet extends StatelessWidget {
                                 ],
                               ),
                             ),
-                            if (r.rating > 0) ...[
+                            if (r.hasRating && r.rating! > 0) ...[
                               const SizedBox(width: 8),
                               Row(children: [
                                 Icon(Icons.star_rounded,

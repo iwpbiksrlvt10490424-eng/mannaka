@@ -12,6 +12,7 @@ import '../data/station_data.dart';
 import '../services/midpoint_service.dart';
 import '../services/hotpepper_service.dart';
 import '../services/google_places_service.dart';
+import '../services/rating_enrichment_service.dart';
 import '../config/api_config.dart';
 import '../data/restaurant_data.dart';
 import '../services/notification_service.dart';
@@ -122,7 +123,7 @@ class SearchState {
     this.geoCentroidLat,
     this.geoCentroidLng,
     this.hotpepperRestaurants = const [],
-    this.sortOption = SortOption.recommended,
+    this.sortOption = SortOption.rating,
     this.errorMessage,
     this.restaurantCache = const <String, List<Restaurant>>{},
     this.loadingMessage,
@@ -172,7 +173,15 @@ class SearchState {
   // グループ関係性（おすすめ改善用）
   final String? groupRelation; // 'friends' | 'couple' | 'colleagues' | 'family'
 
-  bool get canCalculate => participants.where((p) => p.hasStation).length >= 2;
+  /// 「Aima を探す」が押せる条件:
+  /// - 全員が駅を入力済（hasStation または stationName があること）
+  /// - かつ 2 人以上いる
+  bool get canCalculate {
+    if (participants.length < 2) return false;
+    return participants.every((p) => p.hasStation || (p.stationName?.isNotEmpty ?? false));
+  }
+  bool get hasUnsetStation =>
+      participants.any((p) => !(p.hasStation || (p.stationName?.isNotEmpty ?? false)));
   bool get hasCentroid => centroidLat != null && centroidLng != null;
 
   // ハードフィルタ判定はユーザーが明示的にトグルしたものだけを反映。
@@ -247,7 +256,7 @@ class SearchState {
         [...base]..sort((a, b) => a.distanceKm.compareTo(b.distanceKm)),
       SortOption.rating => [...base]
         ..sort((a, b) =>
-            b.restaurant.rating.compareTo(a.restaurant.rating)),
+            compareByRatingWithReviewThreshold(a.restaurant, b.restaurant)),
       SortOption.budget => [...base]
         ..sort((a, b) =>
             a.restaurant.priceAvg.compareTo(b.restaurant.priceAvg)),
@@ -632,6 +641,13 @@ class SearchNotifier extends Notifier<SearchState> {
           final results2 = await Future.wait([hotpepperFuture, googleFuture]);
           hotpepperRestaurants =
               _mergeRestaurants(results2[0], results2[1]);
+
+          // Hotpepper 由来店は rating==null なので Google Places で評価を補完
+          // （マッチ失敗は null のまま、ダミー値禁止ルール）
+          hotpepperRestaurants = await RatingEnrichmentService.enrich(
+            apiKey: ApiConfig.placesApiKey,
+            restaurants: hotpepperRestaurants,
+          );
 
           // Store in Firebase cache for future searches (fire and forget)
           if (hotpepperRestaurants.isNotEmpty) {

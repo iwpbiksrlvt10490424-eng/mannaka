@@ -57,13 +57,6 @@ class TransitRouter {
     return routes[toName]; // null = 未接続（ランキングから除外すべき候補）
   }
 
-  /// GPS座標のみで時間を推定する（Haversine）
-  /// 参加者に駅名がない場合の最終フォールバック専用。主ランキングには使わない。
-  int haversineFallback(double fromLat, double fromLng, double toLat, double toLng) {
-    final distKm = GeoUtils.distKm(fromLat, fromLng, toLat, toLng);
-    return max(5, (distKm / 25.0 * 60).round());
-  }
-
   void _runDijkstra(String origin) {
     final dist = <String, int>{};
     final pq = PriorityQueue<(int, String, String)>(

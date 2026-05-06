@@ -581,14 +581,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             'お店選び、もう迷わない\n\n'
                             'みんなの駅を入れるだけで、全員が行きやすいお店を自動で提案してくれるよ\n\n'
                             'Aimachi（無料）\n${ShareUtils.appStoreUrl}';
-                        final encoded = Uri.encodeComponent(text);
-                        final lineUrl =
-                            Uri.parse('https://line.me/R/share?text=$encoded');
                         final size = MediaQuery.of(context).size;
-                        if (await canLaunchUrl(lineUrl)) {
-                          await launchUrl(lineUrl,
-                              mode: LaunchMode.externalApplication);
-                        } else {
+                        final ok = await ShareUtils.launchLineWithText(text);
+                        if (!ok) {
                           await Share.share(
                             text,
                             sharePositionOrigin: Rect.fromCenter(

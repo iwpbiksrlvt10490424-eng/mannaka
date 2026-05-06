@@ -330,10 +330,12 @@ void main() {
         final sorted = state.sortedRestaurants;
 
         for (var i = 0; i < sorted.length - 1; i++) {
+          final a = sorted[i].restaurant.rating ?? double.negativeInfinity;
+          final b = sorted[i + 1].restaurant.rating ?? double.negativeInfinity;
           expect(
-            sorted[i].restaurant.rating,
-            greaterThanOrEqualTo(sorted[i + 1].restaurant.rating),
-            reason: 'rating ソートは rating 降順',
+            a,
+            greaterThanOrEqualTo(b),
+            reason: 'rating ソートは rating 降順（null は最後尾）',
           );
         }
       },

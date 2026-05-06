@@ -1,3 +1,6 @@
+import '../config/secrets.dart';
+import '../utils/photo_ref.dart';
+
 class VisitedRestaurant {
   const VisitedRestaurant({
     required this.id,
@@ -9,6 +12,7 @@ class VisitedRestaurant {
     this.nearestStation = '',
     this.hotpepperUrl,
     this.imageUrl,
+    this.photoRefs = const [],
     this.lat,
     this.lng,
   });
@@ -22,6 +26,9 @@ class VisitedRestaurant {
   final String nearestStation;
   final String? hotpepperUrl;
   final String? imageUrl;
+
+  /// 複数枚写真の参照（API キーを含まない形）。表示時に Secrets で URL 化。
+  final List<String> photoRefs;
   final double? lat;
   final double? lng;
 
@@ -34,7 +41,8 @@ class VisitedRestaurant {
         'address': address,
         'nearestStation': nearestStation,
         'hotpepperUrl': hotpepperUrl,
-        'imageUrl': imageUrl,
+        'imageUrl': imageUrl == null ? null : PhotoRef.toRef(imageUrl!),
+        if (photoRefs.isNotEmpty) 'photoRefs': photoRefs,
         'lat': lat,
         'lng': lng,
       };
@@ -49,7 +57,14 @@ class VisitedRestaurant {
         address: j['address'] as String? ?? '',
         nearestStation: j['nearestStation'] as String? ?? '',
         hotpepperUrl: j['hotpepperUrl'] as String?,
-        imageUrl: j['imageUrl'] as String?,
+        imageUrl: (j['imageUrl'] as String?) == null
+            ? null
+            : PhotoRef.toUrl(j['imageUrl'] as String,
+                googleApiKey: Secrets.placesApiKey),
+        photoRefs: (j['photoRefs'] as List?)
+                ?.map((e) => e.toString())
+                .toList() ??
+            const [],
         lat: (j['lat'] as num?)?.toDouble(),
         lng: (j['lng'] as num?)?.toDouble(),
       );

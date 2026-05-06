@@ -149,7 +149,7 @@ class RestaurantCard extends StatelessWidget {
                       ],
                     ),
                     // 評価（ある場合のみ）
-                    if (restaurant.rating > 0) ...[
+                    if (restaurant.hasRating && restaurant.rating! > 0) ...[
                       const SizedBox(height: 4),
                       Row(
                         children: [

@@ -11,11 +11,67 @@ service cloud.firestore {
           && request.auth.uid == userId;
     }
     // 投票セッション: 認証ユーザーのみ読み書き可能
-    // create は誰でも（認証済みなら）OK。update は参加者も可。delete はホストのみ。
+    // create は誰でも（認証済みなら）OK。update は field-level に絞る。delete はホストのみ。
+    //   (a) host のみ status / decidedRestaurantId / decidedRestaurantName / closedAt を更新可
+    //   (b) 認証ユーザー任意で candidates 配列の単調追加（votes >=, voters は superset）のみ可
+    //       + 1 リクエストで growth するのは最大 1 候補のみ（ペアワイズ排他で 3 票同時加算阻止）
+    //   それ以外のフィールド (hostUid / hostName / createdAt / expiresAt) は affectedKeys().hasOnly で間接的に不変保護
     match /voting_sessions/{sessionId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null;
-      allow update: if request.auth != null;
+      allow update: if request.auth != null && (
+        // (a) host による status/decided 系の限定更新
+        (request.auth.uid == resource.data.hostUid
+            && request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['status', 'decidedRestaurantId', 'decidedRestaurantName', 'closedAt']))
+        ||
+        // (b) 認証ユーザー任意で candidates 配列の単調追加 + identity 不変（TOP3 全候補）
+        //     voters.size() == votes（インフレ阻止）+ voters.size() <= 原+1（1 リクエスト 1 票上限）
+        //     candidates[1]/[2] は size <= N || で短絡評価（候補 1〜2 件でも update 可能）
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['candidates'])
+            && request.resource.data.candidates.size() == resource.data.candidates.size()
+            && request.resource.data.candidates[0].votes >= resource.data.candidates[0].votes
+            && request.resource.data.candidates[0].voters.hasAll(resource.data.candidates[0].voters)
+            && request.resource.data.candidates[0].voters.size() == request.resource.data.candidates[0].votes
+            && request.resource.data.candidates[0].voters.size() <= resource.data.candidates[0].voters.size() + 1
+            && request.resource.data.candidates[0].id == resource.data.candidates[0].id
+            && request.resource.data.candidates[0].name == resource.data.candidates[0].name
+            && request.resource.data.candidates[0].category == resource.data.candidates[0].category
+            && request.resource.data.candidates[0].priceStr == resource.data.candidates[0].priceStr
+            && request.resource.data.candidates[0].address == resource.data.candidates[0].address
+            && request.resource.data.candidates[0].imageUrl == resource.data.candidates[0].imageUrl
+            && (request.resource.data.candidates.size() <= 1 || (
+                request.resource.data.candidates[1].votes >= resource.data.candidates[1].votes
+                && request.resource.data.candidates[1].voters.hasAll(resource.data.candidates[1].voters)
+                && request.resource.data.candidates[1].voters.size() == request.resource.data.candidates[1].votes
+                && request.resource.data.candidates[1].voters.size() <= resource.data.candidates[1].voters.size() + 1
+                && request.resource.data.candidates[1].id == resource.data.candidates[1].id
+                && request.resource.data.candidates[1].name == resource.data.candidates[1].name
+                && request.resource.data.candidates[1].category == resource.data.candidates[1].category
+                && request.resource.data.candidates[1].priceStr == resource.data.candidates[1].priceStr
+                && request.resource.data.candidates[1].address == resource.data.candidates[1].address
+                && request.resource.data.candidates[1].imageUrl == resource.data.candidates[1].imageUrl))
+            && (request.resource.data.candidates.size() <= 2 || (
+                request.resource.data.candidates[2].votes >= resource.data.candidates[2].votes
+                && request.resource.data.candidates[2].voters.hasAll(resource.data.candidates[2].voters)
+                && request.resource.data.candidates[2].voters.size() == request.resource.data.candidates[2].votes
+                && request.resource.data.candidates[2].voters.size() <= resource.data.candidates[2].voters.size() + 1
+                && request.resource.data.candidates[2].id == resource.data.candidates[2].id
+                && request.resource.data.candidates[2].name == resource.data.candidates[2].name
+                && request.resource.data.candidates[2].category == resource.data.candidates[2].category
+                && request.resource.data.candidates[2].priceStr == resource.data.candidates[2].priceStr
+                && request.resource.data.candidates[2].address == resource.data.candidates[2].address
+                && request.resource.data.candidates[2].imageUrl == resource.data.candidates[2].imageUrl))
+            && (request.resource.data.candidates.size() <= 1 || (
+                request.resource.data.candidates[0].voters.size() == resource.data.candidates[0].voters.size()
+                || request.resource.data.candidates[1].voters.size() == resource.data.candidates[1].voters.size()))
+            && (request.resource.data.candidates.size() <= 2 || (
+                request.resource.data.candidates[0].voters.size() == resource.data.candidates[0].voters.size()
+                || request.resource.data.candidates[2].voters.size() == resource.data.candidates[2].voters.size()))
+            && (request.resource.data.candidates.size() <= 2 || (
+                request.resource.data.candidates[1].voters.size() == resource.data.candidates[1].voters.size()
+                || request.resource.data.candidates[2].voters.size() == resource.data.candidates[2].voters.size())))
+      );
       allow delete: if request.auth != null
           && request.auth.uid == resource.data.hostUid;
     }

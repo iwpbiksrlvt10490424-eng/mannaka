@@ -135,17 +135,21 @@ class GooglePlacesService {
         : 0;
 
     // photos は `name` フィールドが "places/PLACE_ID/photos/PHOTO_NAME" 形式
-    // media エンドポイントで画像取得できる
-    final photos = p['photos'] as List?;
-    String? imageUrl;
-    if (photos != null && photos.isNotEmpty) {
-      final first = photos.first as Map?;
-      final photoName = first?['name']?.toString();
-      if (photoName != null && photoName.isNotEmpty) {
-        imageUrl =
-            'https://places.googleapis.com/v1/$photoName/media?maxWidthPx=800&key=$apiKey';
+    // media エンドポイントで画像取得できる。最大 5 枚を imageUrls に格納する。
+    final photosRaw = p['photos'] as List?;
+    final photoUrls = <String>[];
+    if (photosRaw != null) {
+      for (final ph in photosRaw) {
+        if (photoUrls.length >= 5) break;
+        if (ph is! Map) continue;
+        final photoName = ph['name']?.toString();
+        if (photoName == null || photoName.isEmpty) continue;
+        photoUrls.add(
+          'https://places.googleapis.com/v1/$photoName/media?maxWidthPx=800&key=$apiKey',
+        );
       }
     }
+    final imageUrl = photoUrls.isNotEmpty ? photoUrls.first : null;
 
     return Restaurant(
       id: 'gp_$id',
@@ -171,7 +175,7 @@ class GooglePlacesService {
       lng: lng,
       hotpepperUrl: null,
       imageUrl: imageUrl,
-      imageUrls: imageUrl != null ? [imageUrl] : const [],
+      imageUrls: photoUrls,
       accessInfo: '',
       stationName: '',
       sourceApi: 'google_places',

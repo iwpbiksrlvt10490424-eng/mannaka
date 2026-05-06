@@ -80,17 +80,11 @@ class _SharePreviewScreenState extends ConsumerState<SharePreviewScreen> {
   }
 
   String _buildShareText(SearchState state) {
-    final text = ShareUtils.buildRestaurantShareText(
+    return ShareUtils.buildRestaurantShareText(
       state,
       primaryScored: widget.scored,
       includeBackup: _includeBackup,
     );
-    if (text.isNotEmpty) return text;
-
-    // フォールバック：選択レストランのみ
-    final r = widget.scored.restaurant;
-    final names = widget.participants.map((p) => p.name).join('、');
-    return '${r.name} に決まりました\n\n${r.address}\n参加者: $names\n\nAimachi で見つけました\n${ShareUtils.appStoreUrl}';
   }
 
   Future<void> _shareAsImage() async {

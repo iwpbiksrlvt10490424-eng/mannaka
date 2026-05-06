@@ -485,16 +485,27 @@ class _RestaurantDetailScreenState extends ConsumerState<RestaurantDetailScreen>
                     ],
                   ),
                   const SizedBox(height: 24),
-                  if (r.lat != null && r.lng != null)
-                    _RouteButton(restaurant: r),
-                  const SizedBox(height: 12),
+                  // ─── アクション領域（Primary → Secondary → Tertiary 階層） ───
+                  // Primary: 予約ページへ進む（外部サイト遷移、ユーザーが最も期待する次の一手）
                   if (r.isReservable) ...[
                     _ReserveButton(onPressed: _onReservePressed),
-                    const SizedBox(height: 10),
-                    _LineShareButton(onPressed: _showLineShare),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
                   ],
-                  _NearbySearchButton(restaurant: r),
+                  // Secondary: 共有・ルートを横並び（同等の補助動線）
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _LineShareButton(onPressed: _showLineShare),
+                      ),
+                      if (r.lat != null && r.lng != null) ...[
+                        const SizedBox(width: 10),
+                        Expanded(child: _RouteButton(restaurant: r)),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  // Tertiary: テキストリンクで控えめに（補助の補助）
+                  _NearbyTextLink(restaurant: r),
                 ],
               ),
             ),
@@ -667,7 +678,7 @@ class _RouteButton extends StatelessWidget {
           }
         },
         icon: const Icon(Icons.directions_walk_rounded, size: 18),
-        label: const Text('Google マップでルート検索',
+        label: const Text('ルートを見る',
             style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
         style: OutlinedButton.styleFrom(
           foregroundColor: const Color(0xFF1A73E8),
@@ -754,8 +765,8 @@ class _LineShareButton extends StatelessWidget {
               child: CustomPaint(painter: _MiniLinePainter()),
             ),
             const SizedBox(width: 8),
-            const Text('LINEで予約情報をシェア',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+            const Text('LINE で共有',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
           ],
         ),
       ),
@@ -1405,9 +1416,9 @@ class _NearbySearchButtonState extends State<_NearbySearchButton> {
 
   @override
   Widget build(BuildContext context) {
+    // この Widget は後方互換のため残す（他から参照される可能性）。
+    // 詳細画面では _NearbyTextLink（Tertiary テキストリンク）を使う。
     final hasLocation = widget.restaurant.lat != null;
-    // 視認性の高い primaryLight 背景 + primary テキストの組合せ。
-    // 過去は OutlinedButton で枠線が暗く見える問題があったので、塗りボタンに変更。
     return SizedBox(
       width: double.infinity,
       height: 48,
@@ -1441,6 +1452,85 @@ class _NearbySearchButtonState extends State<_NearbySearchButton> {
               color: hasLocation ? AppColors.primary : Colors.grey.shade300,
               width: 1.5,
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── エリア周辺探し（Tertiary テキストリンク） ───────────────────────────────
+//
+// _NearbySearchButton と同じ振る舞い（位置情報を使った周辺再検索 → BottomSheet）
+// を持つが、見た目はテキストリンクで控えめ。詳細画面のボタン階層で
+// Primary（予約）> Secondary（共有・ルート）> Tertiary（このリンク）という
+// 視覚的優先度を確立するために導入。
+
+class _NearbyTextLink extends StatefulWidget {
+  const _NearbyTextLink({required this.restaurant});
+  final Restaurant restaurant;
+
+  @override
+  State<_NearbyTextLink> createState() => _NearbyTextLinkState();
+}
+
+class _NearbyTextLinkState extends State<_NearbyTextLink> {
+  bool _loading = false;
+
+  Future<void> _search() async {
+    final lat = widget.restaurant.lat;
+    final lng = widget.restaurant.lng;
+    if (lat == null || lng == null) return;
+    setState(() => _loading = true);
+    final apiKey = ApiConfig.hotpepperApiKey;
+    List<Restaurant> results = [];
+    try {
+      if (apiKey.isNotEmpty) {
+        results = await HotpepperService.searchNearCentroid(
+          apiKey: apiKey,
+          lat: lat,
+          lng: lng,
+          range: 2,
+          count: 20,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+    if (!mounted) return;
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _NearbyResultsSheet(
+        results: results,
+        restaurantName: widget.restaurant.name,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasLocation = widget.restaurant.lat != null;
+    if (!hasLocation) return const SizedBox.shrink();
+    return Center(
+      child: TextButton.icon(
+        onPressed: _loading ? null : _search,
+        icon: _loading
+            ? const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: AppColors.primary))
+            : const Icon(Icons.search_rounded,
+                size: 16, color: AppColors.primary),
+        label: const Text(
+          'このエリアで他のお店を探す',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: AppColors.primary,
+            decoration: TextDecoration.underline,
           ),
         ),
       ),

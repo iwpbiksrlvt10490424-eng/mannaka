@@ -1184,6 +1184,45 @@ List<String> _formatOpenHours(String raw) {
 String _formatCloseDay(String raw) =>
     raw.replaceAll('　', ' ').trim();
 
+/// アクセス文の短縮版を返す。
+/// Hotpepper の accessInfo は「JR池袋駅39出口より徒歩約1分/都電荒川線都電雑司ヶ谷駅...」
+/// のように長いことが多く、詳細画面の縦領域を浪費する。
+/// 最初のセパレータ（/、・、。）までを取り、駅名と「徒歩X分」を含むなら短く整える。
+/// 失敗時は原文を返す（ダミー値禁止 / 推測しない）。
+String _shortenAccess(String raw) {
+  if (raw.isEmpty) return raw;
+  final firstSep = raw.indexOf(RegExp(r'[/・。\n]'));
+  final head = (firstSep > 0 ? raw.substring(0, firstSep) : raw).trim();
+  // よくある冗長表現を削る（路線名・出口番号・「より」「約」）
+  final compact = head
+      .replaceAll(RegExp(r'(JR|東京メトロ|都営|京王|小田急|東急|京急|京成|東武|西武)'), '')
+      .replaceAll(RegExp(r'\d+(番|号)?出口より'), '')
+      .replaceAll(RegExp(r'徒歩約'), '徒歩')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+  return compact.isEmpty ? head : compact;
+}
+
+/// 「本日の営業時間」を抽出する。
+/// Hotpepper の openHours は「月、水、土、日、祝日：12:00〜翌1:00 / 火、木、金：...」
+/// のような複合文字列のことがある。今日の曜日を含む slot を返す。
+/// 失敗時は最初の slot を返す（ダミー値禁止 / 嘘の時間を出さない）。
+String _todayHours(String raw, {DateTime? now}) {
+  final slots = _formatOpenHours(raw);
+  if (slots.isEmpty) return '';
+  if (slots.length == 1) return slots.first;
+  final today = (now ?? DateTime.now()).weekday; // 1=Mon ... 7=Sun
+  const dayNames = ['月', '火', '水', '木', '金', '土', '日'];
+  final todayName = dayNames[today - 1];
+  for (final s in slots) {
+    // slot の頭にある曜日表現を粗くマッチ。「月、水、土」「月～金」「祝日」など。
+    final colonIdx = s.indexOf(RegExp(r'[：:]'));
+    final daysPart = colonIdx > 0 ? s.substring(0, colonIdx) : s;
+    if (daysPart.contains(todayName)) return s;
+  }
+  return slots.first;
+}
+
 class _InfoCard extends StatelessWidget {
   const _InfoCard({required this.restaurant});
   final Restaurant restaurant;
@@ -1230,10 +1269,17 @@ class _InfoCard extends StatelessWidget {
 
   Widget? _buildAccessRow() {
     if (restaurant.accessInfo.isNotEmpty) {
-      return _InfoRow(
-          icon: Icons.directions_walk_rounded,
-          label: 'アクセス',
-          value: restaurant.accessInfo);
+      // アクセスは「最初の経路」だけ短縮表示し、長文は折りたたみへ。
+      // 詳細を見たいユーザーは expand で原文を確認できる。
+      final short = _shortenAccess(restaurant.accessInfo);
+      final hasMore = short != restaurant.accessInfo;
+      return _ExpandableInfoRow(
+        icon: Icons.directions_walk_rounded,
+        label: 'アクセス',
+        primary: short,
+        expandedDetail: hasMore ? restaurant.accessInfo : null,
+        moreLabel: 'すべての経路を見る',
+      );
     } else if (restaurant.distanceMinutes > 0) {
       return _InfoRow(
           icon: Icons.directions_walk_rounded,
@@ -1246,37 +1292,20 @@ class _InfoCard extends StatelessWidget {
   Widget? _buildHoursRow() {
     if (restaurant.openHours.isEmpty) return null;
     final slots = _formatOpenHours(restaurant.openHours);
+    // 営業時間: 1 slot のみなら通常表示、複数 slot なら「本日の slot」+ 折りたたみへ。
     if (slots.length <= 1) {
       return _InfoRow(
           icon: Icons.access_time_rounded,
           label: '営業時間',
           value: slots.firstOrNull ?? restaurant.openHours);
     }
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(Icons.access_time_rounded, size: 18, color: AppColors.primary),
-          const SizedBox(width: 10),
-          SizedBox(
-            width: 68,
-            child: Text('営業時間',
-                style:
-                    TextStyle(fontSize: 13, color: Colors.grey.shade600)),
-          ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: slots
-                  .map((s) => Text(s,
-                      style: const TextStyle(
-                          fontSize: 13, fontWeight: FontWeight.w600)))
-                  .toList(),
-            ),
-          ),
-        ],
-      ),
+    final today = _todayHours(restaurant.openHours);
+    return _ExpandableInfoRow(
+      icon: Icons.access_time_rounded,
+      label: '営業時間',
+      primary: '本日: $today',
+      expandedDetail: slots.join('\n'),
+      moreLabel: '全曜日の営業時間を見る',
     );
   }
 
@@ -1294,6 +1323,103 @@ class _InfoCard extends StatelessWidget {
         icon: Icons.calendar_month_rounded,
         label: '定休日',
         value: day);
+  }
+}
+
+/// 折りたたみ可能な情報行。
+/// primary を 1 行で表示し、expandedDetail があれば「もっと見る」リンクで全文を出す。
+/// アクセス文・営業時間など Hotpepper 由来の長文を縦領域を圧迫せずに見せる用途。
+class _ExpandableInfoRow extends StatefulWidget {
+  const _ExpandableInfoRow({
+    required this.icon,
+    required this.label,
+    required this.primary,
+    required this.expandedDetail,
+    this.moreLabel = 'もっと見る',
+  });
+  final IconData icon;
+  final String label;
+  final String primary;
+  final String? expandedDetail;
+  final String moreLabel;
+
+  @override
+  State<_ExpandableInfoRow> createState() => _ExpandableInfoRowState();
+}
+
+class _ExpandableInfoRowState extends State<_ExpandableInfoRow> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(widget.icon, size: 18, color: AppColors.primary),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 68,
+            child: Text(widget.label,
+                style:
+                    TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  widget.primary,
+                  style: const TextStyle(
+                      fontSize: 14, fontWeight: FontWeight.w600),
+                  textAlign: TextAlign.end,
+                ),
+                if (widget.expandedDetail != null) ...[
+                  const SizedBox(height: 4),
+                  if (_expanded) ...[
+                    Text(
+                      widget.expandedDetail!,
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                          height: 1.5),
+                      textAlign: TextAlign.end,
+                    ),
+                    GestureDetector(
+                      onTap: () => setState(() => _expanded = false),
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          '閉じる',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ] else
+                    GestureDetector(
+                      onTap: () => setState(() => _expanded = true),
+                      child: Text(
+                        widget.moreLabel,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w600,
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
+                    ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

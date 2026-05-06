@@ -22,6 +22,7 @@ import 'saved_drafts_screen.dart';
 import 'tutorial_screen.dart';
 import 'support_screen.dart';
 import 'policy_screen.dart';
+import 'about_screen.dart';
 import '../utils/share_utils.dart';
 
 
@@ -707,6 +708,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(builder: (_) => const TermsScreen()),
+                      ),
+                    ),
+                    _NavItem(
+                      icon: Icons.info_outline_rounded,
+                      label: 'アプリについて',
+                      color: const Color(0xFF6B7280),
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const AboutScreen()),
                       ),
                     ),
                     _InfoItem(label: 'バージョン', value: '1.0.5'),

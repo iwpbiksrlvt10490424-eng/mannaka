@@ -1,17 +1,20 @@
+import 'dart:convert';
 import 'dart:developer' as developer;
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../config/secrets.dart';
 import '../models/meeting_point.dart';
-import 'auth_provider.dart';
+import '../utils/photo_ref.dart';
 
 /// 履歴に保存する軽量レストラン情報
 class HistoryRestaurant {
   const HistoryRestaurant({
     required this.name,
     required this.category,
-    this.rating = 0,
+    this.rating,
     this.imageUrl,
+    this.photoRefs = const [],
     this.hotpepperUrl,
     this.lat,
     this.lng,
@@ -20,8 +23,16 @@ class HistoryRestaurant {
 
   final String name;
   final String category;
-  final double rating;
+  final double? rating;
+  /// 単一サムネイル URL（後方互換用）。
   final String? imageUrl;
+
+  /// 複数枚写真の参照。
+  /// - "https://" で始まる文字列 = Hotpepper 等の完全 URL（そのまま使う）
+  /// - それ以外 = Google Places の photo reference（例: "places/abc/photos/xyz"）
+  ///   表示時に API キーを付けて URL を構築する。
+  /// API キーを Firestore に書かない設計。
+  final List<String> photoRefs;
   final String? hotpepperUrl;
   final double? lat;
   final double? lng;
@@ -31,7 +42,8 @@ class HistoryRestaurant {
         'name': name,
         'category': category,
         'rating': rating,
-        if (imageUrl != null) 'imageUrl': imageUrl,
+        if (imageUrl != null) 'imageUrl': PhotoRef.toRef(imageUrl!),
+        if (photoRefs.isNotEmpty) 'photoRefs': photoRefs,
         if (hotpepperUrl != null) 'hotpepperUrl': hotpepperUrl,
         if (lat != null) 'lat': lat,
         if (lng != null) 'lng': lng,
@@ -42,8 +54,15 @@ class HistoryRestaurant {
       HistoryRestaurant(
         name: j['name'] as String? ?? '',
         category: j['category'] as String? ?? '',
-        rating: (j['rating'] as num? ?? 0).toDouble(),
-        imageUrl: j['imageUrl'] as String?,
+        rating: (j['rating'] as num?)?.toDouble(),
+        imageUrl: (j['imageUrl'] as String?) == null
+            ? null
+            : PhotoRef.toUrl(j['imageUrl'] as String,
+                googleApiKey: Secrets.placesApiKey),
+        photoRefs: (j['photoRefs'] as List?)
+                ?.map((e) => e.toString())
+                .toList() ??
+            const [],
         hotpepperUrl: j['hotpepperUrl'] as String?,
         lat: (j['lat'] as num?)?.toDouble(),
         lng: (j['lng'] as num?)?.toDouble(),
@@ -88,7 +107,17 @@ class HistoryEntry {
       );
 }
 
+/// 検索履歴をローカルの SharedPreferences に永続化する Notifier。
+///
+/// 設計判断（2026-04-30 ローカル化）:
+/// - Firestore 同期をやめてローカル保存に切替。古いバグ由来エントリーが
+///   ユーザーの環境ごとに残り続けて混乱を招いていたため。
+/// - ユーザーごとの認証は不要（端末単位の履歴）。
+/// - JSON シリアライズして 1 つのキーに保存。最大 50 件で打ち切り（古いものから捨てる）。
 class HistoryNotifier extends Notifier<List<HistoryEntry>> {
+  static const _prefsKey = 'search_history_v2';
+  static const _maxEntries = 50;
+
   @override
   List<HistoryEntry> build() {
     _load();
@@ -97,15 +126,14 @@ class HistoryNotifier extends Notifier<List<HistoryEntry>> {
 
   Future<void> _load() async {
     try {
-      final uid = await ensureUid();
-      final snapshot = await FirebaseFirestore.instance
-          .collection('users/$uid/search_history')
-          .orderBy('createdAt', descending: true)
-          .limit(100)
-          .get();
-      state = snapshot.docs
-          .map((d) => HistoryEntry.fromJson(d.data()))
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_prefsKey);
+      if (raw == null || raw.isEmpty) return;
+      final list = (jsonDecode(raw) as List)
+          .cast<Map<String, dynamic>>()
+          .map(HistoryEntry.fromJson)
           .toList();
+      state = list;
     } catch (e) {
       developer.log(
         'HistoryNotifier: _load failed - ${e.runtimeType}',
@@ -115,28 +143,74 @@ class HistoryNotifier extends Notifier<List<HistoryEntry>> {
     }
   }
 
-  Future<void> add(
+  Future<void> _save(List<HistoryEntry> entries) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final json = jsonEncode(entries.map((e) => e.toJson()).toList());
+      await prefs.setString(_prefsKey, json);
+    } catch (e) {
+      developer.log(
+        'HistoryNotifier: _save failed - ${e.runtimeType}',
+        name: 'HistoryNotifier',
+        error: e,
+      );
+    }
+  }
+
+  /// 新規エントリーを作成して保存。生成した entry id を返す。
+  /// 呼び出し側はその id を保持しておけば、後から `appendRestaurant` で
+  /// 同じエントリーに店を追記できる（同じ検索セッション内の複数タップを束ねる用）。
+  Future<String> add(
     List<String> names,
     MeetingPoint point, {
     List<HistoryRestaurant> restaurants = const [],
   }) async {
+    final id = DateTime.now().millisecondsSinceEpoch.toString();
     try {
-      final uid = await ensureUid();
       final entry = HistoryEntry(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        id: id,
         createdAt: DateTime.now(),
         participantNames: names,
         meetingPoint: point,
         restaurants: restaurants,
       );
-      await FirebaseFirestore.instance
-          .collection('users/$uid/search_history')
-          .doc(entry.id)
-          .set(entry.toJson());
-      state = [entry, ...state];
+      final next = [entry, ...state].take(_maxEntries).toList();
+      state = next;
+      await _save(next);
     } catch (e) {
       developer.log(
         'HistoryNotifier: add failed - ${e.runtimeType}',
+        name: 'HistoryNotifier',
+        error: e,
+      );
+    }
+    return id;
+  }
+
+  /// 既存エントリーにレストランを追記する。
+  /// 同じ検索セッション内でユーザーが複数の店をタップした場合に、
+  /// 1 つの履歴エントリーへ束ねるために使う。
+  /// 同名の店が既にあれば追記しない（重複防止）。
+  Future<void> appendRestaurant(String entryId, HistoryRestaurant r) async {
+    try {
+      final idx = state.indexWhere((e) => e.id == entryId);
+      if (idx < 0) return;
+      final entry = state[idx];
+      if (entry.restaurants.any((x) => x.name == r.name)) return;
+      final updated = HistoryEntry(
+        id: entry.id,
+        createdAt: entry.createdAt,
+        participantNames: entry.participantNames,
+        meetingPoint: entry.meetingPoint,
+        restaurants: [...entry.restaurants, r],
+      );
+      final next = [...state];
+      next[idx] = updated;
+      state = next;
+      await _save(next);
+    } catch (e) {
+      developer.log(
+        'HistoryNotifier: appendRestaurant failed - ${e.runtimeType}',
         name: 'HistoryNotifier',
         error: e,
       );
@@ -145,12 +219,9 @@ class HistoryNotifier extends Notifier<List<HistoryEntry>> {
 
   Future<void> remove(String id) async {
     try {
-      final uid = await ensureUid();
-      await FirebaseFirestore.instance
-          .collection('users/$uid/search_history')
-          .doc(id)
-          .delete();
-      state = state.where((e) => e.id != id).toList();
+      final next = state.where((e) => e.id != id).toList();
+      state = next;
+      await _save(next);
     } catch (e) {
       developer.log(
         'HistoryNotifier: remove failed - ${e.runtimeType}',
@@ -158,6 +229,12 @@ class HistoryNotifier extends Notifier<List<HistoryEntry>> {
         error: e,
       );
     }
+  }
+
+  /// すべての履歴をクリア（ユーザーが「全削除」を選んだ時用）。
+  Future<void> clearAll() async {
+    state = [];
+    await _save([]);
   }
 }
 

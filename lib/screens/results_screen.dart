@@ -15,6 +15,7 @@ import '../theme/app_theme.dart';
 import '../widgets/candidate_share_sheet.dart';
 import '../widgets/line_icon.dart';
 import '../services/midpoint_service.dart';
+import '../utils/photo_ref.dart';
 import '../utils/share_utils.dart';
 import 'restaurant_detail_screen.dart';
 
@@ -29,7 +30,6 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
     with TickerProviderStateMixin {
   TabController? _tab;
   int _tabCount = 0;
-  bool _autoSaved = false; // セッション単位で1回だけ自動保存
   /// 駅タブを跨いでも保持される選択済み候補。
   /// レストラン ID → (scored, 選択時の集合駅名) のペアを保持し、
   /// LINE 本文で駅ごとにグループ表示できるようにする。
@@ -79,6 +79,78 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
         notifier.selectMeetingPointAndFetch(results[idx]);
       }
     });
+  }
+
+  /// 履歴は「ユーザーが詳細を開くために実際にタップした店」だけを残す方針。
+  /// **駅単位で 1 エントリー**にまとめる（YouTube/ブラウザの履歴と同様）。
+  /// 同じ検索内でもタブを切替えて違う駅で店をタップしたら、駅ごとに別エントリー。
+  ///
+  /// _tappedIds: このセッションで既にタップ済みの restaurant id（重複保存防止）
+  /// _entryIdByStation: 駅名 → そのセッションで作成済みのエントリー id（追記先）
+  /// 検索が新しく完了するたびに両方リセットする。
+  ///
+  /// なぜ「検索単位」ではなく「駅単位」か:
+  /// 1 検索が複数の候補駅（タブ）を持ち、タブ切替時は isCalculating が遷移しない
+  /// （キャッシュ済みの場合）。検索単位で束ねると、タブ B でタップした店がタブ A の
+  /// エントリーに混ざり、駅表示がズレる。駅単位なら各タブのタップが正しく分離される。
+  final Set<String> _tappedIds = {};
+  final Map<String, String> _entryIdByStation = {};
+
+  @override
+  void initState() {
+    super.initState();
+    // 新しい検索が完了したら、タップ追跡をリセット。
+    // 検索完了時に「保存」はしない（タップされるまで履歴に何も残さない）。
+    // ref.listen を build に書かないルールに従い、initState で listenManual を登録。
+    ref.listenManual<bool>(
+      searchProvider.select((s) => s.isCalculating),
+      (prev, next) {
+        if (prev == true && next == false) {
+          _tappedIds.clear();
+          _entryIdByStation.clear();
+        }
+      },
+    );
+  }
+
+  /// ユーザーが詳細を開いた店を履歴に保存する。
+  /// **駅単位で 1 エントリー**にまとめる：同じ駅で複数タップ → 同エントリーに追記、
+  /// 別の駅でタップ → その駅用の新エントリー作成。
+  ///
+  /// `point` はユーザーが今見ているタブの駅。state.selectedMeetingPoint を
+  /// 読まないのは、連続再検索やタブ切替で同期ズレが起き、古い駅で履歴が
+  /// 保存されるバグが発生したため（タブ自身が持つ point が信頼できる真実）。
+  Future<void> _saveTappedRestaurant(Restaurant r, MeetingPoint point) async {
+    if (_tappedIds.contains(r.id)) return; // 同セッション内の同じ店は二重保存しない
+    _tappedIds.add(r.id);
+
+    final state = ref.read(searchProvider);
+
+    final hr = HistoryRestaurant(
+      name: r.name,
+      category: r.category,
+      rating: r.rating,
+      imageUrl: r.imageUrl,
+      photoRefs: PhotoRef.listToRefs(r.imageUrls),
+      hotpepperUrl: r.hotpepperUrl,
+      lat: r.lat,
+      lng: r.lng,
+      address: r.address,
+    );
+
+    final notifier = ref.read(historyProvider.notifier);
+    final stationName = point.stationName;
+    final existingId = _entryIdByStation[stationName];
+    if (existingId == null) {
+      final id = await notifier.add(
+        state.participants.map((p) => p.name).toList(),
+        point,
+        restaurants: [hr],
+      );
+      _entryIdByStation[stationName] = id;
+    } else {
+      await notifier.appendRestaurant(existingId, hr);
+    }
   }
 
   @override
@@ -188,17 +260,48 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
           ),
           if (state.results.isNotEmpty) ...[
             // 右上の共有ボタン：**候補の集合駅リスト**を LINE で送る。
-            // お店は送らない（お店は下部バーの選択→共有フローで送る）。
+            // タイトル領域を圧迫しないようコンパクトに（緑チップ + LINE 文字のみ）。
             Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: GestureDetector(
-                onTap: () {
-                  HapticFeedback.mediumImpact();
-                  ShareUtils.shareMeetingPointsToLine(state);
-                },
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 6),
-                  child: LineIcon(size: 32, filled: true),
+              padding: const EdgeInsets.only(right: 6),
+              child: Material(
+                color: const Color(0xFF06C755),
+                borderRadius: BorderRadius.circular(16),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: () async {
+                    HapticFeedback.mediumImpact();
+                    final messenger = ScaffoldMessenger.of(context);
+                    final ok =
+                        await ShareUtils.shareMeetingPointsToLine(state);
+                    if (!mounted) return;
+                    if (!ok) {
+                      messenger.showSnackBar(
+                        const SnackBar(
+                          content: Text('LINE がインストールされていません'),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    }
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 5, horizontal: 8),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        LineIcon(size: 14, filled: false, iconColor: Colors.white),
+                        SizedBox(width: 3),
+                        Text(
+                          'LINE',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -312,27 +415,9 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
                             selectedIds: _sharedSelected.keys.toSet(),
                             onToggleSelect: (sr) =>
                                 _toggleSelection(sr, point.stationName),
-                            onFirstDetailOpen: (restaurant) {
-                              if (!_autoSaved) {
-                                _autoSaved = true;
-                                ref.read(historyProvider.notifier).add(
-                                  state.participants.map((p) => p.name).toList(),
-                                  point,
-                                  restaurants: [
-                                    HistoryRestaurant(
-                                      name: restaurant.name,
-                                      category: restaurant.category,
-                                      rating: restaurant.rating,
-                                      imageUrl: restaurant.imageUrl,
-                                      hotpepperUrl: restaurant.hotpepperUrl,
-                                      lat: restaurant.lat,
-                                      lng: restaurant.lng,
-                                      address: restaurant.address,
-                                    ),
-                                  ],
-                                );
-                              }
-                            },
+                            // 詳細を開いた店だけ履歴に保存。
+                            // 同セッション内の複数タップは 1 エントリーに束ねる。
+                            onFirstDetailOpen: _saveTappedRestaurant,
                           );
                         }).toList(),
                       ),
@@ -563,7 +648,11 @@ class _MeetingPointTab extends ConsumerStatefulWidget {
   /// 親画面が保持する選択済み ID。駅タブを跨いでも維持される。
   final Set<String> selectedIds;
   final void Function(ScoredRestaurant) onToggleSelect;
-  final void Function(Restaurant) onFirstDetailOpen; // 閲覧したお店のみ保存
+  /// 閲覧したお店のみ履歴に保存する。
+  /// 第 2 引数は「ユーザーが今見ているタブの駅」。
+  /// state.selectedMeetingPoint をグローバルに読むと、連続再検索や
+  /// タブ切替の同期ズレで違う駅が混入し得るため、必ずタブ自身の point を渡す。
+  final void Function(Restaurant, MeetingPoint) onFirstDetailOpen;
 
   @override
   ConsumerState<_MeetingPointTab> createState() => _MeetingPointTabState();
@@ -631,7 +720,7 @@ class _MeetingPointTabState extends ConsumerState<_MeetingPointTab> {
       } else {
         // centroid なしのフォールバック
         final filtered = base.toList()
-          ..sort((a, b) => b.rating.compareTo(a.rating));
+          ..sort(compareByRatingWithReviewThreshold);
         _cachedScored = filtered
             .map((r) => ScoredRestaurant(
                   restaurant: r,
@@ -666,7 +755,8 @@ class _MeetingPointTabState extends ConsumerState<_MeetingPointTab> {
       SortOption.distance =>
         [...list]..sort((a, b) => a.distanceKm.compareTo(b.distanceKm)),
       SortOption.rating => [...list]
-        ..sort((a, b) => b.restaurant.rating.compareTo(a.restaurant.rating)),
+        ..sort((a, b) =>
+            compareByRatingWithReviewThreshold(a.restaurant, b.restaurant)),
       SortOption.budget => [...list]
         ..sort((a, b) =>
             a.restaurant.priceAvg.compareTo(b.restaurant.priceAvg)),
@@ -700,6 +790,17 @@ class _MeetingPointTabState extends ConsumerState<_MeetingPointTab> {
             !state.restaurantCache.containsKey(name));
   }
 
+  /// 駅ヘッダー用の個別移動時間ラベル。
+  /// 「田中 12分 / 鈴木 8分」形式。空のときはフォールバック文言。
+  String _participantTimesLabel(MeetingPoint p) {
+    if (p.participantTimes.isEmpty) {
+      return '平均 ${p.averageMinutes.toStringAsFixed(0)}分・最大 ${p.maxMinutes}分';
+    }
+    final entries = p.participantTimes.entries.toList()
+      ..sort((a, b) => a.value.compareTo(b.value));
+    return entries.map((e) => '${e.key} ${e.value}分').join(' / ');
+  }
+
   @override
   Widget build(BuildContext context) {
     final point = widget.point;
@@ -730,18 +831,32 @@ class _MeetingPointTabState extends ConsumerState<_MeetingPointTab> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '${point.stationName}駅エリア',
+                      '${point.stationName}駅',
                       style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w800,
                           color: AppColors.textPrimary),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 4),
+                    // 個別表示: 「田中 12分 / 鈴木 8分 / 佐藤 5分」
+                    // ダミー値禁止に従い、participantTimes が空ならフォールバックの平均/最大を出す。
                     Text(
-                      '平均 ${point.averageMinutes.toStringAsFixed(0)}分 · 最大 ${point.maxMinutes}分',
+                      _participantTimesLabel(point),
                       style: const TextStyle(
-                          fontSize: 12, color: AppColors.textSecondary),
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                          height: 1.4),
                     ),
+                    if (point.participantTimes.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        '平均 ${point.averageMinutes.toStringAsFixed(0)}分・最大 ${point.maxMinutes}分',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textTertiary,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -819,7 +934,7 @@ class _MeetingPointTabState extends ConsumerState<_MeetingPointTab> {
                           itemBuilder: (ctx, i) {
                             final s = scored[i];
                             void openDetail() {
-                              widget.onFirstDetailOpen(s.restaurant);
+                              widget.onFirstDetailOpen(s.restaurant, widget.point);
                               Navigator.of(context).push(
                                 MaterialPageRoute(
                                   builder: (_) =>
@@ -944,23 +1059,14 @@ class _HeroCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 写真
+            // 写真（複数枚あれば PageView スクロール、1 枚なら静止画）
             ClipRRect(
               borderRadius:
                   const BorderRadius.vertical(top: Radius.circular(16)),
-              child: SizedBox(
+              child: _HeroPhotoCarousel(
+                imageUrls: _collectImageUrls(r),
+                catBg: catBg,
                 height: 160,
-                width: double.infinity,
-                child: r.imageUrl != null && r.imageUrl!.isNotEmpty
-                    ? CachedNetworkImage(
-                        imageUrl: r.imageUrl!,
-                        width: double.infinity,
-                        height: 160,
-                        fit: BoxFit.cover,
-                        errorWidget: (_, __, ___) => _imageFallback(catBg, 56),
-                        placeholder: (_, __) => _imageFallback(catBg, 56),
-                      )
-                    : _imageFallback(catBg, 56),
               ),
             ),
             // コンテンツ
@@ -969,11 +1075,14 @@ class _HeroCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // おすすめラベル
-                  Row(
+                  // おすすめラベル群（長文対応のため Wrap で折り返し可能に）
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
                           color: r.isReservable
                               ? AppColors.primaryLight
@@ -994,7 +1103,9 @@ class _HeroCard extends StatelessWidget {
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              r.isReservable ? '予約可能 · No.1' : 'おすすめ No.1',
+                              r.isReservable
+                                  ? 'ここから予約可能 · No.1'
+                                  : 'おすすめ No.1',
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,
@@ -1006,10 +1117,10 @@ class _HeroCard extends StatelessWidget {
                           ],
                         ),
                       ),
-                      if (scored.curationLabel.isNotEmpty) ...[
-                        const SizedBox(width: 6),
+                      if (scored.curationLabel.isNotEmpty)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
                             color: Colors.grey.shade100,
                             borderRadius: BorderRadius.circular(6),
@@ -1023,13 +1134,14 @@ class _HeroCard extends StatelessWidget {
                             ),
                           ),
                         ),
-                      ],
                     ],
                   ),
                   const SizedBox(height: 10),
-                  // 店名
+                  // 店名（長い名前のオーバーフロー対策）
                   Text(
                     r.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w800,
@@ -1076,12 +1188,12 @@ class _HeroCard extends StatelessWidget {
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
                               color: AppColors.textPrimary)),
-                      if (r.rating > 0) ...[
+                      if (r.hasRating && r.rating! > 0) ...[
                         const SizedBox(width: 10),
                         const Icon(Icons.star_rounded,
                             size: 15, color: Color(0xFFF5B301)),
                         const SizedBox(width: 2),
-                        Text(r.rating.toStringAsFixed(1),
+                        Text(r.ratingStr,
                             style: const TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w700,
@@ -1094,7 +1206,7 @@ class _HeroCard extends StatelessWidget {
                                   color: AppColors.textTertiary)),
                         ],
                       ],
-                      if (r.rating >= 4.0) ...[
+                      if ((r.rating ?? 0) >= 4.0) ...[
                         const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(
@@ -1158,6 +1270,154 @@ Widget _imageFallback(Color bg, double iconSize) => Container(
         ),
       ),
     );
+
+/// ヒーローカード用の写真リストを取得。
+/// imageUrls にデータがあればそれを使い、無ければ単一の imageUrl にフォールバック。
+List<String> _collectImageUrls(Restaurant r) {
+  if (r.imageUrls.isNotEmpty) return r.imageUrls;
+  if (r.imageUrl != null && r.imageUrl!.isNotEmpty) return [r.imageUrl!];
+  return const [];
+}
+
+/// 画像読み込み中の中立的なプレースホルダ。
+/// _imageFallback と違い "NO IMAGE" 文字を出さないので、PageView で
+/// スワイプした瞬間に文字がチラつかない。
+Widget _neutralPlaceholder(double height) => Container(
+      height: height,
+      width: double.infinity,
+      color: const Color(0xFFEEEEEE),
+    );
+
+/// ヒーローカードの写真カルーセル。複数枚あれば PageView でスクロール、
+/// 1 枚なら静止画、0 枚ならフォールバック。
+class _HeroPhotoCarousel extends StatefulWidget {
+  const _HeroPhotoCarousel({
+    required this.imageUrls,
+    required this.catBg,
+    required this.height,
+  });
+  final List<String> imageUrls;
+  final Color catBg;
+  final double height;
+
+  @override
+  State<_HeroPhotoCarousel> createState() => _HeroPhotoCarouselState();
+}
+
+class _HeroPhotoCarouselState extends State<_HeroPhotoCarousel> {
+  final PageController _ctrl = PageController();
+  int _index = 0;
+  bool _initialPrecacheDone = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 初回ビルド時に最初の数枚を裏で先読みしてスワイプを滑らかにする。
+    if (!_initialPrecacheDone) {
+      _initialPrecacheDone = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _precacheNeighbors(0);
+      });
+    }
+  }
+
+  /// 現在ページの前後 1 枚を裏で先読みする（PageView スワイプ時のチラつき防止）。
+  void _precacheNeighbors(int center) {
+    final urls = widget.imageUrls;
+    final ctx = context;
+    for (final i in [center - 1, center + 1, center + 2]) {
+      if (i < 0 || i >= urls.length) continue;
+      precacheImage(
+        CachedNetworkImageProvider(urls[i]),
+        ctx,
+      ).catchError((_) {});
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final urls = widget.imageUrls;
+    if (urls.isEmpty) {
+      return SizedBox(
+        height: widget.height,
+        width: double.infinity,
+        child: _imageFallback(widget.catBg, 56),
+      );
+    }
+    if (urls.length == 1) {
+      return SizedBox(
+        height: widget.height,
+        width: double.infinity,
+        child: CachedNetworkImage(
+          imageUrl: urls.first,
+          width: double.infinity,
+          height: widget.height,
+          fit: BoxFit.cover,
+          // 失敗時のみ NO IMAGE 表示。読み込み中は灰色 box（フラッシュ防止）
+          errorWidget: (_, __, ___) => _imageFallback(widget.catBg, 56),
+          placeholder: (_, __) => _neutralPlaceholder(widget.height),
+          fadeInDuration: const Duration(milliseconds: 120),
+        ),
+      );
+    }
+    return SizedBox(
+      height: widget.height,
+      width: double.infinity,
+      child: Stack(
+        children: [
+          PageView.builder(
+            controller: _ctrl,
+            itemCount: urls.length,
+            onPageChanged: (i) {
+              setState(() => _index = i);
+              _precacheNeighbors(i);
+            },
+            itemBuilder: (_, i) => CachedNetworkImage(
+              imageUrl: urls[i],
+              width: double.infinity,
+              height: widget.height,
+              fit: BoxFit.cover,
+              errorWidget: (_, __, ___) =>
+                  _imageFallback(widget.catBg, 56),
+              placeholder: (_, __) => _neutralPlaceholder(widget.height),
+              fadeInDuration: const Duration(milliseconds: 120),
+            ),
+          ),
+          // ページインジケータ
+          Positioned(
+            bottom: 8,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.55),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '${_index + 1} / ${urls.length}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 // ─── コンパクトカード（2位以降） ─────────────────────────────────────────────
 
@@ -1236,6 +1496,8 @@ class _CompactCard extends StatelessWidget {
                       Expanded(
                         child: Text(
                           r.name,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w700,
@@ -1245,7 +1507,7 @@ class _CompactCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      if (r.rating >= 4.0)
+                      if ((r.rating ?? 0) >= 4.0)
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                           decoration: BoxDecoration(
@@ -1269,33 +1531,39 @@ class _CompactCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 5),
-                  Row(
+                  // バッジ群は文字数増減に対応するため Wrap で折り返し可能にする。
+                  // 「ここから予約可能」のような長いラベルでも溢れずに次行に流れる。
+                  Wrap(
+                    spacing: 4,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      if (r.rating > 0) ...[
-                        const Icon(Icons.star_rounded,
-                            size: 13, color: Color(0xFFF5B301)),
-                        const SizedBox(width: 2),
-                        Text(r.rating.toStringAsFixed(1),
-                            style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.textPrimary)),
-                        const SizedBox(width: 8),
-                      ],
+                      if (r.hasRating && r.rating! > 0)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.star_rounded,
+                                size: 13, color: Color(0xFFF5B301)),
+                            const SizedBox(width: 2),
+                            Text(r.ratingStr,
+                                style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.textPrimary)),
+                          ],
+                        ),
                       if (r.isReservable)
-                        _SmallBadge('予約可', AppColors.success),
-                      if (r.hasPrivateRoom) ...[
-                        const SizedBox(width: 4),
+                        _SmallBadge('ここから予約可能', AppColors.success),
+                      if (r.hasPrivateRoom)
                         _SmallBadge('個室', const Color(0xFF7C3AED)),
-                      ],
-                      if (r.isFemalePopular) ...[
-                        const SizedBox(width: 4),
+                      if (r.isFemalePopular)
                         _SmallBadge('女性人気', AppColors.primary),
-                      ],
                       if (scored.curationLabel.isNotEmpty &&
-                          !r.isReservable && !r.hasPrivateRoom && !r.isFemalePopular) ...[
-                        _SmallBadge(scored.curationLabel, AppColors.textSecondary),
-                      ],
+                          !r.isReservable &&
+                          !r.hasPrivateRoom &&
+                          !r.isFemalePopular)
+                        _SmallBadge(
+                            scored.curationLabel, AppColors.textSecondary),
                     ],
                   ),
                 ],

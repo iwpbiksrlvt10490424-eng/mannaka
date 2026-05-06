@@ -329,10 +329,10 @@ class _RestaurantDetailScreenState extends ConsumerState<RestaurantDetailScreen>
     );
     ref.read(reservedRestaurantsProvider.notifier).add(entryWithGroup);
     // 「行ったお店」への自動追加は廃止。
-    // 予約済み画面の「決定！行った」ボタンで明示的に追加する。
+    // 予定画面の「決定！行った」ボタンで明示的に追加する。
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('予約済みに保存しました'),
+        content: Text('予定に保存しました'),
         backgroundColor: Color(0xFF10B981),
         behavior: SnackBarBehavior.floating,
       ));
@@ -689,23 +689,38 @@ class _ReserveButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // ボタン文言: 「予約する」だとアプリ内予約と誤解される可能性があるため
+    // 外部サイト（Hotpepper）に遷移する実態を文言で明示する。
     return Tooltip(
-      message: '予約する',
-      child: SizedBox(
-        width: double.infinity,
-        height: 52,
-        child: ElevatedButton(
-          onPressed: onPressed,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.primary,
-            foregroundColor: Colors.white,
-            elevation: 0,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      message: '予約ページへ進む',
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton(
+              onPressed: onPressed,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+              ),
+              child: const Text('予約ページへ進む',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+            ),
           ),
-          child: const Text('予約する',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-        ),
+          const SizedBox(height: 6),
+          Text(
+            '外部の予約サイトを開きます',
+            style: TextStyle(
+              fontSize: 11,
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ],
       ),
     );
   }

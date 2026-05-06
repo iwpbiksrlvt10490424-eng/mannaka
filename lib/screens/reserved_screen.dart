@@ -27,7 +27,7 @@ class _ReservedScreenState extends ConsumerState<ReservedScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('予約済み',
+        title: const Text('予定',
             style: TextStyle(fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
         backgroundColor: AppColors.surface,
         foregroundColor: AppColors.textPrimary,
@@ -63,11 +63,12 @@ class _ReservedScreenState extends ConsumerState<ReservedScreen> {
                 size: 44, color: Color(0xFF06C755)),
           ),
           const SizedBox(height: 24),
-          const Text('まだ予約したお店がないみたい',
+          const Text('予定のお店はまだありません',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
-          Text('お店を決めたら、ここに残るよ',
-              style: TextStyle(fontSize: 14, color: Colors.grey.shade500)),
+          Text('予約したお店をここに保存できます。\n予約は外部の予約サイトで行います。',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade600, height: 1.5)),
         ],
       ),
     );

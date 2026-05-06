@@ -60,10 +60,10 @@ class TutorialScreen extends ConsumerWidget {
     ),
     _Section(
       icon: Icons.check_circle_rounded,
-      title: '予約済み・行ったお店を記録',
+      title: '予定・行ったお店を記録',
       body: '予約したお店・行ったお店を手動で追加して\n'
           'グループ単位で記録を振り返れます。',
-      where: '予約済み / 行ったお店 画面の「+」',
+      where: '予定 / 行ったお店 画面の「+」',
     ),
     _Section(
       icon: Icons.filter_list_rounded,

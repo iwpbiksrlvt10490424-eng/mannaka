@@ -367,12 +367,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             child: Align(
                               alignment: Alignment.centerLeft,
                               child: Text(
-                                '集まりやすいお店、見つけよう',
+                                'みんなが集まりやすい\n真ん中のお店を探そう',
                                 style: TextStyle(
                                   fontSize: 19,
                                   fontWeight: FontWeight.w800,
                                   color: AppColors.textPrimary,
                                   letterSpacing: -0.5,
+                                  height: 1.35,
                                 ),
                               ),
                             ),
@@ -386,7 +387,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 const SizedBox(height: 4),
                                 // ─── メインCTA ─────────────────────
                                 Semantics(
-                                  label: 'Aimaを探す',
+                                  label: '真ん中のお店を探す',
                                   button: true,
                                   child: GestureDetector(
                                     onTap: () {
@@ -407,7 +408,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                               color: Colors.white, size: 20),
                                           SizedBox(width: 8),
                                           Text(
-                                            'Aimaを探す',
+                                            '真ん中のお店を探す',
                                             style: TextStyle(
                                               color: Colors.white,
                                               fontSize: 15,
@@ -908,7 +909,7 @@ class _MascotSheet extends ConsumerWidget {
                 children: [
                   _QuickAction(
                     icon: Icons.search_rounded,
-                    label: 'Aimaを探す',
+                    label: '真ん中のお店を探す',
                     color: AppColors.primary,
                     onTap: () {
                       Navigator.pop(context);

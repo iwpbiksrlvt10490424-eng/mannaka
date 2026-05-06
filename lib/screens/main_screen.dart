@@ -147,7 +147,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
           NavigationDestination(
             icon: Icon(Icons.bookmark_outline),
             selectedIcon: Icon(Icons.bookmark_rounded),
-            label: '予約済み',
+            label: '予定',
           ),
           NavigationDestination(
             icon: Icon(Icons.person_outline_rounded),

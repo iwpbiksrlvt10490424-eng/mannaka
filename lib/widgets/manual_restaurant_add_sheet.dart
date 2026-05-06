@@ -124,7 +124,7 @@ class _ManualRestaurantAddSheetState
     Navigator.of(context).pop();
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(_target == AddTarget.reserved
-          ? '予約済みに追加しました'
+          ? '予定に追加しました'
           : '行ったお店に追加しました'),
       backgroundColor: AppColors.primary,
       behavior: SnackBarBehavior.floating,
@@ -171,7 +171,7 @@ class _ManualRestaurantAddSheetState
               ),
               child: Row(
                 children: [
-                  Expanded(child: _targetTab('予約済み', AddTarget.reserved)),
+                  Expanded(child: _targetTab('予定', AddTarget.reserved)),
                   Expanded(child: _targetTab('行ったお店', AddTarget.visited)),
                 ],
               ),

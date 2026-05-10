@@ -14,7 +14,6 @@ import '../theme/app_theme.dart';
 import '../data/station_data.dart';
 import '../services/location_service.dart';
 import '../providers/profile_provider.dart';
-import '../providers/history_provider.dart';
 
 typedef NavigateCallback = void Function(int tabIndex, {Occasion? occasion});
 
@@ -37,6 +36,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   gmap.LatLng? _pendingCameraLatLng;
 
   double _lastSize = 0;
+
+  // 動的にボトムシートのスナップ位置を決める。
+  // _sheetContentKey でコンテンツの実測高さを取り、画面高に対する比率を計算。
+  // 計算前は静的フォールバック 0.45 を使う。
+  final GlobalKey _sheetContentKey = GlobalKey();
+  double _expandedSnap = 0.45; // フォールバック値
 
   /// GPS取得 → 最寄駅に変換 → 駅座標のみを保持
   /// 生の緯度経度は外部に露出しない
@@ -113,7 +118,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   void _onSheetChanged() {
     final size = _sheetCtrl.size;
-    const snapPoints = [0.04, 0.09, 0.65];
+    final snapPoints = [0.04, 0.09, _expandedSnap];
     for (final snap in snapPoints) {
       if ((_lastSize - snap).abs() > 0.01 && (size - snap).abs() < 0.01) {
         HapticFeedback.selectionClick();
@@ -121,6 +126,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       }
     }
     _lastSize = size;
+  }
+
+  /// ボトムシート内コンテンツの実測高さから expanded snap 比率を決める。
+  /// post-frame で _sheetContentKey の RenderBox を取り、画面高で割って比率を出す。
+  /// 推定が極端なときはフォールバック 0.45 を維持する。
+  void _measureSheetContent() {
+    final ctx = _sheetContentKey.currentContext;
+    if (ctx == null) return;
+    final box = ctx.findRenderObject();
+    if (box is! RenderBox || !box.hasSize) return;
+    final screenH = MediaQuery.of(context).size.height;
+    if (screenH <= 0) return;
+    // ハンドル + パディング込みでコンテンツが収まる高さに、少し余白を加える。
+    final desired = (box.size.height + 32) / screenH;
+    final clamped = desired.clamp(0.30, 0.70);
+    if ((clamped - _expandedSnap).abs() > 0.01) {
+      setState(() => _expandedSnap = clamped);
+      // 既に展開状態ならそのまま新しい snap へ滑らかに遷移
+      if (_sheetCtrl.isAttached && _sheetCtrl.size > 0.4) {
+        _sheetCtrl.animateTo(
+          clamped,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+        );
+      }
+    }
   }
 
   /// SharedPreferences からホーム駅を読み込んで homeStationDataProvider を設定する。
@@ -325,16 +356,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
 
           // ─── Draggable Bottom Sheet ───────────────────────────
-          // snap を拡張: タイトル・CTA・前回集合場所・OccasionGrid を
-          // スクロール無しで見えるように 0.65 までに増やす（実機 FB 反映）。
+          // 高さは _expandedSnap で動的に決まる（_measureSheetContent で実測）。
+          // 計算前の初期値は 0.45。コンテンツが描画された後で _expandedSnap が
+          // 更新され、シートが滑らかに新しい高さに遷移する。
           DraggableScrollableSheet(
             controller: _sheetCtrl,
-            initialChildSize: 0.65,
+            initialChildSize: _expandedSnap,
             minChildSize: 0.04,
-            maxChildSize: 0.65,
+            maxChildSize: _expandedSnap,
             snap: true,
-            snapSizes: const [0.04, 0.09, 0.65],
+            snapSizes: [0.04, 0.09, _expandedSnap],
             builder: (ctx, scrollCtrl) {
+              // 1 回描画させてからコンテンツ実測 → snap 更新。
+              WidgetsBinding.instance
+                  .addPostFrameCallback((_) => _measureSheetContent());
               return Container(
                 decoration: const BoxDecoration(
                   color: Color(0xFFF7F7F7),
@@ -353,6 +388,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   slivers: [
                     SliverToBoxAdapter(
                       child: Column(
+                        key: _sheetContentKey,
                         children: [
                           // ドラッグハンドル
                           const SizedBox(height: 10),
@@ -431,11 +467,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               ],
                             ),
                           ),
-                          // ─── 前回の集合場所（履歴があれば表示） ──────
-                          // 地図はそれだけだと「Google Map を置いただけ」に見えるため、
-                          // ホームに前回の集合場所を再現できるカードを置いて
-                          // 地図と Aimachi の体験を結びつける（UX critique #2）。
-                          const _LastMeetingPointCard(),
                           // ─── シーンで絞り込む ──────────────
                           const SizedBox(height: 12),
                           const Padding(
@@ -470,102 +501,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 }
 
 
-
-// ─── 前回の集合場所カード（履歴があれば表示） ─────────────────────────────────
-//
-// ホームの地図に意味付けをするためのカード。最も新しい履歴エントリーから
-// 駅名・メンバー・日付を取り出して表示し、タップで探すタブへ誘導する。
-// 履歴が無い場合は何も表示しない（初期ユーザーには CTA だけが目立つ）。
-
-class _LastMeetingPointCard extends ConsumerWidget {
-  const _LastMeetingPointCard();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final history = ref.watch(historyProvider);
-    if (history.isEmpty) return const SizedBox.shrink();
-    final last = history.first; // historyProvider は新しい順
-    final mp = last.meetingPoint;
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-      child: Material(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        elevation: 0,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(14),
-          onTap: () {
-            // 探すタブへ遷移（参加者再入力は引き続きユーザー側で行う）。
-            // 完全な再検索は履歴データに参加者の駅を保存していないため未対応。
-            HapticFeedback.lightImpact();
-            (context.findAncestorStateOfType<_HomeScreenState>()?.widget)
-                ?.onNavigate
-                ?.call(1);
-          },
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryLight,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.train_rounded,
-                      size: 20, color: AppColors.primary),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '前回の集合場所',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: AppColors.textTertiary,
-                          letterSpacing: 0.4,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${mp.stationName}駅',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        last.participantNames.join('・'),
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: AppColors.textSecondary,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-                const Icon(Icons.chevron_right_rounded,
-                    color: AppColors.textTertiary),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 // ─── 目的グリッド（横スクロール・ピル形状） ─────────────────────────────────
 

@@ -258,54 +258,9 @@ class _ResultsScreenState extends ConsumerState<ResultsScreen>
                     }
                   },
           ),
-          if (state.results.isNotEmpty) ...[
-            // 右上の共有ボタン：**候補の集合駅リスト**を LINE で送る。
-            // タイトル領域を圧迫しないようコンパクトに（緑チップ + LINE 文字のみ）。
-            Padding(
-              padding: const EdgeInsets.only(right: 6),
-              child: Material(
-                color: const Color(0xFF06C755),
-                borderRadius: BorderRadius.circular(16),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(16),
-                  onTap: () async {
-                    HapticFeedback.mediumImpact();
-                    final messenger = ScaffoldMessenger.of(context);
-                    final ok =
-                        await ShareUtils.shareMeetingPointsToLine(state);
-                    if (!mounted) return;
-                    if (!ok) {
-                      messenger.showSnackBar(
-                        const SnackBar(
-                          content: Text('LINE がインストールされていません'),
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    }
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        vertical: 5, horizontal: 8),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        LineIcon(size: 14, filled: false, iconColor: Colors.white),
-                        SizedBox(width: 3),
-                        Text(
-                          'LINE',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
+          // 旧: 右上に緑の LINE 共有チップを置いていたが、UX 重複（集合場所カード上の
+          // 「この場所をLINEで共有」と同じ機能）のため廃止。AppBar は「条件を変更」
+          // のみに集中させて、余白を駅名タブの視認性に振り分ける。
         ],
         bottom: (!state.isCalculating && results.isNotEmpty)
             ? TabBar(
@@ -1580,7 +1535,7 @@ class _MeetingPointSpotlightCard extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 駅名 + LINE 共有ボタンを 1 行に詰める
+          // 駅アイコン + 駅名（横一行、LINE ボタンは別行に）
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
@@ -1608,43 +1563,6 @@ class _MeetingPointSpotlightCard extends ConsumerWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              // LINE 共有: アイコンのみのコンパクトボタンで縦を取らない
-              SizedBox(
-                height: 32,
-                child: OutlinedButton.icon(
-                  onPressed: () async {
-                    HapticFeedback.mediumImpact();
-                    final messenger = ScaffoldMessenger.of(context);
-                    final state = ref.read(searchProvider);
-                    final ok =
-                        await ShareUtils.shareMeetingPointsToLine(state);
-                    if (!ok) {
-                      messenger.showSnackBar(
-                        const SnackBar(
-                          content: Text('LINE がインストールされていません'),
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    }
-                  },
-                  icon: const LineIcon(
-                      size: 14,
-                      filled: false,
-                      iconColor: Color(0xFF06C755)),
-                  label: const Text('共有',
-                      style: TextStyle(
-                          fontSize: 12, fontWeight: FontWeight.w700)),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF06C755),
-                    side: const BorderSide(
-                        color: Color(0xFF06C755), width: 1.2),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8)),
-                  ),
-                ),
-              ),
             ],
           ),
           // 個別の移動時間（最大 6 人まで一覧、それ以上は要約）
@@ -1652,6 +1570,44 @@ class _MeetingPointSpotlightCard extends ConsumerWidget {
             const SizedBox(height: 8),
             _ParticipantTimes(times: point.participantTimes),
           ],
+          // LINE 共有: フル幅のボタンで「この場所をLINEで共有」を明示
+          // （AppBar 右上の緑チップは廃止し、こちらに集約）
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            height: 40,
+            child: OutlinedButton.icon(
+              onPressed: () async {
+                HapticFeedback.mediumImpact();
+                final messenger = ScaffoldMessenger.of(context);
+                final state = ref.read(searchProvider);
+                final ok =
+                    await ShareUtils.shareMeetingPointsToLine(state);
+                if (!ok) {
+                  messenger.showSnackBar(
+                    const SnackBar(
+                      content: Text('LINE がインストールされていません'),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              },
+              icon: const LineIcon(
+                  size: 16,
+                  filled: false,
+                  iconColor: Color(0xFF06C755)),
+              label: const Text('この場所をLINEで共有',
+                  style: TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w700)),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF06C755),
+                side: const BorderSide(
+                    color: Color(0xFF06C755), width: 1.4),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+          ),
         ],
       ),
     );

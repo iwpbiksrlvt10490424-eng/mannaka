@@ -41,7 +41,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   // _sheetContentKey でコンテンツの実測高さを取り、画面高に対する比率を計算。
   // 計算前は静的フォールバック 0.45 を使う。
   final GlobalKey _sheetContentKey = GlobalKey();
-  double _expandedSnap = 0.45; // フォールバック値
+  double _expandedSnap = 0.40; // フォールバック値（実機 FB で -0.05 調整）
 
   /// GPS取得 → 最寄駅に変換 → 駅座標のみを保持
   /// 生の緯度経度は外部に露出しない
@@ -138,9 +138,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     if (box is! RenderBox || !box.hasSize) return;
     final screenH = MediaQuery.of(context).size.height;
     if (screenH <= 0) return;
-    // ハンドル + パディング込みでコンテンツが収まる高さに、少し余白を加える。
-    final desired = (box.size.height + 32) / screenH;
-    final clamped = desired.clamp(0.30, 0.70);
+    // ハンドル + パディング込みでコンテンツが収まる高さ。実機 FB で
+    // 高すぎたため -0.05 のオフセットを効かせる（コンテンツの上端余白として吸収）。
+    final desired = (box.size.height + 32) / screenH - 0.05;
+    final clamped = desired.clamp(0.25, 0.65);
     if ((clamped - _expandedSnap).abs() > 0.01) {
       setState(() => _expandedSnap = clamped);
       // 既に展開状態ならそのまま新しい snap へ滑らかに遷移

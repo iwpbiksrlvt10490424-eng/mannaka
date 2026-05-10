@@ -18,7 +18,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
       body: const SingleChildScrollView(
         padding: EdgeInsets.all(20),
         child: _PolicyContent(
-          header: 'Aimachi プライバシーポリシー\n制定日：2024年4月1日\n最終改定日：2026年5月7日',
+          header: 'Aimachi プライバシーポリシー\n制定日：2024年4月1日\n最終改定日：2026年5月10日',
           sections: [
             _PolicySection(
               title: '第1条（個人情報の定義）',

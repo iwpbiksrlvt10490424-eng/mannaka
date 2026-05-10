@@ -1171,7 +1171,10 @@ class _GMapCardState extends State<_GMapCard> {
 
 // ─── 情報カード ───────────────────────────────────────────────────────────────
 
-List<String> _formatOpenHours(String raw) {
+// 以下のヘルパー関数はテストから参照するため top-level public に変更。
+// （prefix `_` を外しただけで、機能は不変。）
+
+List<String> formatOpenHours(String raw) {
   if (raw.isEmpty) return [];
   final parts = raw
       .split(RegExp(r'[/／\n]'))
@@ -1181,7 +1184,7 @@ List<String> _formatOpenHours(String raw) {
   return parts.length > 1 ? parts : [raw.trim()];
 }
 
-String _formatCloseDay(String raw) =>
+String formatCloseDay(String raw) =>
     raw.replaceAll('　', ' ').trim();
 
 /// アクセス文の短縮版を返す。
@@ -1189,7 +1192,7 @@ String _formatCloseDay(String raw) =>
 /// のように長いことが多く、詳細画面の縦領域を浪費する。
 /// 最初のセパレータ（/、・、。）までを取り、駅名と「徒歩X分」を含むなら短く整える。
 /// 失敗時は原文を返す（ダミー値禁止 / 推測しない）。
-String _shortenAccess(String raw) {
+String shortenAccess(String raw) {
   if (raw.isEmpty) return raw;
   final firstSep = raw.indexOf(RegExp(r'[/・。\n]'));
   final head = (firstSep > 0 ? raw.substring(0, firstSep) : raw).trim();
@@ -1207,8 +1210,8 @@ String _shortenAccess(String raw) {
 /// Hotpepper の openHours は「月、水、土、日、祝日：12:00〜翌1:00 / 火、木、金：...」
 /// のような複合文字列のことがある。今日の曜日を含む slot を返す。
 /// 失敗時は最初の slot を返す（ダミー値禁止 / 嘘の時間を出さない）。
-String _todayHours(String raw, {DateTime? now}) {
-  final slots = _formatOpenHours(raw);
+String todayHours(String raw, {DateTime? now}) {
+  final slots = formatOpenHours(raw);
   if (slots.isEmpty) return '';
   if (slots.length == 1) return slots.first;
   final today = (now ?? DateTime.now()).weekday; // 1=Mon ... 7=Sun
@@ -1271,7 +1274,7 @@ class _InfoCard extends StatelessWidget {
     if (restaurant.accessInfo.isNotEmpty) {
       // アクセスは「最初の経路」だけ短縮表示し、長文は折りたたみへ。
       // 詳細を見たいユーザーは expand で原文を確認できる。
-      final short = _shortenAccess(restaurant.accessInfo);
+      final short = shortenAccess(restaurant.accessInfo);
       final hasMore = short != restaurant.accessInfo;
       return _ExpandableInfoRow(
         icon: Icons.directions_walk_rounded,
@@ -1291,7 +1294,7 @@ class _InfoCard extends StatelessWidget {
 
   Widget? _buildHoursRow() {
     if (restaurant.openHours.isEmpty) return null;
-    final slots = _formatOpenHours(restaurant.openHours);
+    final slots = formatOpenHours(restaurant.openHours);
     // 営業時間: 1 slot のみなら通常表示、複数 slot なら「本日の slot」+ 折りたたみへ。
     if (slots.length <= 1) {
       return _InfoRow(
@@ -1299,7 +1302,7 @@ class _InfoCard extends StatelessWidget {
           label: '営業時間',
           value: slots.firstOrNull ?? restaurant.openHours);
     }
-    final today = _todayHours(restaurant.openHours);
+    final today = todayHours(restaurant.openHours);
     return _ExpandableInfoRow(
       icon: Icons.access_time_rounded,
       label: '営業時間',
@@ -1310,7 +1313,7 @@ class _InfoCard extends StatelessWidget {
   }
 
   Widget? _buildCloseDayRow() {
-    final day = _formatCloseDay(restaurant.closeDay);
+    final day = formatCloseDay(restaurant.closeDay);
     if (day.isEmpty) return null;
     if (day == '無休' || day == '年中無休') {
       return _InfoRow(

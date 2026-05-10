@@ -1455,7 +1455,7 @@ class _CompactCard extends StatelessWidget {
                       // 優先順: 駅近(<=5分) > 予約可 > 個室 > 高評価。
                       // 「女性人気」「外さない」「おしゃれ」「穴場」等の主観ラベルは
                       // UX critique を受けて削除（判断コストを下げる）。
-                      ..._FactBadges.build(r),
+                      ...FactBadges.build(r),
                     ],
                   ),
                 ],
@@ -1668,7 +1668,7 @@ class _PersonChip extends StatelessWidget {
 /// 店舗カードの右上に出すラベルは事実ベース（駅近・予約可・個室・高評価）に絞る。
 /// 主観ラベル（外さない・おしゃれ・穴場・女性人気）は UX critique を受けて削除。
 /// 表示件数は最大 2 つ — 多すぎると判断コストが上がる（Hick's Law）。
-class _FactBadges {
+class FactBadges {
   static List<Widget> build(Restaurant r) {
     final badges = <Widget>[];
     if (r.distanceMinutes <= 5) {

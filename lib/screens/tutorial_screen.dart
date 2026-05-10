@@ -45,11 +45,11 @@ class TutorialScreen extends ConsumerWidget {
       where: '検索結果画面の下部バー',
     ),
     _Section(
-      icon: Icons.flash_on_rounded,
-      title: '候補の一覧をワンタップでLINE',
-      body: '右上の「共有」で、候補の集合駅の一覧を\n'
-          'まとめて LINE 送信用に準備します。',
-      where: '検索結果画面 右上の緑ボタン',
+      icon: Icons.train_rounded,
+      title: '集合場所をLINEで共有',
+      body: '結果画面の上にある集合場所カードから、\n'
+          '駅と参加者の移動時間をまとめてLINEで送れます。',
+      where: '検索結果画面の集合場所カード',
     ),
     _Section(
       icon: Icons.storefront_rounded,
@@ -57,6 +57,13 @@ class TutorialScreen extends ConsumerWidget {
       body: 'LINE 本文の店舗リンクをタップすると\n'
           'Google の店舗ページ（口コミ・写真・メニュー）が開きます。',
       where: 'LINE で受信した本文のリンク',
+    ),
+    _Section(
+      icon: Icons.bookmark_outline,
+      title: '見たお店だけが履歴に残る',
+      body: '詳細を開いて確認したお店だけが「履歴」タブに残ります。\n'
+          '集合駅ごとに自動で整理されます。',
+      where: '「履歴」タブ',
     ),
     _Section(
       icon: Icons.check_circle_rounded,
@@ -68,9 +75,18 @@ class TutorialScreen extends ConsumerWidget {
     _Section(
       icon: Icons.filter_list_rounded,
       title: '条件で絞り込み',
-      body: 'ジャンル・予算・個室・飲み放題・予約可能・\n'
-          'チェーン店除外などで候補を絞り込み可能。',
-      where: '検索結果画面 右上の「条件を変更」',
+      body: '探す画面では「詳細条件」を開くと、日程・シーン・\n'
+          '個室・予算など細かく指定できます。\n'
+          '結果画面の右上「条件を変更」からも調整できます。',
+      where: '探す画面 / 結果画面',
+    ),
+    _Section(
+      icon: Icons.open_in_new_rounded,
+      title: '予約は外部の予約サイトで',
+      body: '「予約ページへ進む」を押すと、外部の予約サイト\n'
+          '（Hotpepper など）が開きます。\n'
+          'アプリ内では予約は完結しません。',
+      where: 'お店の詳細画面',
     ),
   ];
 

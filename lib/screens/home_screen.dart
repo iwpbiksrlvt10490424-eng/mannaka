@@ -138,10 +138,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     if (box is! RenderBox || !box.hasSize) return;
     final screenH = MediaQuery.of(context).size.height;
     if (screenH <= 0) return;
-    // ハンドル + パディング込みでコンテンツが収まる高さ。実機 FB で
-    // 高すぎたため -0.05 のオフセットを効かせる（コンテンツの上端余白として吸収）。
-    final desired = (box.size.height + 32) / screenH - 0.05;
-    final clamped = desired.clamp(0.25, 0.65);
+    // コンテンツが過不足なく収まる高さ。
+    // 「高さは良い」FB を保ちつつ「中でスクロールできない」を成立させるには、
+    // sheet >= content +α が必須。content 末尾余白を別途削って content 自体を
+    // 縮めることで sheet 全体も小さく見せる（中身が縮むと sheet も縮む）。
+    final desired = (box.size.height + 16) / screenH;
+    final clamped = desired.clamp(0.25, 0.60);
     if ((clamped - _expandedSnap).abs() > 0.01) {
       setState(() => _expandedSnap = clamped);
       // 既に展開状態ならそのまま新しい snap へ滑らかに遷移
@@ -385,10 +387,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
                 child: CustomScrollView(
                   controller: scrollCtrl,
-                  // 高さは動的計算で全コンテンツがちょうど収まる位置に合わせているため、
-                  // 内部スクロールは不要。NeverScrollableScrollPhysics で固定する
-                  // （ハンドル部分のドラッグでのシート開閉は引き続き有効）。
-                  physics: const NeverScrollableScrollPhysics(),
+                  // ClampingScrollPhysics に戻す。
+                  // NeverScrollableScrollPhysics だとシート自体の折りたたみ（ドラッグで閉じる）
+                  // も効かなくなるため。代わりに下のコンテンツ末尾余白を大幅に削って
+                  // コンテンツがシート高さ内に収まるようにする → スクロール余地が消える。
+                  physics: const ClampingScrollPhysics(),
                   slivers: [
                     SliverToBoxAdapter(
                       child: Column(
@@ -489,7 +492,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           ),
                           const SizedBox(height: 8),
                           _OccasionGrid(onNavigate: widget.onNavigate),
-                          const SizedBox(height: 46),
+                          // 末尾余白を最小化（コンテンツがシート高さ内に収まり、
+                          // 内部スクロールが発生しない状態を保つ）
+                          const SizedBox(height: 8),
                         ],
                       ),
                     ),

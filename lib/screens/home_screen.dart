@@ -385,7 +385,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
                 child: CustomScrollView(
                   controller: scrollCtrl,
-                  physics: const ClampingScrollPhysics(),
+                  // 高さは動的計算で全コンテンツがちょうど収まる位置に合わせているため、
+                  // 内部スクロールは不要。NeverScrollableScrollPhysics で固定する
+                  // （ハンドル部分のドラッグでのシート開閉は引き続き有効）。
+                  physics: const NeverScrollableScrollPhysics(),
                   slivers: [
                     SliverToBoxAdapter(
                       child: Column(

@@ -796,89 +796,109 @@ class _MeetingPointTabState extends ConsumerState<_MeetingPointTab> {
     final scored = _scoredRestaurants;
     final categories = _availableCategories;
 
-    return Column(
-      children: [
-        // ─ 集合場所カード（Aimachi の主役 UI） ───────────────────────────
-        // ANA のフライトカードに相当する、アプリの「顔」となるカード。
-        // 単なる店舗検索ではなく「集合場所の納得感」を提供することが
-        // Aimachi の差別化なので、結果画面の最上部にこのカードを置く。
-        _MeetingPointSpotlightCard(point: point),
-        const SizedBox(height: 1, child: ColoredBox(color: Color(0xFFEEEEEE))),
-
-        // ─ ジャンルフィルター ────────────────────────────────────────────
-        Container(
-          color: AppColors.surface,
-          child: SizedBox(
-            height: 44,
-            child: ShaderMask(
-              shaderCallback: (bounds) => const LinearGradient(
-                colors: [
-                  Colors.transparent,
-                  Colors.white,
-                  Colors.white,
-                  Colors.transparent
-                ],
-                stops: [0.0, 0.04, 0.96, 1.0],
-              ).createShader(bounds),
-              blendMode: BlendMode.dstIn,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                children: [
-                  _filterChip(
-                      'すべて',
-                      _selectedCategories.isEmpty &&
-                          widget.state.restaurantCategories.isEmpty,
-                      () {
-                        // 結果画面のローカル絞り込みと、探す画面側の絞り込みの
-                        // 両方を解除する（「すべて表示」を文字通り意味する）
-                        widget.notifier.clearRestaurantCategories();
-                        setState(() => _selectedCategories.clear());
-                      }),
-                  ...categories.map((c) => _filterChip(
-                        c,
-                        _selectedCategories.contains(c),
-                        () => setState(() {
-                          if (_selectedCategories.contains(c)) {
-                            _selectedCategories.remove(c);
-                          } else {
-                            _selectedCategories.add(c);
-                          }
-                        }),
-                      )),
-                ],
-              ),
-            ),
+    // ─ 集合場所カード + ジャンルフィルタ + 店舗リストを 1 つの ListView に統合 ─
+    // 実機 FB 反映: 集合場所カードが固定で画面上部を占有し、店舗がほとんど見えなかった。
+    // → カードと絞り込みチップを ListView の先頭要素として配置し、スクロールで上に消す。
+    final spotlight = _MeetingPointSpotlightCard(point: point);
+    final divider = const SizedBox(
+        height: 1, child: ColoredBox(color: Color(0xFFEEEEEE)));
+    final genreFilter = Container(
+      color: AppColors.surface,
+      child: SizedBox(
+        height: 44,
+        child: ShaderMask(
+          shaderCallback: (bounds) => const LinearGradient(
+            colors: [
+              Colors.transparent,
+              Colors.white,
+              Colors.white,
+              Colors.transparent
+            ],
+            stops: [0.0, 0.04, 0.96, 1.0],
+          ).createShader(bounds),
+          blendMode: BlendMode.dstIn,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            children: [
+              _filterChip(
+                  'すべて',
+                  _selectedCategories.isEmpty &&
+                      widget.state.restaurantCategories.isEmpty, () {
+                widget.notifier.clearRestaurantCategories();
+                setState(() => _selectedCategories.clear());
+              }),
+              ...categories.map((c) => _filterChip(
+                    c,
+                    _selectedCategories.contains(c),
+                    () => setState(() {
+                      if (_selectedCategories.contains(c)) {
+                        _selectedCategories.remove(c);
+                      } else {
+                        _selectedCategories.add(c);
+                      }
+                    }),
+                  )),
+            ],
           ),
         ),
-        const SizedBox(height: 1, child: ColoredBox(color: Color(0xFFEEEEEE))),
+      ),
+    );
 
-        // ─ レストランリスト ──────────────────────────────────────────────
+    return Column(
+      children: [
+        // ─ コンテンツエリア ────────────────────────────────────────────
+        // ロード中・空のときは集合場所カードを上に固定し、下にスケルトン/空状態。
+        // 通常時は ListView の先頭にカード+チップを置き、スクロールで上に消える。
         Expanded(
           child: _isLoading
-              ? const _SkeletonTab()
+              ? Column(
+                  children: [
+                    spotlight,
+                    divider,
+                    genreFilter,
+                    divider,
+                    const Expanded(child: _SkeletonTab()),
+                  ],
+                )
               : scored.isEmpty
-                  ? _EmptyState(
-                      onReset: () {
-                        // 探す画面側と結果画面側の両方のカテゴリ絞り込みを解除
-                        widget.notifier.clearRestaurantCategories();
-                        setState(() => _selectedCategories.clear());
-                      })
+                  ? Column(
+                      children: [
+                        spotlight,
+                        divider,
+                        genreFilter,
+                        divider,
+                        Expanded(
+                          child: _EmptyState(
+                            onReset: () {
+                              widget.notifier.clearRestaurantCategories();
+                              setState(() => _selectedCategories.clear());
+                            },
+                          ),
+                        ),
+                      ],
+                    )
                   : Stack(
                       children: [
                         ListView.builder(
-                          padding:
-                              const EdgeInsets.only(top: 12, bottom: 32),
-                          itemCount: scored.length,
+                          padding: const EdgeInsets.only(bottom: 32),
+                          // +3: spotlight(0) + divider(1) + genreFilter(2)
+                          itemCount: scored.length + 3,
                           itemBuilder: (ctx, i) {
-                            final s = scored[i];
+                            if (i == 0) return spotlight;
+                            if (i == 1) {
+                              return Column(children: [divider, genreFilter, divider, const SizedBox(height: 12)]);
+                            }
+                            if (i == 2) return const SizedBox.shrink(); // padding moved into i==1
+                            final storeIdx = i - 3;
+                            final s = scored[storeIdx];
                             void openDetail() {
-                              widget.onFirstDetailOpen(s.restaurant, widget.point);
+                              widget.onFirstDetailOpen(
+                                  s.restaurant, widget.point);
                               Navigator.of(context).push(
                                 MaterialPageRoute(
-                                  builder: (_) =>
-                                      RestaurantDetailScreen(restaurant: s.restaurant),
+                                  builder: (_) => RestaurantDetailScreen(
+                                      restaurant: s.restaurant),
                                 ),
                               );
                             }
@@ -886,11 +906,11 @@ class _MeetingPointTabState extends ConsumerState<_MeetingPointTab> {
                             final id = s.restaurant.id;
                             final selected =
                                 widget.selectedIds.contains(id);
-                            final card = i == 0
+                            final card = storeIdx == 0
                                 ? _HeroCard(scored: s, onTap: openDetail)
                                 : _CompactCard(
                                     scored: s,
-                                    rank: i + 1,
+                                    rank: storeIdx + 1,
                                     onTap: openDetail,
                                   );
                             // カードは詳細を開く。右上の丸 + ボタンで選択。
@@ -1539,13 +1559,14 @@ class _MeetingPointSpotlightCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final diff = point.timeDifference;
-    final fairnessLabel = _fairnessLabel(diff);
     final hasIndividualTimes = point.participantTimes.isNotEmpty;
 
+    // 実機 FB 反映: 縦領域を圧迫していたため簡素化。
+    // 削除: 移動時間の差 box / 選び方 footer / 副題「みんなが集まりやすい場所」
+    // 残す: 駅名（やや縮小）+ 参加者チップ + LINE 共有ボタン（コンパクト）
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -1559,162 +1580,81 @@ class _MeetingPointSpotlightCard extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 主役: 駅名
+          // 駅名 + LINE 共有ボタンを 1 行に詰める
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Container(
-                width: 36,
-                height: 36,
+                width: 32,
+                height: 32,
                 decoration: BoxDecoration(
                   color: AppColors.primary,
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(Icons.train_rounded,
-                    color: Colors.white, size: 20),
+                    color: Colors.white, size: 18),
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${point.stationName}駅',
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                        color: AppColors.textPrimary,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'みんなが集まりやすい場所',
+                child: Text(
+                  '${point.stationName}駅',
+                  style: const TextStyle(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.textPrimary,
+                    letterSpacing: -0.5,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              // LINE 共有: アイコンのみのコンパクトボタンで縦を取らない
+              SizedBox(
+                height: 32,
+                child: OutlinedButton.icon(
+                  onPressed: () async {
+                    HapticFeedback.mediumImpact();
+                    final messenger = ScaffoldMessenger.of(context);
+                    final state = ref.read(searchProvider);
+                    final ok =
+                        await ShareUtils.shareMeetingPointsToLine(state);
+                    if (!ok) {
+                      messenger.showSnackBar(
+                        const SnackBar(
+                          content: Text('LINE がインストールされていません'),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    }
+                  },
+                  icon: const LineIcon(
+                      size: 14,
+                      filled: false,
+                      iconColor: Color(0xFF06C755)),
+                  label: const Text('共有',
                       style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textSecondary,
-                        letterSpacing: -0.2,
-                      ),
-                    ),
-                  ],
+                          fontSize: 12, fontWeight: FontWeight.w700)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF06C755),
+                    side: const BorderSide(
+                        color: Color(0xFF06C755), width: 1.2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
           // 個別の移動時間（最大 6 人まで一覧、それ以上は要約）
-          if (hasIndividualTimes) _ParticipantTimes(times: point.participantTimes),
-          if (hasIndividualTimes) const SizedBox(height: 10),
-          // 移動時間差 + 公平さの評価
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: const Color(0xFFE5E7EB),
-                width: 1,
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.compare_arrows_rounded,
-                    size: 18, color: AppColors.textSecondary),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: RichText(
-                    text: TextSpan(
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: AppColors.textPrimary,
-                        height: 1.45,
-                      ),
-                      children: [
-                        const TextSpan(text: '移動時間の差: '),
-                        TextSpan(
-                          text: '$diff 分',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        TextSpan(
-                          text: '   $fairnessLabel',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 6),
-          Padding(
-            padding: const EdgeInsets.only(left: 4),
-            child: Text(
-              '選び方: 移動時間を公平にする',
-              style: TextStyle(
-                fontSize: 11,
-                color: AppColors.textTertiary,
-              ),
-            ),
-          ),
-          // ─── LINE で共有ボタン（集合駅と候補をすぐ送れる） ───────
-          // 集合場所カードに直接置いて、Aimachi の体験の中心に LINE 共有を据える。
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            height: 42,
-            child: OutlinedButton.icon(
-              onPressed: () async {
-                HapticFeedback.mediumImpact();
-                final messenger = ScaffoldMessenger.of(context);
-                final state = ref.read(searchProvider);
-                final ok =
-                    await ShareUtils.shareMeetingPointsToLine(state);
-                if (!ok) {
-                  messenger.showSnackBar(
-                    const SnackBar(
-                      content: Text('LINE がインストールされていません'),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                }
-              },
-              icon: const LineIcon(
-                  size: 16,
-                  filled: false,
-                  iconColor: Color(0xFF06C755)),
-              label: const Text(
-                'この集合場所を LINE で共有',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFF06C755),
-                side: const BorderSide(color: Color(0xFF06C755), width: 1.5),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
-              ),
-            ),
-          ),
+          if (hasIndividualTimes) ...[
+            const SizedBox(height: 8),
+            _ParticipantTimes(times: point.participantTimes),
+          ],
         ],
       ),
     );
-  }
-
-  /// 移動時間の差から「公平さ」の一言評価を返す。
-  /// 0-2 分: 全員ほぼ同じ / 3-5 分: 公平 / 6-10 分: ほぼ公平 / 11+ 分: 多少差あり
-  static String _fairnessLabel(int diff) {
-    if (diff <= 2) return '全員ほぼ同じ時間で集まれます';
-    if (diff <= 5) return '公平に集まれる場所です';
-    if (diff <= 10) return 'ほぼ公平に集まれます';
-    return '少し差があります';
   }
 }
 

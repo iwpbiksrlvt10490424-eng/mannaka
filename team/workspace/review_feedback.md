@@ -1,15 +1,16 @@
-Cycle 42 の Critic レビューを完了。
+Critic レビュー完了。判定: **PASS**（commit 進行可）。
 
-## 判定: ISSUES_FOUND
+**確認結果**:
+- `flutter test` 該当 2 ファイル → 18/18 pass
+- `flutter analyze` → 0 issues
+- 実装本体（`lib/tools/voting_sessions_backfill_logic.dart`）は hard cast を `is!` ガード経由に書き換え済み。残存 cast は `applyDocPlan` の truncate 経路 1 箇所のみで安全
 
-**主要指摘 (review_feedback.md)**:
+**指摘した懸念（commit ブロックしない）**:
+- ISSUE-C1: CLI shell テストが CWD = プロジェクトルートを暗黙仮定 (`test/tools/backfill_voting_sessions_cli_shell_test.dart:62-65`)
+- WARNING-C2: C25-3 regex がネスト generic `as List<List<String>>` を取りこぼす可能性、mutation テストにケース欠落
+- WARNING-C3: C24 が `manualReviewDocIds` の入力順保持を暗黙契約化 (`test:342`)
+- WARNING-C4: 前回 QA exit 1 の根因未調査 — QA フェーズでフルスイート再走必須
 
-- **ISSUE-R1 (MED)**: `runBackfillCli` の例外境界が不完全。top-level の JSON parse 失敗は catch するが、`classifyDoc` の hard cast (`cand as Map<String, dynamic>` `voters.cast<String>()`) で起きる per-doc TypeError が runner を素通しで CLI shell まで漏出する。test [C12-2] の「例外で潰さない」契約から外れる。修正案: per-doc ループを `try/on TypeError` で囲み、docId 付き stderr を返す。
-- **ISSUE-R2 (LOW)**: `{"docs": []}` 入力で exitCode=0 が返り、運用者が「対象ゼロだから安全」と誤解する導線。stderr に warning 推奨。
-- **ISSUE-R3 (LOW)**: `stdout.writeln` で末尾 LF が付く。`gcloud firestore import` が strict なら拒否される可能性。
+**評価した良さ**: C19-2 の anyOf → manualReview 固定（旧 Red の抜け穴塞ぎ）、C25-3-mutation の regex 自己検証、CLI-S3/S4 の sysexits 64/65 分岐、`Process.run` で初めて shell wiring を構造担保。
 
-**良い点**: dry-run の二重封じ ([C14])、import allowlist + 再実装ガード ([C13]/[C17])、W-1 修正の確認 (`\$e\b` 0 件)。
-
-**Red 抜け穴**: Cycle 41 で挙げた **ISSUE-T1**（型不正ペイロード）の Red が未追加。ISSUE-R1 と直結する穴のため、次 Red で契約化すべき。
-
-`flutter analyze` 0 issues、Cycle 42 範囲のスコープ自体は完了。
+次は QA エージェントでフルスイート再走 → commit 進行を推奨。

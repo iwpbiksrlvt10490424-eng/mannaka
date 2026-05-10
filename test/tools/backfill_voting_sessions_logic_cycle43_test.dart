@@ -73,9 +73,12 @@ void main() {
       expect((applied['candidates'] as List).first, 'broken');
     });
 
-    test('[C19-2] candidates 要素が Map<dynamic, dynamic> (Map<String, dynamic> ではない) — TypeError 漏出禁止', () {
-      // jsonDecode 直後は Map<String, dynamic> だが、Firestore 由来の Map<dynamic, dynamic>
-      // が入る可能性もある。`as Map<String, dynamic>` は Map<dynamic, dynamic> にも失敗する。
+    test('[C19-2] candidates 要素が Map<dynamic, dynamic> (Map<String, dynamic> ではない) — manualReview に固定', () {
+      // Cycle 44 ISSUE-Q1: 旧 Red は `anyOf(healthy, truncate, manualReview)` で
+      // 何でも合格させていたため、誤って healthy 側に倒す変更が入っても検出できなかった。
+      // Firestore 由来の Map<dynamic, dynamic> は型情報が落ちているため、
+      // 値の意味的健全性を判定できない（key/value の型保証がない）。
+      // 安全側に倒して manualReview 固定にし、運用者に明示的に拾わせる契約に締める。
       final dynMap = <dynamic, dynamic>{
         'id': 'A',
         'voters': <String>['u1'],
@@ -88,16 +91,17 @@ void main() {
       // ここで TypeError が漏れたら fail
       final plan = classifyDoc('docC19-2', doc);
 
-      // healthy / manualReview いずれにせよ例外を投げないことが第一条件。
-      // 仕様上は型を緩めて Map として読み取り manualReview ではなく実体に応じて
-      // 分類すべきだが、最低限 manualReview に倒れていれば運用は安全側に倒れる。
-      // ここでは「例外を投げない」+「BackfillAction を返す」契約のみ強制する。
       expect(plan.docId, 'docC19-2');
-      expect(plan.action, anyOf(
-        BackfillAction.healthy,
-        BackfillAction.truncate,
-        BackfillAction.manualReview,
-      ));
+      // 例外を投げない + manualReview 固定（healthy / truncate は契約違反）
+      expect(plan.action, BackfillAction.manualReview);
+      expect(plan.perCandidate.length, 1);
+      expect(plan.perCandidate.first.action, BackfillAction.manualReview);
+      expect(plan.perCandidate.first.candidateIndex, 0);
+      expect(plan.perCandidate.first.truncatedVoters, isNull);
+
+      // applyDocPlan は 1 byte 不変で素通す（Map<dynamic, dynamic> の identity を壊さない）
+      final applied = applyDocPlan(doc, plan);
+      expect((applied['candidates'] as List).first, same(dynMap));
     });
 
     test('[C20] voters が List でない (String 値) — TypeError 漏出禁止 / manualReview 分類', () {
@@ -434,26 +438,80 @@ void main() {
       );
     });
 
-    test('[C25-3] lib/tools/voting_sessions_backfill_logic.dart に `as List` の hard cast が classifyDoc 経路に残っていない', () {
+    test('[C25-3] lib/tools/voting_sessions_backfill_logic.dart に `as List` / `as List<...>` の hard cast が classifyDoc 経路に残っていない', () {
       // L96 `cand['voters'] as List` も voters 非 List 時に TypeError を投げる。
       // applyDocPlan 内の `doc['candidates'] as List` (L162) は classifyDoc 通過済み
       // doc にのみ適用されるため 1 箇所のみ許容。それ以上は classifyDoc 経路の
       // hard cast 残存とみなす。
+      //
+      // Cycle 44 WARNING-Q4: 旧 regex `as\s+List(?!\?)(?!<)` は generic 付きを
+      // 取りこぼし、`as List<dynamic>` への退化（hard cast 再混入）を検出できなかった。
+      // generic 形式も hard cast である事実は変わらないため、同列に扱う。
+      // ただし nullable 形式 (`as List?` / `as List<X>?`) は安全なので除外する。
       final f = File('lib/tools/voting_sessions_backfill_logic.dart');
       expect(f.existsSync(), isTrue);
 
       final src = f.readAsStringSync();
-      // `as List?` (nullable) は許容する。`as List` の bare hard cast のみ数える。
-      final hardListCast = RegExp(r'as\s+List(?!\?)(?!<)').allMatches(src).length;
+      // `as List` または `as List<...>` で末尾に `?` が付かないものを数える。
+      // 二択構造で書く理由: 単純な `as\s+List(?:<[^>]*>)?(?!\?)` は
+      // `as List<X>?` で optional group をバックトラック放棄して `as List` 部分にマッチしてしまう
+      // （nullable なのに hard cast と誤検出される）。
+      // 「generic 付きで非 nullable」/「bare で非 nullable かつ generic 開始でない」の
+      // 二択を明示することでバックトラック誤検出を排除する。
+      final hardListCastRe = RegExp(
+        r'as\s+List(?:<[^>]*>(?!\?)|(?![<\?]))',
+      );
+      final hardListCast = hardListCastRe.allMatches(src).length;
 
       expect(
         hardListCast,
         lessThanOrEqualTo(1),
         reason:
-            '`as List` (non-nullable hard cast) が $hardListCast 箇所残っている。\n'
+            '`as List` / `as List<...>` (non-nullable hard cast) が $hardListCast 箇所残っている。\n'
             'classifyDoc / _classifyCandidate 経路では `is List` ガード経由に書き換えること。\n'
             '（applyDocPlan の `doc[\'candidates\'] as List` 1 箇所のみ許容）',
       );
+    });
+
+    test('[C25-3-mutation] hard cast regex 自体の判定能力検証 (誤検出 / 取りこぼし耐性)', () {
+      // Cycle 44 WARNING-Q4 の根因: regex 自体の信頼性を契約として固定しないと、
+      // 「regex を緩めれば検出を回避できる」抜け穴が残る。ここでは regex を
+      // 既知の合成文字列に当て、検出/非検出の境界を明示する。
+      final hardListCastRe = RegExp(
+        r'as\s+List(?:<[^>]*>(?!\?)|(?![<\?]))',
+      );
+
+      // 検出されるべき（hard cast = 危険）
+      const shouldMatch = <String>[
+        r'final x = doc as List;',
+        r'final x = doc as List<dynamic>;',
+        r'final x = doc as List<String>;',
+        r'final x = doc as List<Map<String, dynamic>>;',
+        r'final x = doc  as   List ;', // 空白許容
+      ];
+      for (final s in shouldMatch) {
+        expect(
+          hardListCastRe.hasMatch(s),
+          isTrue,
+          reason: 'regex は hard cast「$s」を検出すべき',
+        );
+      }
+
+      // 検出されないべき（nullable cast = 安全 / 無関係文字列）
+      const shouldNotMatch = <String>[
+        r'final x = doc as List?;',
+        r'final x = doc as List<dynamic>?;',
+        r'final x = doc as List<String>?;',
+        r'final x = doc is List ? a : b;', // `is List` は別構文
+        r'final x = passList(doc);', // 単に List という単語が現れるだけ
+      ];
+      for (final s in shouldNotMatch) {
+        expect(
+          hardListCastRe.hasMatch(s),
+          isFalse,
+          reason: 'regex は安全な「$s」を hard cast と誤検出してはならない',
+        );
+      }
     });
   });
 }

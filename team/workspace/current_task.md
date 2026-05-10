@@ -1,14 +1,15 @@
-Cycle 43 を本日のタスクとして確定。`current_task.md` 更新済み・バックログは Cycle 42 → `[✅]` / Cycle 43 → `[🚧]` に反映。
+Cycle 45 を本日のタスクとして選定しました。
 
-## 選定: Cycle 43 — `classifyDoc` の per-doc TypeError 漏出を `manualReview` に倒す
+## 選定: Cycle 45 — Cycle 44 Critic carry-over 一括解消（テスト 2 ファイルのみ）
 
-### 選定理由（最優先 = backfill 運用 release blocker）
-- Cycle 42 で CLI shell + W-1 carry-over は終止（test 632 pass / analyze 0 / Security PASS）
-- ただし Critic **ISSUE-R1 (MED)**: `lib/tools/voting_sessions_backfill_logic.dart:76` `as Map<String, dynamic>` と `:96` `cast<String>()` lazy が runner を素通し → 1 件型不正で CLI shell が exit 1 全停止
-- 同 root cause で Cycle 41 Critic **ISSUE-T1**（型不正 Red 未契約）も carry-over → 同 commit で潰す
-- Critic ISSUE-R2 (LOW: 空 docs warning) / ISSUE-R3 (LOW: stdout LF) はスコープ外（次 cycle 以降）
+**理由**:
+- Cycle 1（本日 07:00-07:09）で Cycle 44 が QA APPROVED → 残課題は Critic carry-over の **ISSUE-C1（CLI shell テストが CWD 暗黙仮定）** と **WARNING-C2（mutation 検出 regex がネスト generic 取りこぼし）** の 2 件
+- いずれも「テスト fragility」で、Cycle 43〜44 で築いた安全網に穴を残したまま新サイクルに進むと、特定起動方法でしか効かない「見せかけの緑」になるリスクがある
+- 実装本体・CLI shell・`pubspec.yaml` を触らない軽量サイクル（テスト 2 ファイル修正のみ）
+- 高優先度バックログの open 項目は運用系（support メール受信確認・App Store スクリーンショット・ポリシー URL 確定）のみで、コーディング自律サイクルには適合しない
 
-### 受け入れ条件（C19〜C25）
-候補非 Map / voters 非 List / voters 要素非 String / votes double / candidates キー欠損 / 混合 doc E2E / hard cast 残存構造ガード — 新規 `test/tools/backfill_voting_sessions_logic_cycle43_test.dart` に集約。公開 API（`classifyDoc` / `runBackfillCli`）不変・CLI shell 無変更・`pubspec.yaml` 差分ゼロ厳守。
+**バックログ更新**:
+- Cycle 44 → `[✅]`（QA APPROVED 注記付き）
+- Cycle 45 → `[🚧]` 新規追加
 
-次は TDD Tester に C19〜C25 の Red を起こさせる。
+`current_task.md` に受け入れ条件・技術的アプローチ・完了基準を記載済み。次フェーズ（architect-lead → TDD Tester → Engineer）に進めます。

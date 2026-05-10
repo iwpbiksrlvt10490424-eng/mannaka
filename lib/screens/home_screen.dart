@@ -113,7 +113,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   void _onSheetChanged() {
     final size = _sheetCtrl.size;
-    const snapPoints = [0.04, 0.09, 0.32];
+    const snapPoints = [0.04, 0.09, 0.65];
     for (final snap in snapPoints) {
       if ((_lastSize - snap).abs() > 0.01 && (size - snap).abs() < 0.01) {
         HapticFeedback.selectionClick();
@@ -325,13 +325,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
 
           // ─── Draggable Bottom Sheet ───────────────────────────
+          // snap を拡張: タイトル・CTA・前回集合場所・OccasionGrid を
+          // スクロール無しで見えるように 0.65 までに増やす（実機 FB 反映）。
           DraggableScrollableSheet(
             controller: _sheetCtrl,
-            initialChildSize: 0.09,
+            initialChildSize: 0.65,
             minChildSize: 0.04,
-            maxChildSize: 0.32,
+            maxChildSize: 0.65,
             snap: true,
-            snapSizes: const [0.04, 0.09, 0.32],
+            snapSizes: const [0.04, 0.09, 0.65],
             builder: (ctx, scrollCtrl) {
               return Container(
                 decoration: const BoxDecoration(
@@ -367,14 +369,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             padding: EdgeInsets.fromLTRB(20, 10, 20, 0),
                             child: Align(
                               alignment: Alignment.centerLeft,
-                              child: Text(
-                                'みんなが集まりやすい\n真ん中のお店を探そう',
-                                style: TextStyle(
-                                  fontSize: 19,
-                                  fontWeight: FontWeight.w800,
-                                  color: AppColors.textPrimary,
-                                  letterSpacing: -0.5,
-                                  height: 1.35,
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  'みんなが集まりやすい真ん中のお店を探そう',
+                                  maxLines: 1,
+                                  style: TextStyle(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.textPrimary,
+                                    letterSpacing: -0.7,
+                                  ),
                                 ),
                               ),
                             ),
